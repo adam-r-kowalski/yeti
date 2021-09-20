@@ -49,4 +49,6 @@ test "intern a string" {
     try expect(!eql(joe, bob));
     const joe_again = try strings.intern("Joe");
     try expectEqual(joe, joe_again);
+    const bob_again = try strings.intern("Bob");
+    try expectEqual(bob, bob_again);
 }
