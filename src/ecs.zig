@@ -67,8 +67,11 @@ fn Component(comptime T: type) type {
 }
 
 fn Iterator(comptime components: anytype) type {
-    const Data = blk: {
-        const components_fields = @typeInfo(@TypeOf(components)).Struct.fields;
+    const type_info = @typeInfo(@TypeOf(components)).Struct;
+    assert(type_info.is_tuple);
+    const components_fields = type_info.fields;
+
+    const ComponentData = blk: {
         var fields: [components_fields.len]TypeInfo.StructField = undefined;
         inline for (components_fields) |field, i| {
             const T = @field(components, field.name);
@@ -76,6 +79,26 @@ fn Iterator(comptime components: anytype) type {
             fields[i] = TypeInfo.StructField{
                 .name = @typeName(T),
                 .field_type = ComponentT,
+                .default_value = null,
+                .is_comptime = false,
+                .alignment = @alignOf(ComponentT),
+            };
+        }
+        break :blk @Type(TypeInfo{ .Struct = .{
+            .layout = TypeInfo.ContainerLayout.Auto,
+            .fields = &fields,
+            .decls = &[_]TypeInfo.Declaration{},
+            .is_tuple = false,
+        } });
+    };
+
+    const EntryData = blk: {
+        var fields: [components_fields.len]TypeInfo.StructField = undefined;
+        inline for (components_fields) |field, i| {
+            const T = @field(components, field.name);
+            fields[i] = TypeInfo.StructField{
+                .name = @typeName(T),
+                .field_type = *const T,
                 .default_value = null,
                 .is_comptime = false,
                 .alignment = 8,
@@ -91,18 +114,18 @@ fn Iterator(comptime components: anytype) type {
 
     const Entry = struct {
         entity: Entity,
+        data: EntryData,
     };
 
     return struct {
-        data: Data,
+        data: ComponentData,
         index: u64,
+        ecs: *ECS,
 
         const Self = @This();
 
-        fn init(ecs: ECS) Self {
-            var data: Data = undefined;
-            const type_info = @typeInfo(@TypeOf(components)).Struct;
-            assert(type_info.is_tuple);
+        fn init(ecs: *ECS) Self {
+            var data: ComponentData = undefined;
             inline for (type_info.fields) |field| {
                 const T = @field(components, field.name);
                 const name = @typeName(T);
@@ -115,10 +138,35 @@ fn Iterator(comptime components: anytype) type {
             return Self{
                 .data = data,
                 .index = 0,
+                .ecs = ecs,
             };
         }
 
         fn next(self: *Self) ?Entry {
+            const component = @field(self.data, @typeName(@field(components, components_fields[0].name)));
+            while (self.index < component.data.len) {
+                var data: EntryData = undefined;
+                const entity = Entity{ .uuid = component.inverse[self.index], .ecs = self.ecs };
+                var found = true;
+                inline for (type_info.fields) |field| {
+                    const T = @field(components, field.name);
+                    const name = @typeName(T);
+                    if (self.ecs.components.getPtr(name)) |c| {
+                        if (@intToPtr(*Component(T), c.*).get(entity)) |value| {
+                            @field(data, name) = value;
+                        } else {
+                            found = false;
+                        }
+                    }
+                }
+                self.index += 1;
+                if (found) {
+                    return Entry{
+                        .entity = entity,
+                        .data = data,
+                    };
+                }
+            }
             return null;
         }
     };
@@ -157,7 +205,7 @@ const ECS = struct {
         return try entity.set(components);
     }
 
-    fn iterate(self: ECS, comptime components: anytype) Iterator(components) {
+    fn iterate(self: *ECS, comptime components: anytype) Iterator(components) {
         return Iterator(components).init(self);
     }
 };
@@ -330,9 +378,19 @@ test "iterate components" {
     defer ecs.deinit();
     _ = try ecs.create_entity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
     _ = try ecs.create_entity(.{ Name{ .value = "Sally" }, Job{ .value = "Cook" } });
-    _ = try ecs.create_entity(.{ Name{ .value = "Bob" }, Age{ .value = 30 }, Job{ .value = "Cook" } });
+    _ = try ecs.create_entity(.{ Name{ .value = "Bob" }, Age{ .value = 30 }, Job{ .value = "Sales Rep" } });
     var iterator = ecs.iterate(.{ Name, Job });
     {
-        _ = iterator.next().?;
+        const entry = iterator.next().?;
+        try expectEqual(entry.data.Name.*, Name{ .value = "Sally" });
+        try expectEqual(entry.data.Job.*, Job{ .value = "Cook" });
+        try expectEqual(entry.entity.get(Age), null);
     }
+    {
+        const entry = iterator.next().?;
+        try expectEqual(entry.data.Name.*, Name{ .value = "Bob" });
+        try expectEqual(entry.data.Job.*, Job{ .value = "Sales Rep" });
+        try expectEqual(entry.entity.get(Age).?.*, Age{ .value = 30 });
+    }
+    try expectEqual(iterator.next(), null);
 }
