@@ -66,6 +66,64 @@ fn Component(comptime T: type) type {
     };
 }
 
+fn Iterator(comptime components: anytype) type {
+    const Data = blk: {
+        const components_fields = @typeInfo(@TypeOf(components)).Struct.fields;
+        var fields: [components_fields.len]TypeInfo.StructField = undefined;
+        inline for (components_fields) |field, i| {
+            const T = @field(components, field.name);
+            const ComponentT = Component(T);
+            fields[i] = TypeInfo.StructField{
+                .name = @typeName(T),
+                .field_type = ComponentT,
+                .default_value = null,
+                .is_comptime = false,
+                .alignment = 8,
+            };
+        }
+        break :blk @Type(TypeInfo{ .Struct = .{
+            .layout = TypeInfo.ContainerLayout.Auto,
+            .fields = &fields,
+            .decls = &[_]TypeInfo.Declaration{},
+            .is_tuple = false,
+        } });
+    };
+
+    const Entry = struct {
+        entity: Entity,
+    };
+
+    return struct {
+        data: Data,
+        index: u64,
+
+        const Self = @This();
+
+        fn init(ecs: ECS) Self {
+            var data: Data = undefined;
+            const type_info = @typeInfo(@TypeOf(components)).Struct;
+            assert(type_info.is_tuple);
+            inline for (type_info.fields) |field| {
+                const T = @field(components, field.name);
+                const name = @typeName(T);
+                if (ecs.components.getPtr(name)) |component| {
+                    @field(data, name) = @intToPtr(*Component(T), component.*).*;
+                } else {
+                    @field(data, name) = Component(T).init(ecs.allocator);
+                }
+            }
+            return Self{
+                .data = data,
+                .index = 0,
+            };
+        }
+
+        fn next(self: *Self) ?Entry {
+            return null;
+        }
+    };
+}
+
 const ECS = struct {
     components: std.StringHashMap(u64),
     next_uuid: u64,
@@ -97,6 +155,10 @@ const ECS = struct {
             .ecs = self,
         };
         return try entity.set(components);
+    }
+
+    fn iterate(self: ECS, comptime components: anytype) Iterator(components) {
+        return Iterator(components).init(self);
     }
 };
 
@@ -155,7 +217,9 @@ const Entity = struct {
     fn query(entity: Entity, comptime components: anytype) ?Query(components) {
         var result: Query(components) = undefined;
         var found = true;
-        inline for (@typeInfo(@TypeOf(components)).Struct.fields) |field| {
+        const type_info = @typeInfo(@TypeOf(components)).Struct;
+        assert(type_info.is_tuple);
+        inline for (type_info.fields) |field| {
             const T = @field(components, field.name);
             if (entity.get(T)) |component| {
                 @field(result, @typeName(T)) = component;
@@ -177,6 +241,10 @@ const Name = struct {
 
 const Age = struct {
     value: u8,
+};
+
+const Job = struct {
+    value: []const u8,
 };
 
 test "entity get and set component" {
@@ -252,4 +320,19 @@ test "entity query components" {
     const query = entity.query(.{ Name, Age }).?;
     try expectEqual(query.Name.*, Name{ .value = "Joe" });
     try expectEqual(query.Age.*, Age{ .value = 20 });
+}
+
+test "iterate components" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch @panic("MEMORY LEAK");
+    const allocator = &gpa.allocator;
+    var ecs = ECS.init(allocator);
+    defer ecs.deinit();
+    _ = try ecs.create_entity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
+    _ = try ecs.create_entity(.{ Name{ .value = "Sally" }, Job{ .value = "Cook" } });
+    _ = try ecs.create_entity(.{ Name{ .value = "Bob" }, Age{ .value = 30 }, Job{ .value = "Cook" } });
+    var iterator = ecs.iterate(.{ Name, Job });
+    {
+        _ = iterator.next().?;
+    }
 }
