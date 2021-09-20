@@ -8,12 +8,12 @@ const InternedString = struct {
     value: u64,
 };
 
-const Strings = struct {
+pub const Strings = struct {
     lookup: std.StringHashMap(InternedString),
     next: InternedString,
     allocator: *Allocator,
 
-    fn init(allocator: *Allocator) Strings {
+    pub fn init(allocator: *Allocator) Strings {
         return Strings{
             .lookup = std.StringHashMap(InternedString).init(allocator),
             .next = InternedString{ .value = 0 },
@@ -21,11 +21,11 @@ const Strings = struct {
         };
     }
 
-    fn deinit(self: *Strings) void {
+    pub fn deinit(self: *Strings) void {
         self.lookup.deinit();
     }
 
-    fn intern(self: *Strings, value: []const u8) !InternedString {
+    pub fn intern(self: *Strings, value: []const u8) !InternedString {
         const result = try self.lookup.getOrPut(value);
         if (result.found_existing) {
             return result.value_ptr.*;

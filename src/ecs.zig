@@ -142,7 +142,7 @@ fn Iterator(comptime components: anytype) type {
             };
         }
 
-        fn next(self: *Self) ?Entry {
+        pub fn next(self: *Self) ?Entry {
             const component = @field(self.data, @typeName(@field(components, components_fields[0].name)));
             while (self.index < component.data.len) {
                 var data: EntryData = undefined;
@@ -172,12 +172,12 @@ fn Iterator(comptime components: anytype) type {
     };
 }
 
-const ECS = struct {
+pub const ECS = struct {
     components: std.StringHashMap(u64),
     next_uuid: u64,
     allocator: *Allocator,
 
-    fn init(allocator: *Allocator) ECS {
+    pub fn init(allocator: *Allocator) ECS {
         return ECS{
             .components = std.StringHashMap(u64).init(allocator),
             .next_uuid = 0,
@@ -185,7 +185,7 @@ const ECS = struct {
         };
     }
 
-    fn deinit(self: *ECS) void {
+    pub fn deinit(self: *ECS) void {
         var iterator = self.components.valueIterator();
         while (iterator.next()) |ptr| {
             const component = @intToPtr(*Component(u1), ptr.*);
@@ -195,7 +195,7 @@ const ECS = struct {
         self.components.deinit();
     }
 
-    fn create_entity(self: *ECS, components: anytype) !Entity {
+    pub fn create_entity(self: *ECS, components: anytype) !Entity {
         const uuid = self.next_uuid;
         self.next_uuid += 1;
         const entity = Entity{
@@ -205,7 +205,7 @@ const ECS = struct {
         return try entity.set(components);
     }
 
-    fn iterate(self: *ECS, comptime components: anytype) Iterator(components) {
+    pub fn iterate(self: *ECS, comptime components: anytype) Iterator(components) {
         return Iterator(components).init(self);
     }
 };
@@ -231,11 +231,11 @@ fn Query(comptime components: anytype) type {
     } });
 }
 
-const Entity = struct {
+pub const Entity = struct {
     uuid: u64,
     ecs: *ECS,
 
-    fn set(self: Entity, components: anytype) !Entity {
+    pub fn set(self: Entity, components: anytype) !Entity {
         const type_info = @typeInfo(@TypeOf(components)).Struct;
         assert(type_info.is_tuple);
         inline for (type_info.fields) |field| {
@@ -254,7 +254,7 @@ const Entity = struct {
         return self;
     }
 
-    fn get(self: Entity, comptime T: type) ?*const T {
+    pub fn get(self: Entity, comptime T: type) ?*const T {
         if (self.ecs.components.getPtr(@typeName(T))) |component| {
             return @intToPtr(*Component(T), component.*).get(self);
         } else {
@@ -262,7 +262,7 @@ const Entity = struct {
         }
     }
 
-    fn query(entity: Entity, comptime components: anytype) ?Query(components) {
+    pub fn query(entity: Entity, comptime components: anytype) ?Query(components) {
         var result: Query(components) = undefined;
         var found = true;
         const type_info = @typeInfo(@TypeOf(components)).Struct;
