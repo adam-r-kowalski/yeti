@@ -196,7 +196,7 @@ pub const ECS = struct {
         self.components.deinit();
     }
 
-    pub fn create_entity(self: *ECS, components: anytype) !Entity {
+    pub fn createEntity(self: *ECS, components: anytype) !Entity {
         const uuid = self.next_uuid;
         self.next_uuid += 1;
         const entity = Entity{
@@ -302,7 +302,7 @@ test "entity get and set component" {
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
-    const entity = try ecs.create_entity(.{});
+    const entity = try ecs.createEntity(.{});
     try expectEqual(entity.get(Name), null);
     _ = try entity.set(.{Name{ .value = "Joe" }});
     try expectEqual(entity.get(Name).?.*, Name{ .value = "Joe" });
@@ -316,7 +316,7 @@ test "entity get and set components" {
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
-    const entity = try ecs.create_entity(.{});
+    const entity = try ecs.createEntity(.{});
     _ = try entity.set(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
     try expectEqual(entity.get(Name).?.*, Name{ .value = "Joe" });
     try expectEqual(entity.get(Age).?.*, Age{ .value = 20 });
@@ -328,7 +328,7 @@ test "entity get and set components on creation" {
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
-    const entity = try ecs.create_entity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
+    const entity = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
     try expectEqual(entity.get(Name).?.*, Name{ .value = "Joe" });
     try expectEqual(entity.get(Age).?.*, Age{ .value = 20 });
 }
@@ -361,7 +361,7 @@ test "entity query components" {
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
-    const entity = try ecs.create_entity(.{});
+    const entity = try ecs.createEntity(.{});
     try expectEqual(entity.query(.{ Name, Age }), null);
     _ = try entity.set(.{Name{ .value = "Joe" }});
     try expectEqual(entity.query(.{ Name, Age }), null);
@@ -377,9 +377,9 @@ test "iterate components" {
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
-    _ = try ecs.create_entity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    _ = try ecs.create_entity(.{ Name{ .value = "Sally" }, Job{ .value = "Cook" } });
-    _ = try ecs.create_entity(.{ Name{ .value = "Bob" }, Age{ .value = 30 }, Job{ .value = "Sales Rep" } });
+    _ = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
+    _ = try ecs.createEntity(.{ Name{ .value = "Sally" }, Job{ .value = "Cook" } });
+    _ = try ecs.createEntity(.{ Name{ .value = "Bob" }, Age{ .value = 30 }, Job{ .value = "Sales Rep" } });
     var iterator = ecs.iterate(.{ Name, Job });
     {
         const entry = iterator.next().?;
