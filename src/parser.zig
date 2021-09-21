@@ -31,7 +31,7 @@ fn parseSymbol(source: *Source) []const u8 {
     var i: u64 = 0;
     while (i < source.code.len) : (i += 1) {
         switch (source.code[i]) {
-            'a'...'z', 'A'...'Z', '0'...'9' => {},
+            'a'...'z', 'A'...'Z', '0'...'9', '_' => {},
             else => break,
         }
     }
@@ -47,6 +47,20 @@ test "parse symbol" {
     try expectEqualStrings("fn", symbol);
     try expectEqualStrings(" main() u64: 0", source.code);
     try expectEqual(Position{ .column = 2, .row = 0 }, source.position);
+}
+
+fn trimWhitespace(source: *Source) void {
+    var i: u64 = 0;
+    while (i < source.code.len and source.code[i] == ' ') : (i += 1) {}
+    source.position.column += i;
+    source.code = source.code[i..];
+}
+
+test "trim whitespace" {
+    var source = Source.init(" main() u64: 0");
+    trimWhitespace(&source);
+    try expectEqualStrings("main() u64: 0", source.code);
+    try expectEqual(Position{ .column = 1, .row = 0 }, source.position);
 }
 
 fn parseFunction(codebase: *Codebase, _: *Source) !Entity {
