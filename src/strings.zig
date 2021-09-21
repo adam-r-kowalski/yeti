@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const panic = std.debug.panic;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const eql = std.meta.eql;
@@ -40,7 +41,7 @@ pub const Strings = struct {
 
 test "intern a string" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch @panic("MEMORY LEAK");
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
     var strings = Strings.init(allocator);
     defer strings.deinit();

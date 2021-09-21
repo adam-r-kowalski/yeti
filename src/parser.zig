@@ -1,5 +1,6 @@
 const std = @import("std");
 const expect = std.testing.expect;
+const panic = std.debug.panic;
 
 const Codebase = @import("codebase.zig").Codebase;
 const Entity = @import("ecs.zig").Entity;
@@ -12,13 +13,8 @@ pub fn parse(codebase: *Codebase, source: []const u8) !Entity {
     const module = try codebase.ecs.create_entity(.{});
     if (source.len > 0) {
         switch (source[0]) {
-            'f' => {
-                _ = try parseFunction(codebase, source);
-            },
-            else => {
-                std.debug.print("\nInvalid top level declaration {s}", .{source});
-                unreachable;
-            },
+            'f' => _ = try parseFunction(codebase, source),
+            else => panic("INVALID TOP LEVEL DECLARATION {}", .{source[0]}),
         }
     }
     return module;
@@ -26,7 +22,7 @@ pub fn parse(codebase: *Codebase, source: []const u8) !Entity {
 
 test "parse int" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch @panic("MEMORY LEAK");
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
     var codebase = Codebase.init(allocator);
     defer codebase.deinit();

@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const panic = std.debug.panic;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -297,7 +298,7 @@ const Job = struct {
 
 test "entity get and set component" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch @panic("MEMORY LEAK");
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
@@ -311,7 +312,7 @@ test "entity get and set component" {
 
 test "entity get and set components" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch @panic("MEMORY LEAK");
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
@@ -323,7 +324,7 @@ test "entity get and set components" {
 
 test "entity get and set components on creation" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch @panic("MEMORY LEAK");
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
@@ -356,7 +357,7 @@ test "query" {
 
 test "entity query components" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch @panic("MEMORY LEAK");
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
@@ -372,7 +373,7 @@ test "entity query components" {
 
 test "iterate components" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch @panic("MEMORY LEAK");
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
