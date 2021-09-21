@@ -54,21 +54,14 @@ fn parseFunction(codebase: *Codebase, _: *Source) !Entity {
 }
 
 pub fn parse(codebase: *Codebase, code: []const u8) !Entity {
-    var source = Source{
-        .code = code,
-        .position = Position{
-            .column = 0,
-            .row = 0,
-        },
-    };
-    if (source.code.len > 0) {
-        switch (source.code[0]) {
-            'f' => _ = try parseFunction(codebase, &source),
-            else => panic("INVALID TOP LEVEL DECLARATION {}", .{source.code[0]}),
-        }
+    var source = Source.init(code);
+    const symbol = parseSymbol(&source);
+    if (std.mem.eql(u8, symbol, "fn")) {
+        _ = try parseFunction(codebase, &source);
+    } else {
+        panic("INVALID TOP LEVEL DECLARATION {s}", .{symbol});
     }
-    const module = try codebase.ecs.createEntity(.{});
-    return module;
+    return try codebase.ecs.createEntity(.{});
 }
 
 test "parse int" {
