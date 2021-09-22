@@ -88,6 +88,8 @@ test "parse int" {
     defer codebase.deinit();
     const code = "fn main() u64: 0";
     const module = try parse(&codebase, code);
-    const functions = module.get(components.Functions).?;
-    try expectEqual(functions.entities.len, 1);
+    var functions = module.get(components.Functions).?.entities.iterate();
+    const function = functions.next().?;
+    try expectEqualStrings(function.get(components.Name).?.value, "main");
+    try expectEqual(functions.next(), null);
 }
