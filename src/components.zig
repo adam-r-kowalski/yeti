@@ -13,3 +13,7 @@ pub const Name = struct {
 pub const Functions = struct {
     entities: List(Entity),
 };
+
+pub const Parameters = struct {
+    entities: List(Entity),
+};

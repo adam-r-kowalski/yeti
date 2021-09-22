@@ -64,7 +64,8 @@ test "trim whitespace" {
 fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
     trimWhitespace(source);
     const name = components.Name{ .value = parseSymbol(source) };
-    return try codebase.ecs.createEntity(.{name});
+    const parameters = components.Parameters{ .entities = List(Entity).init(codebase.allocator) };
+    return try codebase.ecs.createEntity(.{ name, parameters });
 }
 
 pub fn parse(codebase: *Codebase, code: []const u8) !Entity {
@@ -91,5 +92,6 @@ test "parse int" {
     var functions = module.get(components.Functions).?.entities.iterate();
     const function = functions.next().?;
     try expectEqualStrings(function.get(components.Name).?.value, "main");
+    try expectEqual(function.get(components.Parameters).?.entities.len, 0);
     try expectEqual(functions.next(), null);
 }
