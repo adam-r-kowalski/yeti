@@ -193,9 +193,9 @@ pub const ECS = struct {
     pub fn deinit(self: *ECS) void {
         var iterator = self.components.valueIterator();
         while (iterator.next()) |ptr| {
-            const component = @intToPtr(*Component(u1), ptr.*);
-            component.deinit();
-            self.allocator.destroy(component);
+            const component_ptr = @intToPtr(*Component(u1), ptr.*);
+            component_ptr.deinit();
+            self.allocator.destroy(component_ptr);
         }
         self.components.deinit();
     }
@@ -214,7 +214,7 @@ pub const ECS = struct {
         return Iterator(components).init(self);
     }
 
-    pub fn slice(self: *ECS, comptime T: type) ?[]T {
+    pub fn component(self: *ECS, comptime T: type) ?[]T {
         if (self.components.get(@typeName(T))) |ptr| {
             return @intToPtr(*Component(T), ptr).slice();
         }
@@ -416,7 +416,7 @@ test "single component data" {
     _ = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
     _ = try ecs.createEntity(.{ Name{ .value = "Sally" }, Job{ .value = "Cook" } });
     _ = try ecs.createEntity(.{ Name{ .value = "Bob" }, Age{ .value = 30 }, Job{ .value = "Sales Rep" } });
-    const names = ecs.slice(Name).?;
+    const names = ecs.component(Name).?;
     try expectEqual(names.len, 3);
     try expectEqual(names[0], Name{ .value = "Joe" });
     try expectEqual(names[1], Name{ .value = "Sally" });

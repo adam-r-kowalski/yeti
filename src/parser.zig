@@ -71,7 +71,6 @@ pub fn parse(codebase: *Codebase, code: []const u8) !Entity {
     var source = Source.init(code);
     const symbol = parseSymbol(&source);
     var functions = components.Functions{ .entities = List(Entity).init(codebase.allocator) };
-    defer functions.entities.deinit();
     if (std.mem.eql(u8, symbol, "fn")) {
         const function = try parseFunction(codebase, &source);
         try functions.entities.push(function);
