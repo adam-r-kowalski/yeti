@@ -27,6 +27,10 @@ const Source = struct {
     }
 };
 
+const Name = struct {
+    value: []const u8,
+};
+
 fn parseSymbol(source: *Source) []const u8 {
     var i: u64 = 0;
     while (i < source.code.len) : (i += 1) {
@@ -63,7 +67,10 @@ test "trim whitespace" {
     try expectEqual(Position{ .column = 1, .row = 0 }, source.position);
 }
 
-fn parseFunction(codebase: *Codebase, _: *Source) !Entity {
+fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
+    trimWhitespace(source);
+    const name = parseSymbol(source);
+    std.debug.print("\nsymbol = {s}\n", .{name});
     return try codebase.ecs.createEntity(.{});
 }
 
