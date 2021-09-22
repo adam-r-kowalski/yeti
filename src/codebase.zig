@@ -7,11 +7,13 @@ const Strings = @import("strings.zig").Strings;
 pub const Codebase = struct {
     ecs: ECS,
     strings: Strings,
+    allocator: *Allocator,
 
     pub fn init(allocator: *Allocator) Codebase {
         return Codebase{
             .ecs = ECS.init(allocator),
             .strings = Strings.init(allocator),
+            .allocator = allocator,
         };
     }
 

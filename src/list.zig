@@ -4,7 +4,7 @@ const expect = std.testing.expect;
 const expectEqualSlices = std.testing.expectEqualSlices;
 const panic = std.debug.panic;
 
-fn List(comptime T: type) type {
+pub fn List(comptime T: type) type {
     return struct {
         data: []T,
         len: u64,
@@ -12,7 +12,7 @@ fn List(comptime T: type) type {
 
         const Self = @This();
 
-        fn init(allocator: *Allocator) Self {
+        pub fn init(allocator: *Allocator) Self {
             return Self{
                 .data = &.{},
                 .len = 0,
@@ -20,11 +20,11 @@ fn List(comptime T: type) type {
             };
         }
 
-        fn deinit(self: *Self) void {
+        pub fn deinit(self: *Self) void {
             self.allocator.free(self.data);
         }
 
-        fn push(self: *Self, value: T) !void {
+        pub fn push(self: *Self, value: T) !void {
             if (self.data.len == self.len) {
                 const capacity = std.math.max(32, 2 * self.data.len);
                 const data = try self.allocator.alloc(T, capacity);
@@ -36,7 +36,7 @@ fn List(comptime T: type) type {
             self.len += 1;
         }
 
-        fn slice(self: Self) []const T {
+        pub fn slice(self: Self) []const T {
             return self.data[0..self.len];
         }
     };

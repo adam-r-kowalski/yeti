@@ -64,6 +64,10 @@ fn Component(comptime T: type) type {
             }
             return null;
         }
+
+        fn slice(self: *Self) []T {
+            return self.data[0..self.len];
+        }
     };
 }
 
@@ -208,6 +212,13 @@ pub const ECS = struct {
 
     pub fn iterate(self: *ECS, comptime components: anytype) Iterator(components) {
         return Iterator(components).init(self);
+    }
+
+    pub fn slice(self: *ECS, comptime T: type) ?[]T {
+        if (self.components.get(@typeName(T))) |ptr| {
+            return @intToPtr(*Component(T), ptr).slice();
+        }
+        return null;
     }
 };
 
@@ -394,4 +405,20 @@ test "iterate components" {
         try expectEqual(entry.entity.get(Age).?.*, Age{ .value = 30 });
     }
     try expectEqual(iterator.next(), null);
+}
+
+test "single component data" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
+    const allocator = &gpa.allocator;
+    var ecs = ECS.init(allocator);
+    defer ecs.deinit();
+    _ = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
+    _ = try ecs.createEntity(.{ Name{ .value = "Sally" }, Job{ .value = "Cook" } });
+    _ = try ecs.createEntity(.{ Name{ .value = "Bob" }, Age{ .value = 30 }, Job{ .value = "Sales Rep" } });
+    const names = ecs.slice(Name).?;
+    try expectEqual(names.len, 3);
+    try expectEqual(names[0], Name{ .value = "Joe" });
+    try expectEqual(names[1], Name{ .value = "Sally" });
+    try expectEqual(names[2], Name{ .value = "Bob" });
 }
