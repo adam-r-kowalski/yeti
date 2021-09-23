@@ -10,6 +10,10 @@ pub const Position = struct {
     row: u64,
 };
 
+pub const Type = struct {
+    entity: Entity,
+};
+
 pub const Name = struct {
     interned: InternedString,
 };

@@ -80,7 +80,8 @@ fn parseNumber(codebase: *Codebase, source: *Source) !Entity {
     source.code = source.code[i..];
     source.position.column += i;
     const int = components.Int{ .interned = interned };
-    return try codebase.ecs.createEntity(.{int});
+    const Type = components.Type{ .entity = codebase.builtins.U64 };
+    return try codebase.ecs.createEntity(.{ int, Type });
 }
 
 fn parseExpression(codebase: *Codebase, source: *Source) !Entity {
@@ -99,11 +100,12 @@ test "parse expression" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
-    var codebase = Codebase.init(allocator);
+    var codebase = try Codebase.init(allocator);
     defer codebase.deinit();
     var source = Source.init("0");
     const expression = try parseExpression(&codebase, &source);
     try expectEqualStrings(intLiteral(codebase, expression), "0");
+    try expectEqual(expression.get(components.Type).?.entity, codebase.builtins.U64);
 }
 
 fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
