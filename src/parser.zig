@@ -96,6 +96,10 @@ fn intLiteral(codebase: Codebase, entity: Entity) []const u8 {
     return codebase.strings.get(entity.get(components.Int).?.interned).?;
 }
 
+fn typeOf(entity: Entity) Entity {
+    return entity.get(components.Type).?.entity;
+}
+
 test "parse expression" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
@@ -105,7 +109,7 @@ test "parse expression" {
     var source = Source.init("0");
     const expression = try parseExpression(&codebase, &source);
     try expectEqualStrings(intLiteral(codebase, expression), "0");
-    try expectEqual(expression.get(components.Type).?.entity, codebase.builtins.U64);
+    try expectEqual(typeOf(expression), codebase.builtins.U64);
 }
 
 fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
@@ -152,7 +156,7 @@ test "parse int" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
     const allocator = &gpa.allocator;
-    var codebase = Codebase.init(allocator);
+    var codebase = try Codebase.init(allocator);
     defer codebase.deinit();
     const code = "fn main() u64: 0";
     const module = try parse(&codebase, code);
