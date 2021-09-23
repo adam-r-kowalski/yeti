@@ -68,18 +68,52 @@ test "trim whitespace" {
     try expectEqual(components.Position{ .column = 1, .row = 0 }, source.position);
 }
 
-fn parseExpression(codebase: *Codebase, _: *Source) !Entity {
-    return try codebase.ecs.createEntity(.{});
+fn parseNumber(codebase: *Codebase, source: *Source) !Entity {
+    var i: usize = 0;
+    while (i < source.code.len) : (i += 1) {
+        switch (source.code[i]) {
+            '0'...'9' => {},
+            else => break,
+        }
+    }
+    const interned = try codebase.strings.intern(source.code[0..i]);
+    source.code = source.code[i..];
+    source.position.column += i;
+    const int = components.Int{ .interned = interned };
+    return try codebase.ecs.createEntity(.{int});
+}
+
+fn parseExpression(codebase: *Codebase, source: *Source) !Entity {
+    assert(source.code.len > 0);
+    return switch (source.code[0]) {
+        '0'...'9' => parseNumber(codebase, source),
+        else => panic("INVALID EXPRESSION {}", .{source.code[0]}),
+    };
+}
+
+fn intLiteral(codebase: Codebase, entity: Entity) []const u8 {
+    return codebase.strings.get(entity.get(components.Int).?.interned).?;
+}
+
+test "parse expression" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
+    const allocator = &gpa.allocator;
+    var codebase = Codebase.init(allocator);
+    defer codebase.deinit();
+    var source = Source.init("0");
+    const expression = try parseExpression(&codebase, &source);
+    try expectEqualStrings(intLiteral(codebase, expression), "0");
 }
 
 fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
     trimWhitespace(source);
-    const function_name = components.Name{ .value = try codebase.strings.intern(parseSymbol(source)) };
+    const function_name = components.Name{ .interned = try codebase.strings.intern(parseSymbol(source)) };
     const parameters = components.Parameters.init(codebase.allocator);
     consume(source, '(');
     consume(source, ')');
     trimWhitespace(source);
-    const return_type_name = components.Name{ .value = try codebase.strings.intern(parseSymbol(source)) };
+    const return_type_name = components.Name{ .interned = try codebase.strings.intern(parseSymbol(source)) };
     const return_type_entity = try codebase.ecs.createEntity(.{return_type_name});
     const return_type = components.ReturnType{ .entity = return_type_entity };
     consume(source, ':');
@@ -108,8 +142,8 @@ pub fn parse(codebase: *Codebase, code: []const u8) !Entity {
     return try codebase.ecs.createEntity(.{functions});
 }
 
-fn nameOf(codebase: Codebase, entity: Entity) []const u8 {
-    return codebase.strings.get(entity.get(components.Name).?.value).?;
+fn nameLiteral(codebase: Codebase, entity: Entity) []const u8 {
+    return codebase.strings.get(entity.get(components.Name).?.interned).?;
 }
 
 test "parse int" {
@@ -122,9 +156,9 @@ test "parse int" {
     const module = try parse(&codebase, code);
     var functions = module.get(components.Functions).?.entities.iterate();
     const function = functions.next().?.*;
-    try expectEqualStrings(nameOf(codebase, function), "main");
+    try expectEqualStrings(nameLiteral(codebase, function), "main");
     try expectEqual(function.get(components.Parameters).?.entities.len, 0);
     const return_type = function.get(components.ReturnType).?.entity;
-    try expectEqualStrings(nameOf(codebase, return_type), "u64");
+    try expectEqualStrings(nameLiteral(codebase, return_type), "u64");
     try expectEqual(functions.next(), null);
 }

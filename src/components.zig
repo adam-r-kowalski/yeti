@@ -11,7 +11,11 @@ pub const Position = struct {
 };
 
 pub const Name = struct {
-    value: InternedString,
+    interned: InternedString,
+};
+
+pub const Int = struct {
+    interned: InternedString,
 };
 
 pub const Functions = struct {
