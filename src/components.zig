@@ -1,5 +1,6 @@
 const List = @import("list.zig").List;
 const Entity = @import("ecs.zig").Entity;
+const InternedString = @import("strings.zig").InternedString;
 
 pub const Position = struct {
     column: u64,
@@ -7,7 +8,7 @@ pub const Position = struct {
 };
 
 pub const Name = struct {
-    value: []const u8,
+    value: InternedString,
 };
 
 pub const Functions = struct {
@@ -16,4 +17,8 @@ pub const Functions = struct {
 
 pub const Parameters = struct {
     entities: List(Entity),
+};
+
+pub const ReturnType = struct {
+    entity: Entity,
 };

@@ -61,6 +61,11 @@ pub fn List(comptime T: type) type {
                 .index = 0,
             };
         }
+
+        pub fn nth(self: Self, index: u64) ?*const T {
+            if (index > self.len - 1) return null;
+            return &self.data[index];
+        }
     };
 }
 
@@ -87,4 +92,17 @@ test "list iterate" {
     try expectEqual(iterator.next().?.*, 10);
     try expectEqual(iterator.next().?.*, 20);
     try expectEqual(iterator.next(), null);
+}
+
+test "list nth" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
+    const allocator = &gpa.allocator;
+    var list = List(u64).init(allocator);
+    defer list.deinit();
+    try list.push(10);
+    try list.push(20);
+    try expectEqual(list.nth(0).?.*, 10);
+    try expectEqual(list.nth(1).?.*, 20);
+    try expectEqual(list.nth(2), null);
 }

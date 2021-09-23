@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
@@ -24,6 +25,12 @@ const Source = struct {
         };
     }
 };
+
+fn consume(source: *Source, expected: u8) void {
+    assert(source.code.len > 0 and source.code[0] == expected);
+    source.code = source.code[1..];
+    source.position.column += 1;
+}
 
 fn parseSymbol(source: *Source) []const u8 {
     var i: u64 = 0;
@@ -63,9 +70,20 @@ test "trim whitespace" {
 
 fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
     trimWhitespace(source);
-    const name = components.Name{ .value = parseSymbol(source) };
+    const function_name = components.Name{ .value = try codebase.strings.intern(parseSymbol(source)) };
     const parameters = components.Parameters{ .entities = List(Entity).init(codebase.allocator) };
-    return try codebase.ecs.createEntity(.{ name, parameters });
+    consume(source, '(');
+    consume(source, ')');
+    trimWhitespace(source);
+    const return_type_name = components.Name{ .value = try codebase.strings.intern(parseSymbol(source)) };
+    const return_type_entity = try codebase.ecs.createEntity(.{return_type_name});
+    const return_type = components.ReturnType{ .entity = return_type_entity };
+    consume(source, ':');
+    return try codebase.ecs.createEntity(.{
+        function_name,
+        parameters,
+        return_type,
+    });
 }
 
 pub fn parse(codebase: *Codebase, code: []const u8) !Entity {
@@ -81,6 +99,10 @@ pub fn parse(codebase: *Codebase, code: []const u8) !Entity {
     return try codebase.ecs.createEntity(.{functions});
 }
 
+fn nameOf(codebase: Codebase, entity: Entity) []const u8 {
+    return codebase.strings.get(entity.get(components.Name).?.value).?;
+}
+
 test "parse int" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
@@ -90,8 +112,10 @@ test "parse int" {
     const code = "fn main() u64: 0";
     const module = try parse(&codebase, code);
     var functions = module.get(components.Functions).?.entities.iterate();
-    const function = functions.next().?;
-    try expectEqualStrings(function.get(components.Name).?.value, "main");
+    const function = functions.next().?.*;
+    try expectEqualStrings(nameOf(codebase, function), "main");
     try expectEqual(function.get(components.Parameters).?.entities.len, 0);
+    const return_type = function.get(components.ReturnType).?.entity;
+    try expectEqualStrings(nameOf(codebase, return_type), "u64");
     try expectEqual(functions.next(), null);
 }
