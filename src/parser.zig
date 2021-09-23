@@ -68,10 +68,14 @@ test "trim whitespace" {
     try expectEqual(components.Position{ .column = 1, .row = 0 }, source.position);
 }
 
+fn parseExpression(codebase: *Codebase, _: *Source) !Entity {
+    return try codebase.ecs.createEntity(.{});
+}
+
 fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
     trimWhitespace(source);
     const function_name = components.Name{ .value = try codebase.strings.intern(parseSymbol(source)) };
-    const parameters = components.Parameters{ .entities = List(Entity).init(codebase.allocator) };
+    const parameters = components.Parameters.init(codebase.allocator);
     consume(source, '(');
     consume(source, ')');
     trimWhitespace(source);
@@ -79,17 +83,22 @@ fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
     const return_type_entity = try codebase.ecs.createEntity(.{return_type_name});
     const return_type = components.ReturnType{ .entity = return_type_entity };
     consume(source, ':');
+    trimWhitespace(source);
+    var body = components.Body.init(codebase.allocator);
+    const body_entity = try parseExpression(codebase, source);
+    try body.entities.push(body_entity);
     return try codebase.ecs.createEntity(.{
         function_name,
         parameters,
         return_type,
+        body,
     });
 }
 
 pub fn parse(codebase: *Codebase, code: []const u8) !Entity {
     var source = Source.init(code);
     const symbol = parseSymbol(&source);
-    var functions = components.Functions{ .entities = List(Entity).init(codebase.allocator) };
+    var functions = components.Functions.init(codebase.allocator);
     if (std.mem.eql(u8, symbol, "fn")) {
         const function = try parseFunction(codebase, &source);
         try functions.entities.push(function);

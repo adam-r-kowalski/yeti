@@ -19,8 +19,11 @@ pub const Codebase = struct {
     }
 
     pub fn deinit(self: *Codebase) void {
-        if (self.ecs.component(components.Functions)) |functions| {
-            for (functions) |*component| component.entities.deinit();
+        if (self.ecs.component(components.Functions)) |all_functions| {
+            for (all_functions) |*functions| functions.deinit();
+        }
+        if (self.ecs.component(components.Body)) |bodies| {
+            for (bodies) |*body| body.deinit();
         }
         self.ecs.deinit();
         self.strings.deinit();
