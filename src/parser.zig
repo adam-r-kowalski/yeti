@@ -10,6 +10,7 @@ const Codebase = @import("codebase.zig").Codebase;
 const Entity = @import("ecs.zig").Entity;
 const List = @import("list.zig").List;
 const components = @import("components.zig");
+const query = @import("query.zig");
 
 const Source = struct {
     code: []const u8,
@@ -92,14 +93,6 @@ fn parseExpression(codebase: *Codebase, source: *Source) !Entity {
     };
 }
 
-fn intLiteral(codebase: Codebase, entity: Entity) []const u8 {
-    return codebase.strings.get(entity.get(components.Int).?.interned).?;
-}
-
-fn typeOf(entity: Entity) Entity {
-    return entity.get(components.Type).?.entity;
-}
-
 test "parse expression" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
@@ -108,8 +101,8 @@ test "parse expression" {
     defer codebase.deinit();
     var source = Source.init("0");
     const expression = try parseExpression(&codebase, &source);
-    try expectEqualStrings(intLiteral(codebase, expression), "0");
-    try expectEqual(typeOf(expression), codebase.builtins.U64);
+    try expectEqualStrings(query.intLiteral(codebase, expression), "0");
+    try expectEqual(query.typeOf(expression), codebase.builtins.U64);
 }
 
 fn parseFunction(codebase: *Codebase, source: *Source) !Entity {
@@ -148,10 +141,6 @@ pub fn parse(codebase: *Codebase, code: []const u8) !Entity {
     return try codebase.ecs.createEntity(.{functions});
 }
 
-fn nameLiteral(codebase: Codebase, entity: Entity) []const u8 {
-    return codebase.strings.get(entity.get(components.Name).?.interned).?;
-}
-
 test "parse int" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
@@ -162,9 +151,9 @@ test "parse int" {
     const module = try parse(&codebase, code);
     var functions = module.get(components.Functions).?.entities.iterate();
     const function = functions.next().?.*;
-    try expectEqualStrings(nameLiteral(codebase, function), "main");
+    try expectEqualStrings(query.nameLiteral(codebase, function), "main");
     try expectEqual(function.get(components.Parameters).?.entities.len, 0);
     const return_type = function.get(components.ReturnType).?.entity;
-    try expectEqualStrings(nameLiteral(codebase, return_type), "u64");
+    try expectEqualStrings(query.nameLiteral(codebase, return_type), "u64");
     try expectEqual(functions.next(), null);
 }

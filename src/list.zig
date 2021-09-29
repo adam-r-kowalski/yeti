@@ -51,7 +51,7 @@ pub fn List(comptime T: type) type {
             self.len += 1;
         }
 
-        pub fn slice(self: Self) []const T {
+        pub fn slice(self: Self) []T {
             return self.data[0..self.len];
         }
 
