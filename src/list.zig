@@ -51,6 +51,14 @@ pub fn List(comptime T: type) type {
             self.len += 1;
         }
 
+        pub fn pop(self: *Self) ?T {
+            if (self.len == 0) {
+                return null;
+            }
+            self.len -= 1;
+            return self.data[self.len];
+        }
+
         pub fn slice(self: Self) []T {
             return self.data[0..self.len];
         }
@@ -105,4 +113,17 @@ test "list nth" {
     try expectEqual(list.nth(0).?.*, 10);
     try expectEqual(list.nth(1).?.*, 20);
     try expectEqual(list.nth(2), null);
+}
+
+test "list pop" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
+    const allocator = &gpa.allocator;
+    var list = List(u64).init(allocator);
+    defer list.deinit();
+    try list.push(10);
+    try list.push(20);
+    try expectEqual(list.pop().?, 20);
+    try expectEqual(list.pop().?, 10);
+    try expectEqual(list.pop(), null);
 }
