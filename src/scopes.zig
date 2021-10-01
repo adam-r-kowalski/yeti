@@ -10,12 +10,12 @@ const strings_module = @import("strings.zig");
 const InternedString = strings_module.InternedString;
 const Strings = strings_module.Strings;
 const Entity = @import("ecs.zig").Entity;
-const Codebase = @import("codebase.zig").Codebase;
+const codebase_module = @import("codebase.zig");
+const Codebase = codebase_module.Codebase;
+const Scope = codebase_module.Scope;
 const List = @import("list.zig").List;
 const components = @import("components.zig");
 const query = @import("query.zig");
-
-const Scope = std.AutoHashMap(InternedString, Entity);
 
 fn Reverse(comptime T: type) type {
     return struct {
@@ -50,58 +50,54 @@ test "reverse" {
 }
 
 pub const Scopes = struct {
-    scopes: List(Scope),
+    stack: List(Scope),
     codebase: *Codebase,
-    allocator: *Allocator,
-    builtins: *Scope,
 
-    fn init(allocator: *Allocator, codebase: *Codebase, builtins: *Scope) !Scopes {
+    pub fn init(codebase: *Codebase) !Scopes {
         var scopes = Scopes{
-            .scopes = List(Scope).init(allocator),
+            .stack = List(Scope).init(codebase.allocator),
             .codebase = codebase,
-            .allocator = allocator,
-            .builtins = builtins,
         };
-        const scope = Scope.init(allocator);
-        try scopes.scopes.push(scope);
+        const scope = Scope.init(codebase.allocator);
+        try scopes.stack.push(scope);
         return scopes;
     }
 
-    fn deinit(self: *Scopes) void {
-        for (self.scopes.slice()) |*scope| {
+    pub fn deinit(self: *Scopes) void {
+        for (self.stack.slice()) |*scope| {
             scope.deinit();
         }
-        self.scopes.deinit();
+        self.stack.deinit();
     }
 
-    fn lookup(self: *Scopes, interned: InternedString) !Entity {
-        var scopes = self.scopes.slice();
-        var iterator = Reverse(Scope).init(scopes);
+    pub fn lookup(self: *Scopes, interned: InternedString) !Entity {
+        var stack = self.stack.slice();
+        var iterator = Reverse(Scope).init(stack);
         while (iterator.next()) |scope| {
             if (scope.get(interned)) |entity| {
                 return entity;
             }
         }
-        if (self.builtins.get(interned)) |entity| {
+        if (self.codebase.builtins.scope.get(interned)) |entity| {
             return entity;
         }
         const name = components.Name{ .interned = interned };
         const entity = try self.codebase.ecs.createEntity(.{name});
-        try scopes[0].putNoClobber(interned, entity);
+        try stack[0].putNoClobber(interned, entity);
         return entity;
     }
 
-    fn insert(self: *Scopes, interned: InternedString, entity: Entity) !void {
-        var scopes = self.scopes.slice();
-        try scopes[scopes.len - 1].put(interned, entity);
+    pub fn insert(self: *Scopes, interned: InternedString, entity: Entity) !void {
+        var stack = self.stack.slice();
+        try stack[stack.len - 1].put(interned, entity);
     }
 
-    fn push(self: *Scopes) !void {
-        try self.scopes.push(Scope.init(self.allocator));
+    pub fn push(self: *Scopes) !void {
+        try self.stack.push(Scope.init(self.codebase.allocator));
     }
 
-    fn pop(self: *Scopes) void {
-        if (self.scopes.pop()) |*scope| {
+    pub fn pop(self: *Scopes) void {
+        if (self.stack.pop()) |*scope| {
             scope.deinit();
         }
     }
@@ -114,9 +110,7 @@ test "lookup same symbol in scope" {
     var codebase = try Codebase.init(allocator);
     defer codebase.deinit();
     const interned_foo = try codebase.strings.intern("foo");
-    var scope = Scope.init(allocator);
-    defer scope.deinit();
-    var scopes = try Scopes.init(allocator, &codebase, &scope);
+    var scopes = try Scopes.init(&codebase);
     defer scopes.deinit();
     const foo = try scopes.lookup(interned_foo);
     try expectEqualStrings(query.nameLiteral(codebase, foo), "foo");
@@ -131,9 +125,7 @@ test "lookup symbol then insert new symbol with same name in scope" {
     var codebase = try Codebase.init(allocator);
     defer codebase.deinit();
     const interned_foo = try codebase.strings.intern("foo");
-    var scope = Scope.init(allocator);
-    defer scope.deinit();
-    var scopes = try Scopes.init(allocator, &codebase, &scope);
+    var scopes = try Scopes.init(&codebase);
     defer scopes.deinit();
     const foo = try scopes.lookup(interned_foo);
     const name = components.Name{ .interned = interned_foo };
@@ -150,9 +142,7 @@ test "push and pop new scope" {
     const allocator = &gpa.allocator;
     var codebase = try Codebase.init(allocator);
     defer codebase.deinit();
-    var scope = Scope.init(allocator);
-    defer scope.deinit();
-    var scopes = try Scopes.init(allocator, &codebase, &scope);
+    var scopes = try Scopes.init(&codebase);
     defer scopes.deinit();
     const interned_foo = try codebase.strings.intern("foo");
     const name = components.Name{ .interned = interned_foo };
@@ -176,14 +166,9 @@ test "builtins" {
     const allocator = &gpa.allocator;
     var codebase = try Codebase.init(allocator);
     defer codebase.deinit();
-    var scope = Scope.init(allocator);
-    defer scope.deinit();
-    const interned_foo = try codebase.strings.intern("foo");
-    const name = components.Name{ .interned = interned_foo };
-    const foo = try codebase.ecs.createEntity(.{name});
-    try scope.putNoClobber(interned_foo, foo);
-    var scopes = try Scopes.init(allocator, &codebase, &scope);
+    var scopes = try Scopes.init(&codebase);
     defer scopes.deinit();
-    const foo_lookup = try scopes.lookup(interned_foo);
-    try expectEqual(foo, foo_lookup);
+    const interned_u64 = try codebase.strings.intern("u64");
+    const u64_lookup = try scopes.lookup(interned_u64);
+    try expectEqual(codebase.builtins.U64, u64_lookup);
 }
