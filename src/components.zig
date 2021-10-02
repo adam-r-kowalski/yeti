@@ -19,6 +19,10 @@ pub const TokenKind = enum(u8) {
     Symbol,
     Int,
     Float,
+    Fn,
+    LeftParen,
+    RightParen,
+    Colon,
 };
 
 pub const Literal = struct {
