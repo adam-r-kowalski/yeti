@@ -10,50 +10,17 @@ pub const Position = struct {
     row: u64,
 };
 
-pub const Type = struct {
-    entity: Entity,
+pub const Span = struct {
+    begin: Position,
+    end: Position,
 };
 
-pub const Name = struct {
+pub const TokenKind = enum(u8) {
+    Symbol,
+    Int,
+    Float,
+};
+
+pub const Literal = struct {
     interned: InternedString,
-};
-
-pub const Int = struct {
-    interned: InternedString,
-};
-
-pub const Functions = struct {
-    entities: List(Entity),
-
-    pub fn init(allocator: *Allocator) Functions {
-        return Functions{ .entities = List(Entity).init(allocator) };
-    }
-
-    pub fn deinit(self: *Functions) void {
-        self.entities.deinit();
-    }
-};
-
-pub const Parameters = struct {
-    entities: List(Entity),
-
-    pub fn init(allocator: *Allocator) Parameters {
-        return Parameters{ .entities = List(Entity).init(allocator) };
-    }
-};
-
-pub const ReturnType = struct {
-    entity: Entity,
-};
-
-pub const Body = struct {
-    entities: List(Entity),
-
-    pub fn init(allocator: *Allocator) Body {
-        return Body{ .entities = List(Entity).init(allocator) };
-    }
-
-    pub fn deinit(self: *Body) void {
-        self.entities.deinit();
-    }
 };
