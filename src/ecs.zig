@@ -40,6 +40,11 @@ fn Component(comptime T: type) type {
             }
             return null;
         }
+
+        fn share(self: *Self, entity: Entity, with: Entity) !void {
+            const index = self.lookup.get(with.uuid).?;
+            try self.lookup.putNoClobber(entity.uuid, index);
+        }
     };
 }
 
@@ -129,14 +134,14 @@ pub const Entity = struct {
         }
     }
 
-    pub fn query(entity: Entity, comptime components: anytype) ?Query(components) {
+    pub fn query(self: Entity, comptime components: anytype) ?Query(components) {
         var result: Query(components) = undefined;
         var found = true;
         const type_info = @typeInfo(@TypeOf(components)).Struct;
         assert(type_info.is_tuple);
         inline for (type_info.fields) |field| {
             const T = @field(components, field.name);
-            if (entity.get(T)) |component| {
+            if (self.get(T)) |component| {
                 @field(result, @typeName(T)) = component;
             } else {
                 found = false;
@@ -147,6 +152,11 @@ pub const Entity = struct {
         } else {
             return result;
         }
+    }
+
+    pub fn share(self: Entity, comptime T: type, with: Entity) !void {
+        const component = self.ecs.components.getPtr(@typeName(T)).?;
+        try @intToPtr(*Component(T), component.*).share(self, with);
     }
 };
 
@@ -233,4 +243,20 @@ test "entity query components" {
     const query = entity.query(.{ Name, Age }).?;
     try expectEqual(query.Name.*, Name{ .value = "Joe" });
     try expectEqual(query.Age.*, Age{ .value = 20 });
+}
+
+test "share components between entities" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
+    const allocator = &gpa.allocator;
+    var ecs = ECS.init(allocator);
+    defer ecs.deinit();
+    const entity1 = try ecs.createEntity(.{
+        Name{ .value = "Joe" },
+        Age{ .value = 20 },
+    });
+    const entity2 = try ecs.createEntity(.{});
+    try entity2.share(Name, entity1);
+    try expectEqual(entity1.get(Name).?.*, Name{ .value = "Joe" });
+    try expectEqual(entity2.get(Name).?.*, Name{ .value = "Joe" });
 }
