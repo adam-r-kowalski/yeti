@@ -1,5 +1,6 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
@@ -8,16 +9,40 @@ const panic = std.debug.panic;
 const Codebase = @import("codebase.zig").Codebase;
 const Entity = @import("ecs.zig").Entity;
 const List = @import("list.zig").List;
-const components = @import("components.zig");
+const InternedString = @import("strings.zig").InternedString;
+
+pub const Position = struct {
+    column: u64,
+    row: u64,
+};
+
+pub const Span = struct {
+    begin: Position,
+    end: Position,
+};
+
+pub const Kind = enum(u8) {
+    Symbol,
+    Int,
+    Float,
+    Fn,
+    LeftParen,
+    RightParen,
+    Colon,
+};
+
+pub const Literal = struct {
+    interned: InternedString,
+};
 
 const Source = struct {
     code: []const u8,
-    position: components.Position,
+    position: Position,
 
     fn init(code: []const u8) Source {
         return Source{
             .code = code,
-            .position = components.Position{
+            .position = Position{
                 .column = 0,
                 .row = 0,
             },
@@ -36,14 +61,14 @@ pub const Tokens = struct {
     codebase: *Codebase,
     source: Source,
 
-    fn init(codebase: *Codebase, code: []const u8) Tokens {
+    pub fn init(codebase: *Codebase, code: []const u8) Tokens {
         return Tokens{
             .codebase = codebase,
             .source = Source.init(code),
         };
     }
 
-    fn next(self: *Tokens) !?Entity {
+    pub fn next(self: *Tokens) !?Entity {
         trimWhitespace(self);
         if (self.source.code.len == 0) {
             return null;
@@ -51,9 +76,9 @@ pub const Tokens = struct {
         return switch (self.source.code[0]) {
             '0'...'9', '-' => try tokenizeNumber(self, false),
             '.' => try tokenizeNumber(self, true),
-            '(' => try tokenizeOne(self, components.TokenKind.LeftParen),
-            ')' => try tokenizeOne(self, components.TokenKind.RightParen),
-            ':' => try tokenizeOne(self, components.TokenKind.Colon),
+            '(' => try tokenizeOne(self, Kind.LeftParen),
+            ')' => try tokenizeOne(self, Kind.RightParen),
+            ':' => try tokenizeOne(self, Kind.Colon),
             else => try tokenizeSymbol(self),
         };
     }
@@ -75,21 +100,21 @@ fn tokenizeSymbol(tokens: *Tokens) !Entity {
         }
     }
     const string = tokens.source.advance(i);
-    const span = components.Span{ .begin = begin, .end = tokens.source.position };
+    const span = Span{ .begin = begin, .end = tokens.source.position };
     if (std.mem.eql(u8, string, "fn")) {
-        return try tokens.codebase.ecs.createEntity(.{ components.TokenKind.Fn, span });
+        return try tokens.codebase.ecs.createEntity(.{ Kind.Fn, span });
     }
     const interned = try tokens.codebase.strings.intern(string);
-    const literal = components.Literal{ .interned = interned };
+    const literal = Literal{ .interned = interned };
     return try tokens.codebase.ecs.createEntity(.{
         literal,
-        components.TokenKind.Symbol,
+        Kind.Symbol,
         span,
     });
 }
 
 fn literalOf(codebase: Codebase, entity: Entity) []const u8 {
-    return codebase.strings.get(entity.get(components.Literal).?.interned).?;
+    return codebase.strings.get(entity.get(Literal).?.interned).?;
 }
 
 test "tokenize symbol" {
@@ -102,29 +127,29 @@ test "tokenize symbol" {
     var tokens = Tokens.init(&codebase, code);
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Symbol);
+        try expectEqual(token.get(Kind).?.*, Kind.Symbol);
         try expectEqualStrings(literalOf(codebase, token), "foo");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 0, .row = 0 },
-            .end = components.Position{ .column = 3, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 0, .row = 0 },
+            .end = Position{ .column = 3, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Symbol);
+        try expectEqual(token.get(Kind).?.*, Kind.Symbol);
         try expectEqualStrings(literalOf(codebase, token), "bar?");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 4, .row = 0 },
-            .end = components.Position{ .column = 8, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 4, .row = 0 },
+            .end = Position{ .column = 8, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Symbol);
+        try expectEqual(token.get(Kind).?.*, Kind.Symbol);
         try expectEqualStrings(literalOf(codebase, token), "_baz_");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 9, .row = 0 },
-            .end = components.Position{ .column = 14, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 9, .row = 0 },
+            .end = Position{ .column = 14, .row = 0 },
         });
     }
     try expectEqual(try tokens.next(), null);
@@ -141,11 +166,12 @@ fn tokenizeNumber(tokens: *Tokens, starts_with_decimal: bool) !Entity {
             else => break,
         }
     }
+    assert(decimals_seen <= 1);
     const string = tokens.source.advance(i);
     const interned = try tokens.codebase.strings.intern(string);
-    const literal = components.Literal{ .interned = interned };
-    const span = components.Span{ .begin = begin, .end = tokens.source.position };
-    const kind = if (decimals_seen == 0) components.TokenKind.Int else components.TokenKind.Float;
+    const literal = Literal{ .interned = interned };
+    const span = Span{ .begin = begin, .end = tokens.source.position };
+    const kind = if (decimals_seen == 0) Kind.Int else Kind.Float;
     return try tokens.codebase.ecs.createEntity(.{
         literal,
         kind,
@@ -163,47 +189,47 @@ test "tokenize number" {
     var tokens = Tokens.init(&codebase, code);
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Int);
+        try expectEqual(token.get(Kind).?.*, Kind.Int);
         try expectEqualStrings(literalOf(codebase, token), "100");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 0, .row = 0 },
-            .end = components.Position{ .column = 3, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 0, .row = 0 },
+            .end = Position{ .column = 3, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Int);
+        try expectEqual(token.get(Kind).?.*, Kind.Int);
         try expectEqualStrings(literalOf(codebase, token), "-324");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 4, .row = 0 },
-            .end = components.Position{ .column = 8, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 4, .row = 0 },
+            .end = Position{ .column = 8, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Float);
+        try expectEqual(token.get(Kind).?.*, Kind.Float);
         try expectEqualStrings(literalOf(codebase, token), "3.25");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 9, .row = 0 },
-            .end = components.Position{ .column = 13, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 9, .row = 0 },
+            .end = Position{ .column = 13, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Float);
+        try expectEqual(token.get(Kind).?.*, Kind.Float);
         try expectEqualStrings(literalOf(codebase, token), ".73");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 14, .row = 0 },
-            .end = components.Position{ .column = 17, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 14, .row = 0 },
+            .end = Position{ .column = 17, .row = 0 },
         });
     }
     try expectEqual(try tokens.next(), null);
 }
 
-fn tokenizeOne(tokens: *Tokens, kind: components.TokenKind) !Entity {
+fn tokenizeOne(tokens: *Tokens, kind: Kind) !Entity {
     const begin = tokens.source.position;
     _ = tokens.source.advance(1);
-    const span = components.Span{ .begin = begin, .end = tokens.source.position };
+    const span = Span{ .begin = begin, .end = tokens.source.position };
     return try tokens.codebase.ecs.createEntity(.{ kind, span });
 }
 
@@ -217,61 +243,61 @@ test "tokenize function" {
     var tokens = Tokens.init(&codebase, code);
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Fn);
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 0, .row = 0 },
-            .end = components.Position{ .column = 2, .row = 0 },
+        try expectEqual(token.get(Kind).?.*, Kind.Fn);
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 0, .row = 0 },
+            .end = Position{ .column = 2, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Symbol);
+        try expectEqual(token.get(Kind).?.*, Kind.Symbol);
         try expectEqualStrings(literalOf(codebase, token), "start");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 3, .row = 0 },
-            .end = components.Position{ .column = 8, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 3, .row = 0 },
+            .end = Position{ .column = 8, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.LeftParen);
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 8, .row = 0 },
-            .end = components.Position{ .column = 9, .row = 0 },
+        try expectEqual(token.get(Kind).?.*, Kind.LeftParen);
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 8, .row = 0 },
+            .end = Position{ .column = 9, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.RightParen);
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 9, .row = 0 },
-            .end = components.Position{ .column = 10, .row = 0 },
+        try expectEqual(token.get(Kind).?.*, Kind.RightParen);
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 9, .row = 0 },
+            .end = Position{ .column = 10, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Symbol);
+        try expectEqual(token.get(Kind).?.*, Kind.Symbol);
         try expectEqualStrings(literalOf(codebase, token), "u64");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 11, .row = 0 },
-            .end = components.Position{ .column = 14, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 11, .row = 0 },
+            .end = Position{ .column = 14, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Colon);
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 14, .row = 0 },
-            .end = components.Position{ .column = 15, .row = 0 },
+        try expectEqual(token.get(Kind).?.*, Kind.Colon);
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 14, .row = 0 },
+            .end = Position{ .column = 15, .row = 0 },
         });
     }
     {
         const token = (try tokens.next()).?;
-        try expectEqual(token.get(components.TokenKind).?.*, components.TokenKind.Int);
+        try expectEqual(token.get(Kind).?.*, Kind.Int);
         try expectEqualStrings(literalOf(codebase, token), "0");
-        try expectEqual(token.get(components.Span).?.*, components.Span{
-            .begin = components.Position{ .column = 16, .row = 0 },
-            .end = components.Position{ .column = 17, .row = 0 },
+        try expectEqual(token.get(Span).?.*, Span{
+            .begin = Position{ .column = 16, .row = 0 },
+            .end = Position{ .column = 17, .row = 0 },
         });
     }
     try expectEqual(try tokens.next(), null);

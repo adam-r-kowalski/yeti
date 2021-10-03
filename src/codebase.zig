@@ -7,7 +7,6 @@ const Entity = ecs_module.Entity;
 const strings_module = @import("strings.zig");
 const Strings = strings_module.Strings;
 const InternedString = strings_module.InternedString;
-const components = @import("components.zig");
 
 pub const Codebase = struct {
     ecs: ECS,
