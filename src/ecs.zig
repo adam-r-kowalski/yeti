@@ -154,9 +154,12 @@ pub const Entity = struct {
         }
     }
 
-    pub fn share(self: Entity, comptime T: type, with: Entity) !void {
-        const component = self.ecs.components.getPtr(@typeName(T)).?;
-        try @intToPtr(*Component(T), component.*).share(self, with);
+    pub fn share(self: Entity, with: Entity, comptime Types: anytype) !void {
+        inline for (@typeInfo(@TypeOf(Types)).Struct.fields) |field| {
+            const T = @field(Types, field.name);
+            const component = self.ecs.components.getPtr(@typeName(T)).?;
+            try @intToPtr(*Component(T), component.*).share(self, with);
+        }
     }
 };
 
@@ -256,7 +259,9 @@ test "share components between entities" {
         Age{ .value = 20 },
     });
     const entity2 = try ecs.createEntity(.{});
-    try entity2.share(Name, entity1);
+    try entity2.share(entity1, .{ Name, Age });
     try expectEqual(entity1.get(Name).?.*, Name{ .value = "Joe" });
     try expectEqual(entity2.get(Name).?.*, Name{ .value = "Joe" });
+    try expectEqual(entity1.get(Age).?.*, Age{ .value = 20 });
+    try expectEqual(entity2.get(Age).?.*, Age{ .value = 20 });
 }
