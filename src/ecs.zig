@@ -35,27 +35,22 @@ fn Component(comptime T: type) type {
         }
 
         fn set(self: *Self, entity: Entity, value: T) !void {
-            const result = try self.lookup.getOrPut(entity.uuid);
-            if (result.found_existing) {
-                self.data[result.value_ptr.*] = value;
-            } else {
-                var capacity = self.data.len;
-                if (self.len == capacity) {
-                    capacity = std.math.max(32, capacity * 2);
-                    const data = try self.allocator.alloc(T, capacity);
-                    std.mem.copy(T, data, self.data);
-                    self.allocator.free(self.data);
-                    self.data = data;
-                    const inverse = try self.allocator.alloc(u64, capacity);
-                    std.mem.copy(u64, inverse, self.inverse);
-                    self.allocator.free(self.inverse);
-                    self.inverse = inverse;
-                }
-                self.data[self.len] = value;
-                self.inverse[self.len] = entity.uuid;
-                result.value_ptr.* = self.len;
-                self.len += 1;
+            var capacity = self.data.len;
+            if (self.len == capacity) {
+                capacity = std.math.max(32, capacity * 2);
+                const data = try self.allocator.alloc(T, capacity);
+                std.mem.copy(T, data, self.data);
+                self.allocator.free(self.data);
+                self.data = data;
+                const inverse = try self.allocator.alloc(u64, capacity);
+                std.mem.copy(u64, inverse, self.inverse);
+                self.allocator.free(self.inverse);
+                self.inverse = inverse;
             }
+            self.data[self.len] = value;
+            self.inverse[self.len] = entity.uuid;
+            try self.lookup.putNoClobber(entity.uuid, self.len);
+            self.len += 1;
         }
 
         fn get(self: Self, entity: Entity) ?*const T {
@@ -317,8 +312,6 @@ test "entity get and set component" {
     try expectEqual(entity.get(Name), null);
     _ = try entity.set(.{Name{ .value = "Joe" }});
     try expectEqual(entity.get(Name).?.*, Name{ .value = "Joe" });
-    _ = try entity.set(.{Name{ .value = "Bob" }});
-    try expectEqual(entity.get(Name).?.*, Name{ .value = "Bob" });
 }
 
 test "entity get and set components" {
