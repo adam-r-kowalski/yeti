@@ -10,6 +10,7 @@ const Codebase = @import("codebase.zig").Codebase;
 const Entity = @import("ecs.zig").Entity;
 const List = @import("list.zig").List;
 const InternedString = @import("strings.zig").InternedString;
+const literalOf = @import("test_utils.zig").literalOf;
 
 pub const Position = struct {
     column: u64,
@@ -111,10 +112,6 @@ fn tokenizeSymbol(tokens: *Tokens) !Entity {
         Kind.Symbol,
         span,
     });
-}
-
-fn literalOf(codebase: Codebase, entity: Entity) []const u8 {
-    return codebase.strings.get(entity.get(Literal).?.interned).?;
 }
 
 test "tokenize symbol" {

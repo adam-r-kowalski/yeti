@@ -2,6 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const panic = std.debug.panic;
 const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
 const Codebase = @import("codebase.zig").Codebase;
@@ -11,6 +12,9 @@ const tokenizer = @import("tokenizer.zig");
 const TokenKind = tokenizer.Kind;
 const Tokens = tokenizer.Tokens;
 const Literal = tokenizer.Literal;
+const Span = tokenizer.Span;
+const Position = tokenizer.Position;
+const literalOf = @import("test_utils.zig").literalOf;
 
 pub const Name = struct {
     interned: InternedString,
@@ -29,8 +33,10 @@ fn parseExpression(codebase: *Codebase, tokens: *Tokens) !Entity {
     };
 }
 
-fn parseSymbol(codebase: *Codebase, _: Entity) !Entity {
-    return try codebase.ecs.createEntity(.{Kind.Symbol});
+fn parseSymbol(codebase: *Codebase, token: Entity) !Entity {
+    const expression = try codebase.ecs.createEntity(.{Kind.Symbol});
+    try expression.share(token, .{ Literal, Span });
+    return expression;
 }
 
 test "parse symbol" {
@@ -41,7 +47,13 @@ test "parse symbol" {
     defer codebase.deinit();
     const code = "foo";
     var tokens = Tokens.init(&codebase, code);
-    _ = try parseExpression(&codebase, &tokens);
+    const expression = try parseExpression(&codebase, &tokens);
+    try expectEqual(expression.get(Kind).?.*, Kind.Symbol);
+    try expectEqualStrings(literalOf(codebase, expression), "foo");
+    try expectEqual(expression.get(Span).?.*, Span{
+        .begin = Position{ .column = 0, .row = 0 },
+        .end = Position{ .column = 3, .row = 0 },
+    });
 }
 
 fn parseFunction(codebase: *Codebase, tokens: *Tokens) !Entity {
