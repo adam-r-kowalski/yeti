@@ -48,11 +48,8 @@ pub const Strings = struct {
         }
     }
 
-    pub fn get(self: Strings, interned: InternedString) ?[]const u8 {
-        if (self.inverse.nth(interned.value)) |ptr| {
-            return ptr.*;
-        }
-        return null;
+    pub fn get(self: Strings, interned: InternedString) []const u8 {
+        return self.inverse.nth(interned.value).?.*;
     }
 };
 
@@ -69,5 +66,5 @@ test "intern a string" {
     try expectEqual(joe, joe_again);
     const bob_again = try strings.intern("Bob");
     try expectEqual(bob, bob_again);
-    try expectEqualStrings(strings.get(joe).?, "Joe");
+    try expectEqualStrings(strings.get(joe), "Joe");
 }

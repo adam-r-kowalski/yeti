@@ -34,11 +34,9 @@ fn Component(comptime T: type) type {
             try self.data.push(value);
         }
 
-        fn get(self: Self, entity: Entity) ?*const T {
-            if (self.lookup.get(entity.uuid)) |index| {
-                return &self.data.data[index];
-            }
-            return null;
+        fn get(self: Self, entity: Entity) *const T {
+            const index = self.lookup.get(entity.uuid).?;
+            return &self.data.data[index];
         }
 
         fn share(self: *Self, entity: Entity, with: Entity) !void {
@@ -80,28 +78,14 @@ pub const ECS = struct {
         };
         return try entity.set(components);
     }
-};
 
-fn Query(comptime components: anytype) type {
-    const components_fields = @typeInfo(@TypeOf(components)).Struct.fields;
-    var fields: [components_fields.len]TypeInfo.StructField = undefined;
-    inline for (components_fields) |field, i| {
-        const T = @field(components, field.name);
-        fields[i] = TypeInfo.StructField{
-            .name = @typeName(T),
-            .field_type = *const T,
-            .default_value = null,
-            .is_comptime = false,
-            .alignment = 8,
-        };
+    pub fn getMut(self: *ECS, comptime T: type) []T {
+        if (self.components.getPtr(@typeName(T))) |component| {
+            return @intToPtr(*Component(T), component.*).data.slice();
+        }
+        return &[_]T{};
     }
-    return @Type(TypeInfo{ .Struct = .{
-        .layout = TypeInfo.ContainerLayout.Auto,
-        .fields = &fields,
-        .decls = &[_]TypeInfo.Declaration{},
-        .is_tuple = false,
-    } });
-}
+};
 
 pub const Entity = struct {
     uuid: u64,
@@ -126,32 +110,9 @@ pub const Entity = struct {
         return self;
     }
 
-    pub fn get(self: Entity, comptime T: type) ?*const T {
-        if (self.ecs.components.getPtr(@typeName(T))) |component| {
-            return @intToPtr(*Component(T), component.*).get(self);
-        } else {
-            return null;
-        }
-    }
-
-    pub fn query(self: Entity, comptime components: anytype) ?Query(components) {
-        var result: Query(components) = undefined;
-        var found = true;
-        const type_info = @typeInfo(@TypeOf(components)).Struct;
-        assert(type_info.is_tuple);
-        inline for (type_info.fields) |field| {
-            const T = @field(components, field.name);
-            if (self.get(T)) |component| {
-                @field(result, @typeName(T)) = component;
-            } else {
-                found = false;
-            }
-        }
-        if (!found) {
-            return null;
-        } else {
-            return result;
-        }
+    pub fn get(self: Entity, comptime T: type) *const T {
+        const component = self.ecs.components.getPtr(@typeName(T)).?;
+        return @intToPtr(*Component(T), component.*).get(self);
     }
 
     pub fn share(self: Entity, with: Entity, comptime Types: anytype) !void {
@@ -182,9 +143,8 @@ test "entity get and set component" {
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
     const entity = try ecs.createEntity(.{});
-    try expectEqual(entity.get(Name), null);
     _ = try entity.set(.{Name{ .value = "Joe" }});
-    try expectEqual(entity.get(Name).?.*, Name{ .value = "Joe" });
+    try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
 }
 
 test "entity get and set components" {
@@ -195,8 +155,8 @@ test "entity get and set components" {
     defer ecs.deinit();
     const entity = try ecs.createEntity(.{});
     _ = try entity.set(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    try expectEqual(entity.get(Name).?.*, Name{ .value = "Joe" });
-    try expectEqual(entity.get(Age).?.*, Age{ .value = 20 });
+    try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
+    try expectEqual(entity.get(Age).*, Age{ .value = 20 });
 }
 
 test "entity get and set components on creation" {
@@ -206,46 +166,8 @@ test "entity get and set components on creation" {
     var ecs = ECS.init(allocator);
     defer ecs.deinit();
     const entity = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    try expectEqual(entity.get(Name).?.*, Name{ .value = "Joe" });
-    try expectEqual(entity.get(Age).?.*, Age{ .value = 20 });
-}
-
-test "query" {
-    const type_info = @typeInfo(Query(.{ Name, Age })).Struct;
-    try expectEqual(type_info.layout, TypeInfo.ContainerLayout.Auto);
-    try expectEqual(type_info.fields.len, 2);
-    try expectEqual(type_info.fields[0], .{
-        .name = "Name",
-        .field_type = *const Name,
-        .default_value = null,
-        .is_comptime = false,
-        .alignment = 8,
-    });
-    try expectEqual(type_info.fields[1], .{
-        .name = "Age",
-        .field_type = *const Age,
-        .default_value = null,
-        .is_comptime = false,
-        .alignment = 8,
-    });
-    try expectEqualSlices(TypeInfo.Declaration, type_info.decls, &[_]TypeInfo.Declaration{});
-    try expectEqual(type_info.is_tuple, false);
-}
-
-test "entity query components" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var ecs = ECS.init(allocator);
-    defer ecs.deinit();
-    const entity = try ecs.createEntity(.{});
-    try expectEqual(entity.query(.{ Name, Age }), null);
-    _ = try entity.set(.{Name{ .value = "Joe" }});
-    try expectEqual(entity.query(.{ Name, Age }), null);
-    _ = try entity.set(.{Age{ .value = 20 }});
-    const query = entity.query(.{ Name, Age }).?;
-    try expectEqual(query.Name.*, Name{ .value = "Joe" });
-    try expectEqual(query.Age.*, Age{ .value = 20 });
+    try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
+    try expectEqual(entity.get(Age).*, Age{ .value = 20 });
 }
 
 test "share components between entities" {
@@ -260,8 +182,27 @@ test "share components between entities" {
     });
     const entity2 = try ecs.createEntity(.{});
     try entity2.share(entity1, .{ Name, Age });
-    try expectEqual(entity1.get(Name).?.*, Name{ .value = "Joe" });
-    try expectEqual(entity2.get(Name).?.*, Name{ .value = "Joe" });
-    try expectEqual(entity1.get(Age).?.*, Age{ .value = 20 });
-    try expectEqual(entity2.get(Age).?.*, Age{ .value = 20 });
+    try expectEqual(entity1.get(Name).*, Name{ .value = "Joe" });
+    try expectEqual(entity2.get(Name).*, Name{ .value = "Joe" });
+    try expectEqual(entity1.get(Age).*, Age{ .value = 20 });
+    try expectEqual(entity2.get(Age).*, Age{ .value = 20 });
+}
+
+test "get all components of type" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
+    const allocator = &gpa.allocator;
+    var ecs = ECS.init(allocator);
+    defer ecs.deinit();
+    _ = try ecs.createEntity(.{
+        Name{ .value = "Joe" },
+        Age{ .value = 20 },
+    });
+    _ = try ecs.createEntity(.{
+        Name{ .value = "Bob" },
+    });
+    const names = ecs.getMut(Name);
+    try expectEqual(names.len, 2);
+    try expectEqualStrings(names[0].value, "Joe");
+    try expectEqualStrings(names[1].value, "Bob");
 }
