@@ -8,7 +8,7 @@ const Codebase = @import("codebase.zig").Codebase;
 const Entity = @import("ecs.zig").Entity;
 const InternedString = @import("strings.zig").InternedString;
 const tokenizer = @import("tokenizer.zig");
-const Kind = tokenizer.Kind;
+const TokenKind = tokenizer.Kind;
 const Tokens = tokenizer.Tokens;
 const Literal = tokenizer.Literal;
 
@@ -16,19 +16,50 @@ pub const Name = struct {
     interned: InternedString,
 };
 
+pub const Kind = enum(u8) {
+    Symbol,
+};
+
+fn parseExpression(codebase: *Codebase, tokens: *Tokens) !Entity {
+    const token = (try tokens.next()).?;
+    const kind = token.get(TokenKind).?.*;
+    return switch (kind) {
+        TokenKind.Symbol => parseSymbol(codebase, token),
+        else => panic("\nkind = {}\n", .{kind}),
+    };
+}
+
+fn parseSymbol(codebase: *Codebase, _: Entity) !Entity {
+    return try codebase.ecs.createEntity(.{Kind.Symbol});
+}
+
+test "parse symbol" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
+    const allocator = &gpa.allocator;
+    var codebase = try Codebase.init(allocator);
+    defer codebase.deinit();
+    const code = "foo";
+    var tokens = Tokens.init(&codebase, code);
+    _ = try parseExpression(&codebase, &tokens);
+}
+
 fn parseFunction(codebase: *Codebase, tokens: *Tokens) !Entity {
     {
         const token = (try tokens.next()).?;
-        assert(token.get(Kind).?.* == Kind.Fn);
+        assert(token.get(TokenKind).?.* == TokenKind.Fn);
     }
     const name = blk: {
         const token = (try tokens.next()).?;
-        assert(token.get(Kind).?.* == Kind.Symbol);
+        assert(token.get(TokenKind).?.* == TokenKind.Symbol);
         const interned = token.get(Literal).?.interned;
         break :blk Name{ .interned = interned };
     };
-    assert((try tokens.next()).?.get(Kind).?.* == Kind.LeftParen);
-    assert((try tokens.next()).?.get(Kind).?.* == Kind.RightParen);
+    assert((try tokens.next()).?.get(TokenKind).?.* == TokenKind.LeftParen);
+    assert((try tokens.next()).?.get(TokenKind).?.* == TokenKind.RightParen);
+    assert((try tokens.next()).?.get(TokenKind).?.* == TokenKind.Symbol);
+    assert((try tokens.next()).?.get(TokenKind).?.* == TokenKind.Colon);
+    assert((try tokens.next()).?.get(TokenKind).?.* == TokenKind.Int);
     return try codebase.ecs.createEntity(.{name});
 }
 
