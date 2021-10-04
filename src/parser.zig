@@ -63,7 +63,11 @@ fn parseBinaryOp(codebase: *Codebase, tokens: *Tokens, left: Entity, kind: Binar
     tokens.advance();
     const right = try parseExpression(codebase, tokens);
     const op = BinaryOp{ .kind = kind, .left = left, .right = right };
-    return try codebase.ecs.createEntity(.{ Kind.BinaryOp, op });
+    const span = Span{
+        .begin = left.get(Span).begin,
+        .end = right.get(Span).end,
+    };
+    return try codebase.ecs.createEntity(.{ Kind.BinaryOp, op, span });
 }
 
 test "parse symbol" {
@@ -167,36 +171,51 @@ test "parse function with int literal" {
     });
 }
 
-// test "parse function with binary expression" {
-//     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-//     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-//     const allocator = &gpa.allocator;
-//     var codebase = try Codebase.init(allocator);
-//     defer codebase.deinit();
-//     const code = "fn start() u64: 5 + x";
-//     var tokens = try tokenize(&codebase, code);
-//     defer tokens.deinit();
-//     const function = try parseFunction(&codebase, &tokens);
-//     try expectEqual(function.get(Kind).*, Kind.Function);
-//     try expectEqualStrings(nameOf(codebase, function), "start");
-//     try expectEqual(function.get(Span).*, Span{
-//         .begin = Position{ .column = 0, .row = 0 },
-//         .end = Position{ .column = 17, .row = 0 },
-//     });
-//     const return_type = function.get(ReturnType).expression;
-//     try expectEqual(return_type.get(Kind).*, Kind.Symbol);
-//     try expectEqualStrings(literalOf(codebase, return_type), "u64");
-//     try expectEqual(return_type.get(Span).*, Span{
-//         .begin = Position{ .column = 11, .row = 0 },
-//         .end = Position{ .column = 14, .row = 0 },
-//     });
-//     const body = function.get(Body).expressions;
-//     try expectEqual(body.len, 1);
-//     const expression = body.data[0];
-//     try expectEqual(expression.get(Kind).*, Kind.Int);
-//     try expectEqualStrings(literalOf(codebase, expression), "5");
-//     try expectEqual(expression.get(Span).*, Span{
-//         .begin = Position{ .column = 16, .row = 0 },
-//         .end = Position{ .column = 17, .row = 0 },
-//     });
-// }
+test "parse function with binary expression" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
+    const allocator = &gpa.allocator;
+    var codebase = try Codebase.init(allocator);
+    defer codebase.deinit();
+    const code = "fn start() u64: 5 + x";
+    var tokens = try tokenize(&codebase, code);
+    defer tokens.deinit();
+    const function = try parseFunction(&codebase, &tokens);
+    try expectEqual(function.get(Kind).*, Kind.Function);
+    try expectEqualStrings(nameOf(codebase, function), "start");
+    try expectEqual(function.get(Span).*, Span{
+        .begin = Position{ .column = 0, .row = 0 },
+        .end = Position{ .column = 21, .row = 0 },
+    });
+    const return_type = function.get(ReturnType).expression;
+    try expectEqual(return_type.get(Kind).*, Kind.Symbol);
+    try expectEqualStrings(literalOf(codebase, return_type), "u64");
+    try expectEqual(return_type.get(Span).*, Span{
+        .begin = Position{ .column = 11, .row = 0 },
+        .end = Position{ .column = 14, .row = 0 },
+    });
+    const body = function.get(Body).expressions;
+    try expectEqual(body.len, 1);
+    const expression = body.data[0];
+    try expectEqual(expression.get(Kind).*, Kind.BinaryOp);
+    try expectEqual(expression.get(Span).*, Span{
+        .begin = Position{ .column = 16, .row = 0 },
+        .end = Position{ .column = 21, .row = 0 },
+    });
+    const binary_op = expression.get(BinaryOp);
+    try expectEqual(binary_op.kind, BinaryOpKind.Add);
+    const left = binary_op.left;
+    try expectEqual(left.get(Kind).*, Kind.Int);
+    try expectEqualStrings(literalOf(codebase, left), "5");
+    try expectEqual(left.get(Span).*, Span{
+        .begin = Position{ .column = 16, .row = 0 },
+        .end = Position{ .column = 17, .row = 0 },
+    });
+    const right = binary_op.right;
+    try expectEqual(right.get(Kind).*, Kind.Symbol);
+    try expectEqualStrings(literalOf(codebase, right), "x");
+    try expectEqual(right.get(Span).*, Span{
+        .begin = Position{ .column = 20, .row = 0 },
+        .end = Position{ .column = 21, .row = 0 },
+    });
+}
