@@ -39,18 +39,18 @@ const Source = struct {
     }
 };
 
-const Tokens = struct {
+pub const Tokens = struct {
     list: List(Entity),
     index: u64,
 
-    fn init(allocator: *Allocator) Tokens {
+    pub fn init(allocator: *Allocator) Tokens {
         return Tokens{
             .list = List(Entity).init(allocator),
             .index = 0,
         };
     }
 
-    fn deinit(self: *Tokens) void {
+    pub fn deinit(self: *Tokens) void {
         self.list.deinit();
     }
 
@@ -58,7 +58,7 @@ const Tokens = struct {
         try self.list.push(token);
     }
 
-    fn next(self: *Tokens) ?Entity {
+    pub fn next(self: *Tokens) ?Entity {
         if (self.index == self.list.len) {
             return null;
         }
@@ -67,15 +67,19 @@ const Tokens = struct {
         return self.list.data[index];
     }
 
-    fn peek(self: Tokens) ?Entity {
+    pub fn peek(self: Tokens) ?Entity {
         if (self.index == self.list.len) {
             return null;
         }
         return self.list.data[self.index];
     }
+
+    pub fn advance(self: *Tokens) void {
+        self.index += 1;
+    }
 };
 
-fn tokenize(codebase: *Codebase, code: []const u8) !Tokens {
+pub fn tokenize(codebase: *Codebase, code: []const u8) !Tokens {
     var tokens = Tokens.init(codebase.allocator);
     var source = Source.init(code);
     while (true) {
