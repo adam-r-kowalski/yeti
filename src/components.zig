@@ -16,14 +16,15 @@ pub const Span = struct {
 };
 
 pub const TokenKind = enum(u8) {
-    Symbol,
-    Int,
-    Float,
-    Fn,
-    LeftParen,
-    RightParen,
-    Colon,
-    Plus,
+    symbol,
+    int,
+    float,
+    function,
+    left_paren,
+    right_paren,
+    colon,
+    plus,
+    times,
 };
 
 pub const Literal = struct {
@@ -32,10 +33,18 @@ pub const Literal = struct {
 
 pub const Name = struct {
     interned: InternedString,
+
+    pub fn init(symbol: Entity) Name {
+        return Name{ .interned = symbol.get(Literal).interned };
+    }
 };
 
 pub const ReturnType = struct {
     expression: Entity,
+
+    pub fn init(expression: Entity) ReturnType {
+        return ReturnType{ .expression = expression };
+    }
 };
 
 pub const Body = struct {
@@ -47,14 +56,15 @@ pub const Body = struct {
 };
 
 pub const AstKind = enum(u8) {
-    Symbol,
-    Int,
-    Function,
-    BinaryOp,
+    symbol,
+    int,
+    function,
+    binary_op,
 };
 
 pub const BinaryOpKind = enum(u8) {
-    Add,
+    add,
+    multiply,
 };
 
 pub const BinaryOp = struct {
