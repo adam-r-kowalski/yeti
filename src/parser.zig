@@ -34,7 +34,7 @@ const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
 
 fn parseExpression(codebase: *ECS, tokens: *Tokens, precedence: u64) error{OutOfMemory}!Entity {
     const token = tokens.next().?;
-    var left = try prefixParser(codebase, token);
+    var left = try prefixParser(token);
     while (true) {
         if (InfixParser.init(tokens)) |parser| {
             if (precedence <= parser.precedence()) {
@@ -44,22 +44,14 @@ fn parseExpression(codebase: *ECS, tokens: *Tokens, precedence: u64) error{OutOf
     }
 }
 
-fn prefixParser(codebase: *ECS, token: Entity) !Entity {
+fn prefixParser(token: Entity) !Entity {
     const kind = token.get(TokenKind);
     return try switch (kind) {
-        .symbol => parseOne(codebase, token, .symbol),
-        .int => parseOne(codebase, token, .int),
-        .function => parseOne(codebase, token, .function),
+        .symbol => token.set(.{Kind.symbol}),
+        .int => token.set(.{Kind.int}),
+        .function => token.set(.{Kind.function}),
         else => panic("\nno prefix parser for = {}\n", .{kind}),
     };
-}
-
-fn parseOne(codebase: *ECS, token: Entity, kind: Kind) !Entity {
-    return try codebase.createEntity(.{
-        kind,
-        token.get(Literal),
-        token.get(Span),
-    });
 }
 
 const InfixParser = union(enum) {
@@ -85,7 +77,7 @@ const InfixParser = union(enum) {
     }
 
     fn run(self: InfixParser, codebase: *ECS, tokens: *Tokens, left: Entity) !Entity {
-        tokens.advance();
+        _ = tokens.next();
         return switch (self) {
             .binary_op => |binary_op| try parseBinaryOp(codebase, tokens, left, binary_op.kind, binary_op.precedence),
         };
@@ -151,14 +143,9 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
     return parameters;
 }
 
-fn parseFunctionName(codebase: *ECS, tokens: *Tokens) !Name {
-    const token = tokens.next().?;
-    return Name.init(try parseOne(codebase, token, .symbol));
-}
-
 fn parseFunction(codebase: *ECS, tokens: *Tokens) !Entity {
     const begin = tokens.consume(.function).get(Span).begin;
-    const name = try parseFunctionName(codebase, tokens);
+    const name = Name.init(try tokens.next().?.set(.{Kind.symbol}));
     const parameters = try parseFunctionParameters(codebase, tokens);
     const return_type = ReturnType.init(try parseExpression(codebase, tokens, LOWEST));
     _ = tokens.consume(.colon);
