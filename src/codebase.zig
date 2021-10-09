@@ -9,7 +9,12 @@ const Strings = strings_module.Strings;
 const InternedString = strings_module.InternedString;
 const components = @import("components.zig");
 const Body = components.Body;
+const Parameters = components.Parameters;
 
+// TODO(Adam): change ecs to have a "resource" api
+// move strings into the ecs as a resource
+// move allocator into the ecs as a resource
+// add a arena into the ecs for local allocations
 pub const Codebase = struct {
     ecs: ECS,
     strings: Strings,
@@ -24,8 +29,11 @@ pub const Codebase = struct {
     }
 
     pub fn deinit(self: *Codebase) void {
+        for (self.ecs.getMut(Parameters)) |*parameters| {
+            parameters.entities.deinit();
+        }
         for (self.ecs.getMut(Body)) |*body| {
-            body.expressions.deinit();
+            body.entities.deinit();
         }
         self.ecs.deinit();
         self.strings.deinit();

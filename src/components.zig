@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const InternedString = @import("strings.zig").InternedString;
-const List = @import("list.zig").List;
+const BucketList = @import("bucket_list.zig").BucketList;
 const Entity = @import("ecs.zig").Entity;
 
 pub const Position = struct {
@@ -32,26 +32,34 @@ pub const Literal = struct {
 };
 
 pub const Name = struct {
-    interned: InternedString,
+    entity: Entity,
 
-    pub fn init(symbol: Entity) Name {
-        return Name{ .interned = symbol.get(Literal).interned };
+    pub fn init(entity: Entity) Name {
+        return Name{ .entity = entity };
+    }
+};
+
+pub const Parameters = struct {
+    entities: BucketList(Entity),
+
+    pub fn init(allocator: *Allocator) Parameters {
+        return Parameters{ .entities = BucketList(Entity).init(allocator) };
     }
 };
 
 pub const ReturnType = struct {
-    expression: Entity,
+    entity: Entity,
 
-    pub fn init(expression: Entity) ReturnType {
-        return ReturnType{ .expression = expression };
+    pub fn init(entity: Entity) ReturnType {
+        return ReturnType{ .entity = entity };
     }
 };
 
 pub const Body = struct {
-    expressions: List(Entity),
+    entities: BucketList(Entity),
 
     pub fn init(allocator: *Allocator) Body {
-        return Body{ .expressions = List(Entity).init(allocator) };
+        return Body{ .entities = BucketList(Entity).init(allocator) };
     }
 };
 

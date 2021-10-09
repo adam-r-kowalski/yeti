@@ -38,11 +38,6 @@ fn Component(comptime T: type) type {
             const index = self.lookup.get(entity.uuid).?;
             return &self.data.data[index];
         }
-
-        fn share(self: *Self, entity: Entity, with: Entity) !void {
-            const index = self.lookup.get(with.uuid).?;
-            try self.lookup.putNoClobber(entity.uuid, index);
-        }
     };
 }
 
@@ -114,14 +109,6 @@ pub const Entity = struct {
         const component = self.ecs.components.getPtr(@typeName(T)).?;
         return @intToPtr(*Component(T), component.*).get(self);
     }
-
-    pub fn share(self: Entity, with: Entity, comptime Types: anytype) !void {
-        inline for (@typeInfo(@TypeOf(Types)).Struct.fields) |field| {
-            const T = @field(Types, field.name);
-            const component = self.ecs.components.getPtr(@typeName(T)).?;
-            try @intToPtr(*Component(T), component.*).share(self, with);
-        }
-    }
 };
 
 const Name = struct {
@@ -168,24 +155,6 @@ test "entity get and set components on creation" {
     const entity = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
     try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
     try expectEqual(entity.get(Age).*, Age{ .value = 20 });
-}
-
-test "share components between entities" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var ecs = ECS.init(allocator);
-    defer ecs.deinit();
-    const entity1 = try ecs.createEntity(.{
-        Name{ .value = "Joe" },
-        Age{ .value = 20 },
-    });
-    const entity2 = try ecs.createEntity(.{});
-    try entity2.share(entity1, .{ Name, Age });
-    try expectEqual(entity1.get(Name).*, Name{ .value = "Joe" });
-    try expectEqual(entity2.get(Name).*, Name{ .value = "Joe" });
-    try expectEqual(entity1.get(Age).*, Age{ .value = 20 });
-    try expectEqual(entity2.get(Age).*, Age{ .value = 20 });
 }
 
 test "get all components of type" {

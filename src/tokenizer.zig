@@ -77,6 +77,12 @@ pub const Tokens = struct {
     pub fn advance(self: *Tokens) void {
         self.index += 1;
     }
+
+    pub fn consume(self: *Tokens, kind: Kind) Entity {
+        const token = self.next().?;
+        assert(token.get(Kind).* == kind);
+        return token;
+    }
 };
 
 pub fn tokenize(codebase: *Codebase, code: []const u8) !Tokens {
