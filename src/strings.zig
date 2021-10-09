@@ -41,7 +41,7 @@ pub const Strings = struct {
     }
 
     pub fn get(self: Strings, interned: InternedString) []const u8 {
-        return self.inverse.nth(interned.value).*;
+        return self.inverse.nth(interned.value);
     }
 };
 

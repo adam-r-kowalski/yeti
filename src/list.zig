@@ -51,13 +51,13 @@ pub fn List(comptime T: type) type {
             self.len += 1;
         }
 
-        pub fn nth(self: Self, index: u64) *const T {
+        pub fn nth(self: Self, index: u64) T {
             var bucket = index / BUCKET_SIZE;
             var current = self.head.?;
             while (bucket > 0) : (bucket -= 1) {
                 current = current.next.?;
             }
-            return &current.data[index % BUCKET_SIZE];
+            return current.data[index % BUCKET_SIZE];
         }
 
         pub const Iterator = struct {
@@ -100,7 +100,7 @@ test "list push 1" {
     defer arena.deinit();
     var list = List(u64).init(&arena);
     try list.push(1);
-    try expectEqual(list.nth(0).*, 1);
+    try expectEqual(list.nth(0), 1);
 }
 
 test "list push 50" {
@@ -114,7 +114,7 @@ test "list push 50" {
     }
     i = 0;
     while (i < elements) : (i += 1) {
-        try expectEqual(list.nth(i).*, i);
+        try expectEqual(list.nth(i), i);
     }
 }
 

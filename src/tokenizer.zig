@@ -56,7 +56,7 @@ pub const Tokens = struct {
 
     pub fn consume(self: *Tokens, kind: Kind) Entity {
         const token = self.next().?;
-        assert(token.get(Kind).* == kind);
+        assert(token.get(Kind) == kind);
         return token;
     }
 };
@@ -120,36 +120,36 @@ test "tokenize symbol" {
     var tokens = try tokenize(&codebase, code);
     {
         const token = tokens.peek().?;
-        try expectEqual(token.get(Kind).*, Kind.symbol);
+        try expectEqual(token.get(Kind), Kind.symbol);
         try expectEqualStrings(literalOf(codebase, token), "foo");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 0, .row = 0 },
             .end = Position{ .column = 3, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.symbol);
+        try expectEqual(token.get(Kind), Kind.symbol);
         try expectEqualStrings(literalOf(codebase, token), "foo");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 0, .row = 0 },
             .end = Position{ .column = 3, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.symbol);
+        try expectEqual(token.get(Kind), Kind.symbol);
         try expectEqualStrings(literalOf(codebase, token), "bar?");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 4, .row = 0 },
             .end = Position{ .column = 8, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.symbol);
+        try expectEqual(token.get(Kind), Kind.symbol);
         try expectEqualStrings(literalOf(codebase, token), "_baz_");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 9, .row = 0 },
             .end = Position{ .column = 14, .row = 0 },
         });
@@ -189,36 +189,36 @@ test "tokenize number" {
     var tokens = try tokenize(&codebase, code);
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.int);
+        try expectEqual(token.get(Kind), Kind.int);
         try expectEqualStrings(literalOf(codebase, token), "100");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 0, .row = 0 },
             .end = Position{ .column = 3, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.int);
+        try expectEqual(token.get(Kind), Kind.int);
         try expectEqualStrings(literalOf(codebase, token), "-324");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 4, .row = 0 },
             .end = Position{ .column = 8, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.float);
+        try expectEqual(token.get(Kind), Kind.float);
         try expectEqualStrings(literalOf(codebase, token), "3.25");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 9, .row = 0 },
             .end = Position{ .column = 13, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.float);
+        try expectEqual(token.get(Kind), Kind.float);
         try expectEqualStrings(literalOf(codebase, token), ".73");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 14, .row = 0 },
             .end = Position{ .column = 17, .row = 0 },
         });
@@ -241,59 +241,59 @@ test "tokenize function" {
     var tokens = try tokenize(&codebase, code);
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.function);
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Kind), Kind.function);
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 0, .row = 0 },
             .end = Position{ .column = 2, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.symbol);
+        try expectEqual(token.get(Kind), Kind.symbol);
         try expectEqualStrings(literalOf(codebase, token), "start");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 3, .row = 0 },
             .end = Position{ .column = 8, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.left_paren);
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Kind), Kind.left_paren);
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 8, .row = 0 },
             .end = Position{ .column = 9, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.right_paren);
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Kind), Kind.right_paren);
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 9, .row = 0 },
             .end = Position{ .column = 10, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.symbol);
+        try expectEqual(token.get(Kind), Kind.symbol);
         try expectEqualStrings(literalOf(codebase, token), "u64");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 11, .row = 0 },
             .end = Position{ .column = 14, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.colon);
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Kind), Kind.colon);
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 14, .row = 0 },
             .end = Position{ .column = 15, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind).*, Kind.int);
+        try expectEqual(token.get(Kind), Kind.int);
         try expectEqualStrings(literalOf(codebase, token), "0");
-        try expectEqual(token.get(Span).*, Span{
+        try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 16, .row = 0 },
             .end = Position{ .column = 17, .row = 0 },
         });

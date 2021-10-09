@@ -29,9 +29,8 @@ fn Component(comptime T: type) type {
             try self.data.push(value);
         }
 
-        fn get(self: Self, entity: Entity) *const T {
-            const index = self.lookup.get(entity.uuid).?;
-            return self.data.nth(index);
+        fn get(self: Self, entity: Entity) T {
+            return self.data.nth(self.lookup.get(entity.uuid).?);
         }
     };
 }
@@ -60,6 +59,27 @@ pub const ECS = struct {
         };
         return try entity.set(components);
     }
+
+    pub fn set(self: *ECS, resources: anytype) !void {
+        const type_info = @typeInfo(@TypeOf(resources)).Struct;
+        assert(type_info.is_tuple);
+        inline for (type_info.fields) |field| {
+            const T = field.field_type;
+            const result = try self.resources.getOrPut(@typeName(T));
+            if (result.found_existing) {
+                const resource = @intToPtr(*T, result.value_ptr.*);
+                resource.* = @field(resources, field.name);
+            } else {
+                const resource = try self.arena.allocator.create(T);
+                resource.* = @field(resources, field.name);
+                result.value_ptr.* = @ptrToInt(resource);
+            }
+        }
+    }
+
+    pub fn get(self: ECS, comptime T: type) T {
+        return @intToPtr(*T, self.resources.get(@typeName(T)).?).*;
+    }
 };
 
 pub const Entity = struct {
@@ -85,9 +105,9 @@ pub const Entity = struct {
         return self;
     }
 
-    pub fn get(self: Entity, comptime T: type) *const T {
-        const component = self.ecs.components.getPtr(@typeName(T)).?;
-        return @intToPtr(*Component(T), component.*).get(self);
+    pub fn get(self: Entity, comptime T: type) T {
+        const component = self.ecs.components.get(@typeName(T)).?;
+        return @intToPtr(*Component(T), component).get(self);
     }
 };
 
@@ -109,7 +129,7 @@ test "entity get and set component" {
     var ecs = ECS.init(&arena);
     const entity = try ecs.createEntity(.{});
     _ = try entity.set(.{Name{ .value = "Joe" }});
-    try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
+    try expectEqual(entity.get(Name), Name{ .value = "Joe" });
 }
 
 test "entity get and set components" {
@@ -118,8 +138,8 @@ test "entity get and set components" {
     var ecs = ECS.init(&arena);
     const entity = try ecs.createEntity(.{});
     _ = try entity.set(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
-    try expectEqual(entity.get(Age).*, Age{ .value = 20 });
+    try expectEqual(entity.get(Name), Name{ .value = "Joe" });
+    try expectEqual(entity.get(Age), Age{ .value = 20 });
 }
 
 test "entity get and set components on creation" {
@@ -127,6 +147,15 @@ test "entity get and set components on creation" {
     defer arena.deinit();
     var ecs = ECS.init(&arena);
     const entity = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
-    try expectEqual(entity.get(Age).*, Age{ .value = 20 });
+    try expectEqual(entity.get(Name), Name{ .value = "Joe" });
+    try expectEqual(entity.get(Age), Age{ .value = 20 });
+}
+
+test "ecs get and set components" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var ecs = ECS.init(&arena);
+    try ecs.set(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
+    try expectEqual(ecs.get(Name), Name{ .value = "Joe" });
+    try expectEqual(ecs.get(Age), Age{ .value = 20 });
 }
