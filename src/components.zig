@@ -39,6 +39,7 @@ pub const Name = struct {
     }
 };
 
+// TODO(design): Parameters should be a single entity with a Children component
 pub const Parameters = struct {
     entities: List(Entity),
 
@@ -55,6 +56,7 @@ pub const ReturnType = struct {
     }
 };
 
+// TODO(design): Body should be a single entity with a Children component
 pub const Body = struct {
     entities: List(Entity),
 
@@ -70,13 +72,14 @@ pub const AstKind = enum(u8) {
     binary_op,
 };
 
-pub const BinaryOpKind = enum(u8) {
-    add,
-    multiply,
-};
-
+// TODO(design): Refactor usage sites from BinaryOpKind to BinaryOp.Kind
 pub const BinaryOp = struct {
-    kind: BinaryOpKind,
+    pub const Kind = enum(u8) {
+        add,
+        multiply,
+    };
+
+    kind: Kind,
     left: Entity,
     right: Entity,
 };
