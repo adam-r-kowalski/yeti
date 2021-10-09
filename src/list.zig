@@ -1,129 +1,86 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const Arena = std.heap.ArenaAllocator;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualSlices = std.testing.expectEqualSlices;
 const panic = std.debug.panic;
+const assert = std.debug.assert;
+
+//TODO(performance): make the bucket size dynamic
+const BUCKET_SIZE: u64 = 32;
 
 pub fn List(comptime T: type) type {
-    const Iterator = struct {
-        data: []const T,
-        index: u64,
-
-        pub fn next(self: *@This()) ?*const T {
-            if (self.index < self.data.len) {
-                const index = self.index;
-                self.index += 1;
-                return &self.data[index];
-            }
-            return null;
-        }
+    const Node = struct {
+        data: [BUCKET_SIZE]T,
+        next: ?*@This(),
     };
 
     return struct {
-        data: []T,
+        head: ?*Node,
+        tail: ?*Node,
         len: u64,
-        allocator: *Allocator,
+        arena: *Arena,
 
         const Self = @This();
 
-        pub fn init(allocator: *Allocator) Self {
+        pub fn init(arena: *Arena) Self {
             return Self{
-                .data = &.{},
+                .head = null,
+                .tail = null,
                 .len = 0,
-                .allocator = allocator,
+                .arena = arena,
             };
-        }
-
-        pub fn deinit(self: *Self) void {
-            self.allocator.free(self.data);
         }
 
         pub fn push(self: *Self, value: T) !void {
-            if (self.data.len == self.len) {
-                const capacity = std.math.max(32, 2 * self.data.len);
-                const data = try self.allocator.alloc(T, capacity);
-                std.mem.copy(T, data, self.data);
-                self.allocator.free(self.data);
-                self.data = data;
+            const index = self.len % BUCKET_SIZE;
+            if (index == 0) {
+                if (self.tail) |tail| {
+                    const node = try self.arena.allocator.create(Node);
+                    node.* = Node{ .data = undefined, .next = null };
+                    tail.next = node;
+                    self.tail = tail.next;
+                } else {
+                    const node = try self.arena.allocator.create(Node);
+                    node.* = Node{ .data = undefined, .next = null };
+                    self.head = node;
+                    self.tail = node;
+                }
             }
-            self.data[self.len] = value;
+            self.tail.?.data[index] = value;
             self.len += 1;
         }
 
-        pub fn pop(self: *Self) ?T {
-            if (self.len == 0) {
-                return null;
+        pub fn nth(self: Self, index: u64) *const T {
+            var bucket = index / BUCKET_SIZE;
+            var current = self.head.?;
+            while (bucket > 0) : (bucket -= 1) {
+                current = current.next.?;
             }
-            self.len -= 1;
-            return self.data[self.len];
-        }
-
-        pub fn slice(self: Self) []T {
-            return self.data[0..self.len];
-        }
-
-        pub fn iterate(self: Self) Iterator {
-            return Iterator{
-                .data = self.slice(),
-                .index = 0,
-            };
-        }
-
-        pub fn nth(self: Self, index: u64) ?*const T {
-            if (index > self.len - 1) return null;
-            return &self.data[index];
+            return &current.data[index % BUCKET_SIZE];
         }
     };
 }
 
-test "list push" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var list = List(u64).init(allocator);
-    defer list.deinit();
-    try list.push(10);
-    try list.push(20);
-    try expectEqualSlices(u64, list.slice(), &.{ 10, 20 });
+test "list push 1" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var list = List(u64).init(&arena);
+    try list.push(1);
+    try expectEqual(list.nth(0).*, 1);
 }
 
-test "list iterate" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var list = List(u64).init(allocator);
-    defer list.deinit();
-    try list.push(10);
-    try list.push(20);
-    var iterator = list.iterate();
-    try expectEqual(iterator.next().?.*, 10);
-    try expectEqual(iterator.next().?.*, 20);
-    try expectEqual(iterator.next(), null);
-}
-
-test "list nth" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var list = List(u64).init(allocator);
-    defer list.deinit();
-    try list.push(10);
-    try list.push(20);
-    try expectEqual(list.nth(0).?.*, 10);
-    try expectEqual(list.nth(1).?.*, 20);
-    try expectEqual(list.nth(2), null);
-}
-
-test "list pop" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var list = List(u64).init(allocator);
-    defer list.deinit();
-    try list.push(10);
-    try list.push(20);
-    try expectEqual(list.pop().?, 20);
-    try expectEqual(list.pop().?, 10);
-    try expectEqual(list.pop(), null);
+test "list push 50" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var list = List(u64).init(&arena);
+    const elements = 1_000;
+    var i: u64 = 0;
+    while (i < elements) : (i += 1) {
+        try list.push(i);
+    }
+    i = 0;
+    while (i < elements) : (i += 1) {
+        try expectEqual(list.nth(i).*, i);
+    }
 }

@@ -1,5 +1,5 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const Arena = std.heap.ArenaAllocator;
 const panic = std.debug.panic;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -16,23 +16,19 @@ pub const Strings = struct {
     lookup: std.StringHashMap(InternedString),
     inverse: List([]const u8),
     next: InternedString,
-    allocator: *Allocator,
+    arena: *Arena,
 
-    pub fn init(allocator: *Allocator) Strings {
+    pub fn init(arena: *Arena) Strings {
         return Strings{
-            .lookup = std.StringHashMap(InternedString).init(allocator),
-            .inverse = List([]const u8).init(allocator),
+            .lookup = std.StringHashMap(InternedString).init(&arena.allocator),
+            .inverse = List([]const u8).init(arena),
             .next = InternedString{ .value = 0 },
-            .allocator = allocator,
+            .arena = arena,
         };
     }
 
     pub fn deinit(self: *Strings) void {
-        self.lookup.deinit();
-        for (self.inverse.slice()) |string| {
-            self.allocator.free(string);
-        }
-        self.inverse.deinit();
+        self.arena.deinit();
     }
 
     pub fn intern(self: *Strings, value: []const u8) !InternedString {
@@ -43,22 +39,20 @@ pub const Strings = struct {
             const interned = self.next;
             result.value_ptr.* = interned;
             self.next.value += 1;
-            try self.inverse.push(try self.allocator.dupe(u8, value));
+            try self.inverse.push(try self.arena.allocator.dupe(u8, value));
             return interned;
         }
     }
 
     pub fn get(self: Strings, interned: InternedString) []const u8 {
-        return self.inverse.nth(interned.value).?.*;
+        return self.inverse.nth(interned.value).*;
     }
 };
 
 test "intern a string" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var strings = Strings.init(allocator);
-    defer strings.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var strings = Strings.init(&arena);
     const joe = try strings.intern("Joe");
     const bob = try strings.intern("Bob");
     try expect(!eql(joe, bob));

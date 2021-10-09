@@ -1,5 +1,5 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const Arena = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
 const panic = std.debug.panic;
 const expect = std.testing.expect;
@@ -102,14 +102,11 @@ fn parseBinaryOp(codebase: *Codebase, tokens: *Tokens, left: Entity, kind: Binar
 }
 
 test "parse symbol" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "foo";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     const entity = try parseExpression(&codebase, &tokens, LOWEST);
     try expectEqual(entity.get(Kind).*, Kind.symbol);
     try expectEqualStrings(literalOf(codebase, entity), "foo");
@@ -120,14 +117,11 @@ test "parse symbol" {
 }
 
 test "parse int" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "35";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     const entity = try parseExpression(&codebase, &tokens, LOWEST);
     try expectEqual(entity.get(Kind).*, Kind.int);
     try expectEqualStrings(literalOf(codebase, entity), "35");
@@ -138,7 +132,7 @@ test "parse int" {
 }
 
 fn parseFunctionParameters(codebase: *Codebase, tokens: *Tokens) !Parameters {
-    var parameters = Parameters.init(codebase.allocator);
+    var parameters = Parameters.init(codebase.arena);
     _ = tokens.consume(TokenKind.left_paren);
     while (tokens.next()) |token| {
         const kind = token.get(TokenKind).*;
@@ -167,7 +161,7 @@ fn parseFunction(codebase: *Codebase, tokens: *Tokens) !Entity {
     const parameters = try parseFunctionParameters(codebase, tokens);
     const return_type = ReturnType.init(try parseExpression(codebase, tokens, LOWEST));
     _ = tokens.consume(TokenKind.colon);
-    var body = Body.init(codebase.allocator);
+    var body = Body.init(codebase.arena);
     const entity = try parseExpression(codebase, tokens, LOWEST);
     try body.entities.push(entity);
     const end = entity.get(Span).end;
@@ -180,14 +174,11 @@ fn nameOf(codebase: Codebase, entity: Entity) []const u8 {
 }
 
 test "parse function with int literal" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "fn start() u64: 0";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     const function = try parseFunction(&codebase, &tokens);
     try expectEqual(function.get(Kind).*, Kind.function);
     try expectEqualStrings(nameOf(codebase, function), "start");
@@ -214,14 +205,11 @@ test "parse function with int literal" {
 }
 
 test "parse function with binary entity" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "fn start() u64: 5 + x";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     const function = try parseFunction(&codebase, &tokens);
     try expectEqual(function.get(Kind).*, Kind.function);
     try expectEqualStrings(nameOf(codebase, function), "start");
@@ -263,14 +251,11 @@ test "parse function with binary entity" {
 }
 
 test "parse function with compound binary entity" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "fn line() u64: m * x + b";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     const function = try parseFunction(&codebase, &tokens);
     try expectEqual(function.get(Kind).*, Kind.function);
     try expectEqualStrings(nameOf(codebase, function), "line");
@@ -292,14 +277,11 @@ test "parse function with compound binary entity" {
 }
 
 test "parse function argument" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "fn identity(x: u64) u64: x";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     const function = try parseFunction(&codebase, &tokens);
     try expectEqual(function.get(Kind).*, Kind.function);
     try expectEqualStrings(nameOf(codebase, function), "identity");

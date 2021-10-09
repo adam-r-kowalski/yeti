@@ -1,5 +1,5 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const Arena = std.heap.ArenaAllocator;
 
 const ecs_module = @import("ecs.zig");
 const ECS = ecs_module.ECS;
@@ -11,31 +11,20 @@ const components = @import("components.zig");
 const Body = components.Body;
 const Parameters = components.Parameters;
 
-// TODO(Adam): change ecs to have a "resource" api
+// TODO(ergonomics): change ecs to have a "resource" api
 // move strings into the ecs as a resource
 // move allocator into the ecs as a resource
 // add a arena into the ecs for local allocations
 pub const Codebase = struct {
     ecs: ECS,
     strings: Strings,
-    allocator: *Allocator,
+    arena: *Arena,
 
-    pub fn init(allocator: *Allocator) !Codebase {
+    pub fn init(arena: *Arena) Codebase {
         return Codebase{
-            .ecs = ECS.init(allocator),
-            .strings = Strings.init(allocator),
-            .allocator = allocator,
+            .ecs = ECS.init(arena),
+            .strings = Strings.init(arena),
+            .arena = arena,
         };
-    }
-
-    pub fn deinit(self: *Codebase) void {
-        for (self.ecs.getMut(Parameters)) |*parameters| {
-            parameters.entities.deinit();
-        }
-        for (self.ecs.getMut(Body)) |*body| {
-            body.entities.deinit();
-        }
-        self.ecs.deinit();
-        self.strings.deinit();
     }
 };

@@ -1,5 +1,5 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const Arena = std.heap.ArenaAllocator;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
@@ -17,16 +17,11 @@ fn Component(comptime T: type) type {
 
         const Self = @This();
 
-        fn init(allocator: *Allocator) Self {
+        fn init(arena: *Arena) Self {
             return Self{
-                .lookup = std.AutoHashMap(u64, u64).init(allocator),
-                .data = List(T).init(allocator),
+                .lookup = std.AutoHashMap(u64, u64).init(&arena.allocator),
+                .data = List(T).init(arena),
             };
-        }
-
-        fn deinit(self: *Self) void {
-            self.lookup.deinit();
-            self.data.deinit();
         }
 
         fn set(self: *Self, entity: Entity, value: T) !void {
@@ -36,32 +31,24 @@ fn Component(comptime T: type) type {
 
         fn get(self: Self, entity: Entity) *const T {
             const index = self.lookup.get(entity.uuid).?;
-            return &self.data.data[index];
+            return self.data.nth(index);
         }
     };
 }
 
 pub const ECS = struct {
     components: std.StringHashMap(u64),
+    resources: std.StringHashMap(u64),
     next_uuid: u64,
-    allocator: *Allocator,
+    arena: *Arena,
 
-    pub fn init(allocator: *Allocator) ECS {
+    pub fn init(arena: *Arena) ECS {
         return ECS{
-            .components = std.StringHashMap(u64).init(allocator),
+            .components = std.StringHashMap(u64).init(&arena.allocator),
+            .resources = std.StringHashMap(u64).init(&arena.allocator),
             .next_uuid = 0,
-            .allocator = allocator,
+            .arena = arena,
         };
-    }
-
-    pub fn deinit(self: *ECS) void {
-        var iterator = self.components.valueIterator();
-        while (iterator.next()) |ptr| {
-            const component_ptr = @intToPtr(*Component(u1), ptr.*);
-            component_ptr.deinit();
-            self.allocator.destroy(component_ptr);
-        }
-        self.components.deinit();
     }
 
     pub fn createEntity(self: *ECS, components: anytype) !Entity {
@@ -72,13 +59,6 @@ pub const ECS = struct {
             .ecs = self,
         };
         return try entity.set(components);
-    }
-
-    pub fn getMut(self: *ECS, comptime T: type) []T {
-        if (self.components.getPtr(@typeName(T))) |component| {
-            return @intToPtr(*Component(T), component.*).data.slice();
-        }
-        return &[_]T{};
     }
 };
 
@@ -96,8 +76,8 @@ pub const Entity = struct {
                 const component = @intToPtr(*Component(T), result.value_ptr.*);
                 try component.*.set(self, @field(components, field.name));
             } else {
-                const component = try self.ecs.allocator.create(Component(T));
-                component.* = Component(T).init(self.ecs.allocator);
+                const component = try self.ecs.arena.allocator.create(Component(T));
+                component.* = Component(T).init(self.ecs.arena);
                 try component.*.set(self, @field(components, field.name));
                 result.value_ptr.* = @ptrToInt(component);
             }
@@ -124,22 +104,18 @@ const Job = struct {
 };
 
 test "entity get and set component" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var ecs = ECS.init(allocator);
-    defer ecs.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var ecs = ECS.init(&arena);
     const entity = try ecs.createEntity(.{});
     _ = try entity.set(.{Name{ .value = "Joe" }});
     try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
 }
 
 test "entity get and set components" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var ecs = ECS.init(allocator);
-    defer ecs.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var ecs = ECS.init(&arena);
     const entity = try ecs.createEntity(.{});
     _ = try entity.set(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
     try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
@@ -147,31 +123,10 @@ test "entity get and set components" {
 }
 
 test "entity get and set components on creation" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var ecs = ECS.init(allocator);
-    defer ecs.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var ecs = ECS.init(&arena);
     const entity = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
     try expectEqual(entity.get(Name).*, Name{ .value = "Joe" });
     try expectEqual(entity.get(Age).*, Age{ .value = 20 });
-}
-
-test "get all components of type" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var ecs = ECS.init(allocator);
-    defer ecs.deinit();
-    _ = try ecs.createEntity(.{
-        Name{ .value = "Joe" },
-        Age{ .value = 20 },
-    });
-    _ = try ecs.createEntity(.{
-        Name{ .value = "Bob" },
-    });
-    const names = ecs.getMut(Name);
-    try expectEqual(names.len, 2);
-    try expectEqualStrings(names[0].value, "Joe");
-    try expectEqualStrings(names[1].value, "Bob");
 }

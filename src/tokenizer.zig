@@ -1,5 +1,5 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const Arena = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
@@ -43,15 +43,11 @@ pub const Tokens = struct {
     list: List(Entity),
     index: u64,
 
-    pub fn init(allocator: *Allocator) Tokens {
+    pub fn init(arena: *Arena) Tokens {
         return Tokens{
-            .list = List(Entity).init(allocator),
+            .list = List(Entity).init(arena),
             .index = 0,
         };
-    }
-
-    pub fn deinit(self: *Tokens) void {
-        self.list.deinit();
     }
 
     fn push(self: *Tokens, token: Entity) !void {
@@ -64,14 +60,14 @@ pub const Tokens = struct {
         }
         const index = self.index;
         self.index += 1;
-        return self.list.data[index];
+        return self.list.nth(index).*;
     }
 
     pub fn peek(self: Tokens) ?Entity {
         if (self.index == self.list.len) {
             return null;
         }
-        return self.list.data[self.index];
+        return self.list.nth(self.index).*;
     }
 
     pub fn advance(self: *Tokens) void {
@@ -86,7 +82,7 @@ pub const Tokens = struct {
 };
 
 pub fn tokenize(codebase: *Codebase, code: []const u8) !Tokens {
-    var tokens = Tokens.init(codebase.allocator);
+    var tokens = Tokens.init(codebase.arena);
     var source = Source.init(code);
     while (true) {
         trimWhitespace(&source);
@@ -137,14 +133,11 @@ fn tokenizeSymbol(codebase: *Codebase, source: *Source) !Entity {
 }
 
 test "tokenize symbol" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "foo bar? _baz_";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     {
         const token = tokens.peek().?;
         try expectEqual(token.get(Kind).*, Kind.symbol);
@@ -209,14 +202,11 @@ fn tokenizeNumber(codebase: *Codebase, source: *Source, starts_with_decimal: boo
 }
 
 test "tokenize number" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "100 -324 3.25 .73";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind).*, Kind.int);
@@ -264,14 +254,11 @@ fn tokenizeOne(codebase: *Codebase, source: *Source, kind: Kind) !Entity {
 }
 
 test "tokenize function" {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK", .{});
-    const allocator = &gpa.allocator;
-    var codebase = try Codebase.init(allocator);
-    defer codebase.deinit();
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = Codebase.init(&arena);
     const code = "fn start() u64: 0";
     var tokens = try tokenize(&codebase, code);
-    defer tokens.deinit();
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind).*, Kind.function);

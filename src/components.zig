@@ -1,8 +1,8 @@
 const std = @import("std");
-const Allocator = std.mem.Allocator;
+const Arena = std.heap.ArenaAllocator;
 
 const InternedString = @import("strings.zig").InternedString;
-const BucketList = @import("bucket_list.zig").BucketList;
+const List = @import("list.zig").List;
 const Entity = @import("ecs.zig").Entity;
 
 pub const Position = struct {
@@ -40,10 +40,10 @@ pub const Name = struct {
 };
 
 pub const Parameters = struct {
-    entities: BucketList(Entity),
+    entities: List(Entity),
 
-    pub fn init(allocator: *Allocator) Parameters {
-        return Parameters{ .entities = BucketList(Entity).init(allocator) };
+    pub fn init(arena: *Arena) Parameters {
+        return Parameters{ .entities = List(Entity).init(arena) };
     }
 };
 
@@ -56,10 +56,10 @@ pub const ReturnType = struct {
 };
 
 pub const Body = struct {
-    entities: BucketList(Entity),
+    entities: List(Entity),
 
-    pub fn init(allocator: *Allocator) Body {
-        return Body{ .entities = BucketList(Entity).init(allocator) };
+    pub fn init(arena: *Arena) Body {
+        return Body{ .entities = List(Entity).init(arena) };
     }
 };
 
