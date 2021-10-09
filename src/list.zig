@@ -59,6 +59,39 @@ pub fn List(comptime T: type) type {
             }
             return &current.data[index % BUCKET_SIZE];
         }
+
+        pub const Iterator = struct {
+            node: ?*Node,
+            i: u64,
+            len: u64,
+
+            pub fn next(self: *@This()) ?T {
+                if (self.len == 0) return null;
+                const node = self.node.?;
+                const value = node.data[self.i];
+                self.i += 1;
+                if (self.i == BUCKET_SIZE) {
+                    self.node = node.next;
+                    self.i = 0;
+                }
+                self.len -= 1;
+                return value;
+            }
+
+            pub fn peek(self: @This()) ?T {
+                if (self.len == 0) return null;
+                const node = self.node.?;
+                return node.data[self.i];
+            }
+        };
+
+        pub fn iterate(self: Self) Iterator {
+            return Iterator{
+                .node = self.head,
+                .i = 0,
+                .len = self.len,
+            };
+        }
     };
 }
 
@@ -83,4 +116,22 @@ test "list push 50" {
     while (i < elements) : (i += 1) {
         try expectEqual(list.nth(i).*, i);
     }
+}
+
+test "list iterate" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var list = List(u64).init(&arena);
+    const elements = 1_000;
+    var i: u64 = 0;
+    while (i < elements) : (i += 1) {
+        try list.push(i);
+    }
+    var iterator = list.iterate();
+    i = 0;
+    while (i < elements) : (i += 1) {
+        try expectEqual(iterator.peek().?, i);
+        try expectEqual(iterator.next().?, i);
+    }
+    try expectEqual(iterator.next(), null);
 }

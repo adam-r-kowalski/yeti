@@ -27,10 +27,6 @@ pub const Strings = struct {
         };
     }
 
-    pub fn deinit(self: *Strings) void {
-        self.arena.deinit();
-    }
-
     pub fn intern(self: *Strings, value: []const u8) !InternedString {
         const result = try self.lookup.getOrPut(value);
         if (result.found_existing) {

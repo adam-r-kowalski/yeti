@@ -40,38 +40,18 @@ const Source = struct {
 };
 
 pub const Tokens = struct {
-    list: List(Entity),
-    index: u64,
-
-    pub fn init(arena: *Arena) Tokens {
-        return Tokens{
-            .list = List(Entity).init(arena),
-            .index = 0,
-        };
-    }
-
-    fn push(self: *Tokens, token: Entity) !void {
-        try self.list.push(token);
-    }
+    iterator: List(Entity).Iterator,
 
     pub fn next(self: *Tokens) ?Entity {
-        if (self.index == self.list.len) {
-            return null;
-        }
-        const index = self.index;
-        self.index += 1;
-        return self.list.nth(index).*;
+        return self.iterator.next();
     }
 
     pub fn peek(self: Tokens) ?Entity {
-        if (self.index == self.list.len) {
-            return null;
-        }
-        return self.list.nth(self.index).*;
+        return self.iterator.peek();
     }
 
     pub fn advance(self: *Tokens) void {
-        self.index += 1;
+        _ = self.next();
     }
 
     pub fn consume(self: *Tokens, kind: Kind) Entity {
@@ -82,12 +62,12 @@ pub const Tokens = struct {
 };
 
 pub fn tokenize(codebase: *Codebase, code: []const u8) !Tokens {
-    var tokens = Tokens.init(codebase.arena);
+    var tokens = List(Entity).init(codebase.arena);
     var source = Source.init(code);
     while (true) {
         trimWhitespace(&source);
         if (source.code.len == 0) {
-            return tokens;
+            return Tokens{ .iterator = tokens.iterate() };
         }
         const token = switch (source.code[0]) {
             '0'...'9', '-' => try tokenizeNumber(codebase, &source, false),
