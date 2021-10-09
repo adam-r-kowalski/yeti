@@ -33,36 +33,22 @@ pub const Literal = struct {
 
 pub const Name = struct {
     entity: Entity,
-
-    pub fn init(entity: Entity) Name {
-        return Name{ .entity = entity };
-    }
 };
 
-// TODO(design): Parameters should be a single entity with a Children component
 pub const Parameters = struct {
-    entities: List(Entity),
-
-    pub fn init(arena: *Arena) Parameters {
-        return Parameters{ .entities = List(Entity).init(arena) };
-    }
+    entity: Entity,
 };
 
 pub const ReturnType = struct {
     entity: Entity,
-
-    pub fn init(entity: Entity) ReturnType {
-        return ReturnType{ .entity = entity };
-    }
 };
 
-// TODO(design): Body should be a single entity with a Children component
-pub const Body = struct {
+pub const Children = struct {
     entities: List(Entity),
+};
 
-    pub fn init(arena: *Arena) Body {
-        return Body{ .entities = List(Entity).init(arena) };
-    }
+pub const Body = struct {
+    entity: Entity,
 };
 
 pub const AstKind = enum(u8) {
@@ -72,7 +58,6 @@ pub const AstKind = enum(u8) {
     binary_op,
 };
 
-// TODO(design): Refactor usage sites from BinaryOpKind to BinaryOp.Kind
 pub const BinaryOp = struct {
     pub const Kind = enum(u8) {
         add,
