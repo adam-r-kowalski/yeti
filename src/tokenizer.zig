@@ -6,10 +6,12 @@ const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 const panic = std.debug.panic;
 
-const Codebase = @import("codebase.zig").Codebase;
-const Entity = @import("ecs.zig").Entity;
+const initCodebase = @import("codebase.zig").initCodebase;
+const ecs = @import("ecs.zig");
+const Entity = ecs.Entity;
+const ECS = ecs.ECS;
 const List = @import("list.zig").List;
-const InternedString = @import("strings.zig").InternedString;
+const Strings = @import("strings.zig").Strings;
 const literalOf = @import("test_utils.zig").literalOf;
 const components = @import("components.zig");
 const Position = components.Position;
@@ -61,7 +63,7 @@ pub const Tokens = struct {
     }
 };
 
-pub fn tokenize(codebase: *Codebase, code: []const u8) !Tokens {
+pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
     var tokens = List(Entity).init(codebase.arena);
     var source = Source.init(code);
     while (true) {
@@ -89,7 +91,7 @@ fn trimWhitespace(source: *Source) void {
     _ = source.advance(i);
 }
 
-fn tokenizeSymbol(codebase: *Codebase, source: *Source) !Entity {
+fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
     const begin = source.position;
     var i: u64 = 1;
     while (i < source.code.len) : (i += 1) {
@@ -101,11 +103,11 @@ fn tokenizeSymbol(codebase: *Codebase, source: *Source) !Entity {
     const string = source.advance(i);
     const span = Span{ .begin = begin, .end = source.position };
     if (std.mem.eql(u8, string, "fn")) {
-        return try codebase.ecs.createEntity(.{ Kind.function, span });
+        return try codebase.createEntity(.{ Kind.function, span });
     }
-    const interned = try codebase.strings.intern(string);
+    const interned = try codebase.getPtr(Strings).intern(string);
     const literal = Literal{ .interned = interned };
-    return try codebase.ecs.createEntity(.{
+    return try codebase.createEntity(.{
         literal,
         Kind.symbol,
         span,
@@ -115,13 +117,13 @@ fn tokenizeSymbol(codebase: *Codebase, source: *Source) !Entity {
 test "tokenize symbol" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    var codebase = Codebase.init(&arena);
+    var codebase = try initCodebase(&arena);
     const code = "foo bar? _baz_";
     var tokens = try tokenize(&codebase, code);
     {
         const token = tokens.peek().?;
         try expectEqual(token.get(Kind), Kind.symbol);
-        try expectEqualStrings(literalOf(codebase, token), "foo");
+        try expectEqualStrings(literalOf(token), "foo");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 0, .row = 0 },
             .end = Position{ .column = 3, .row = 0 },
@@ -130,7 +132,7 @@ test "tokenize symbol" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.symbol);
-        try expectEqualStrings(literalOf(codebase, token), "foo");
+        try expectEqualStrings(literalOf(token), "foo");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 0, .row = 0 },
             .end = Position{ .column = 3, .row = 0 },
@@ -139,7 +141,7 @@ test "tokenize symbol" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.symbol);
-        try expectEqualStrings(literalOf(codebase, token), "bar?");
+        try expectEqualStrings(literalOf(token), "bar?");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 4, .row = 0 },
             .end = Position{ .column = 8, .row = 0 },
@@ -148,7 +150,7 @@ test "tokenize symbol" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.symbol);
-        try expectEqualStrings(literalOf(codebase, token), "_baz_");
+        try expectEqualStrings(literalOf(token), "_baz_");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 9, .row = 0 },
             .end = Position{ .column = 14, .row = 0 },
@@ -157,7 +159,7 @@ test "tokenize symbol" {
     try expectEqual(tokens.next(), null);
 }
 
-fn tokenizeNumber(codebase: *Codebase, source: *Source, starts_with_decimal: bool) !Entity {
+fn tokenizeNumber(codebase: *ECS, source: *Source, starts_with_decimal: bool) !Entity {
     var decimals_seen: u64 = if (starts_with_decimal) 1 else 0;
     const begin = source.position;
     var i: u64 = 1;
@@ -170,11 +172,11 @@ fn tokenizeNumber(codebase: *Codebase, source: *Source, starts_with_decimal: boo
     }
     assert(decimals_seen <= 1);
     const string = source.advance(i);
-    const interned = try codebase.strings.intern(string);
+    const interned = try codebase.getPtr(Strings).intern(string);
     const literal = Literal{ .interned = interned };
     const span = Span{ .begin = begin, .end = source.position };
     const kind = if (decimals_seen == 0) Kind.int else Kind.float;
-    return try codebase.ecs.createEntity(.{
+    return try codebase.createEntity(.{
         literal,
         kind,
         span,
@@ -184,13 +186,13 @@ fn tokenizeNumber(codebase: *Codebase, source: *Source, starts_with_decimal: boo
 test "tokenize number" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    var codebase = Codebase.init(&arena);
+    var codebase = try initCodebase(&arena);
     const code = "100 -324 3.25 .73";
     var tokens = try tokenize(&codebase, code);
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.int);
-        try expectEqualStrings(literalOf(codebase, token), "100");
+        try expectEqualStrings(literalOf(token), "100");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 0, .row = 0 },
             .end = Position{ .column = 3, .row = 0 },
@@ -199,7 +201,7 @@ test "tokenize number" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.int);
-        try expectEqualStrings(literalOf(codebase, token), "-324");
+        try expectEqualStrings(literalOf(token), "-324");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 4, .row = 0 },
             .end = Position{ .column = 8, .row = 0 },
@@ -208,7 +210,7 @@ test "tokenize number" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.float);
-        try expectEqualStrings(literalOf(codebase, token), "3.25");
+        try expectEqualStrings(literalOf(token), "3.25");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 9, .row = 0 },
             .end = Position{ .column = 13, .row = 0 },
@@ -217,7 +219,7 @@ test "tokenize number" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.float);
-        try expectEqualStrings(literalOf(codebase, token), ".73");
+        try expectEqualStrings(literalOf(token), ".73");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 14, .row = 0 },
             .end = Position{ .column = 17, .row = 0 },
@@ -226,17 +228,17 @@ test "tokenize number" {
     try expectEqual(tokens.next(), null);
 }
 
-fn tokenizeOne(codebase: *Codebase, source: *Source, kind: Kind) !Entity {
+fn tokenizeOne(codebase: *ECS, source: *Source, kind: Kind) !Entity {
     const begin = source.position;
     _ = source.advance(1);
     const span = Span{ .begin = begin, .end = source.position };
-    return try codebase.ecs.createEntity(.{ kind, span });
+    return try codebase.createEntity(.{ kind, span });
 }
 
 test "tokenize function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    var codebase = Codebase.init(&arena);
+    var codebase = try initCodebase(&arena);
     const code = "fn start() u64: 0";
     var tokens = try tokenize(&codebase, code);
     {
@@ -250,7 +252,7 @@ test "tokenize function" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.symbol);
-        try expectEqualStrings(literalOf(codebase, token), "start");
+        try expectEqualStrings(literalOf(token), "start");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 3, .row = 0 },
             .end = Position{ .column = 8, .row = 0 },
@@ -275,7 +277,7 @@ test "tokenize function" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.symbol);
-        try expectEqualStrings(literalOf(codebase, token), "u64");
+        try expectEqualStrings(literalOf(token), "u64");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 11, .row = 0 },
             .end = Position{ .column = 14, .row = 0 },
@@ -292,7 +294,7 @@ test "tokenize function" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), Kind.int);
-        try expectEqualStrings(literalOf(codebase, token), "0");
+        try expectEqualStrings(literalOf(token), "0");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 16, .row = 0 },
             .end = Position{ .column = 17, .row = 0 },

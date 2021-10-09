@@ -1,8 +1,9 @@
-const Codebase = @import("codebase.zig").Codebase;
-const Entity = @import("ecs.zig").Entity;
-const components = @import("components.zig");
-const Literal = components.Literal;
+const ecs = @import("ecs.zig");
+const Entity = ecs.Entity;
+const ECS = ecs.ECS;
+const Literal = @import("components.zig").Literal;
+const Strings = @import("strings.zig").Strings;
 
-pub fn literalOf(codebase: Codebase, entity: Entity) []const u8 {
-    return codebase.strings.get(entity.get(Literal).interned);
+pub fn literalOf(entity: Entity) []const u8 {
+    return entity.ecs.get(Strings).get(entity.get(Literal).interned);
 }

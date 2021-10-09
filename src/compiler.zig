@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const Codebase = @import("codebase.zig").Codebase;
+pub const initCodebase = @import("codebase.zig").initCodebase;
 pub const ECS = @import("ecs.zig").ECS;
 pub const List = @import("list.zig").List;
 pub const parser = @import("parser.zig");

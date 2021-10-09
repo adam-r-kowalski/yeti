@@ -80,6 +80,10 @@ pub const ECS = struct {
     pub fn get(self: ECS, comptime T: type) T {
         return @intToPtr(*T, self.resources.get(@typeName(T)).?).*;
     }
+
+    pub fn getPtr(self: ECS, comptime T: type) *T {
+        return @intToPtr(*T, self.resources.get(@typeName(T)).?);
+    }
 };
 
 pub const Entity = struct {
