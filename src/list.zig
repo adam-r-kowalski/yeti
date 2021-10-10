@@ -6,7 +6,7 @@ const expectEqualSlices = std.testing.expectEqualSlices;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 
-//TODO(performance): make the bucket size dynamic
+//  TODO: [performance] make the bucket size dynamic
 const BUCKET_SIZE: u64 = 32;
 
 pub fn List(comptime T: type) type {

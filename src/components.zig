@@ -27,6 +27,7 @@ pub const TokenKind = enum(u8) {
     times,
     comma,
     indent,
+    equal,
 };
 
 pub const Indent = struct {
@@ -37,24 +38,11 @@ pub const Literal = struct {
     interned: InternedString,
 };
 
-pub const Name = struct {
-    entity: Entity,
-};
-
-pub const Parameters = struct {
-    entity: Entity,
-};
-
-pub const ReturnType = struct {
-    entity: Entity,
-};
-
-pub const Children = struct {
-    entities: List(Entity),
-};
-
-pub const Body = struct {
-    entity: Entity,
+pub const Function = struct {
+    name: Entity,
+    parameters: List(Entity),
+    return_type: Entity,
+    body: List(Entity),
 };
 
 pub const Type = struct {
@@ -66,6 +54,7 @@ pub const AstKind = enum(u8) {
     int,
     function,
     binary_op,
+    define,
 };
 
 pub const BinaryOp = struct {
@@ -77,4 +66,9 @@ pub const BinaryOp = struct {
     left: Entity,
     right: Entity,
     kind: Kind,
+};
+
+pub const Define = struct {
+    name: Entity,
+    value: Entity,
 };

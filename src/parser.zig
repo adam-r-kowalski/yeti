@@ -17,14 +17,11 @@ const TokenKind = components.TokenKind;
 const Literal = components.Literal;
 const Span = components.Span;
 const Position = components.Position;
-const Name = components.Name;
-const ReturnType = components.ReturnType;
-const Body = components.Body;
 const Kind = components.AstKind;
 const BinaryOp = components.BinaryOp;
-const Parameters = components.Parameters;
-const Children = components.Children;
+const Function = components.Function;
 const Type = components.Type;
+const Define = components.Define;
 const tokenizer = @import("tokenizer.zig");
 const Tokens = tokenizer.Tokens;
 const tokenize = tokenizer.tokenize;
@@ -32,16 +29,19 @@ const literalOf = @import("test_utils.zig").literalOf;
 
 const NEXT_PRECEDENCE: u64 = 10;
 const LOWEST: u64 = 0;
-const ADD: u64 = LOWEST + NEXT_PRECEDENCE;
+const DEFINE: u64 = LOWEST;
+const ADD: u64 = DEFINE + NEXT_PRECEDENCE;
 const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
 
+// TODO: [feature] support constant declarations like `x = 5 * y`
 fn parseExpression(codebase: *ECS, tokens: *Tokens, precedence: u64) error{OutOfMemory}!Entity {
     const token = tokens.next().?;
     var left = try prefixParser(token);
     while (true) {
         if (InfixParser.init(tokens)) |parser| {
-            if (precedence <= parser.precedence()) {
-                left = try parser.run(codebase, tokens, left);
+            const parser_precedence = parser.precedence();
+            if (precedence <= parser_precedence) {
+                left = try parser.run(codebase, tokens, left, parser_precedence);
             } else return left;
         } else return left;
     }
@@ -59,6 +59,7 @@ fn prefixParser(token: Entity) !Entity {
 
 const InfixParser = union(enum) {
     binary_op: struct { kind: BinaryOp.Kind, precedence: u64 },
+    define,
 
     fn init(tokens: *Tokens) ?InfixParser {
         if (tokens.peek()) |token| {
@@ -66,6 +67,7 @@ const InfixParser = union(enum) {
             return switch (kind) {
                 .plus => .{ .binary_op = .{ .kind = .add, .precedence = ADD } },
                 .times => .{ .binary_op = .{ .kind = .multiply, .precedence = MULTIPLY } },
+                .equal => .define,
                 else => null,
             };
         } else {
@@ -76,13 +78,21 @@ const InfixParser = union(enum) {
     fn precedence(self: InfixParser) u64 {
         return switch (self) {
             .binary_op => |binary_op| binary_op.precedence,
+            .define => DEFINE,
         };
     }
 
-    fn run(self: InfixParser, codebase: *ECS, tokens: *Tokens, left: Entity) !Entity {
+    fn run(self: InfixParser, codebase: *ECS, tokens: *Tokens, left: Entity, parser_precedence: u64) !Entity {
         _ = tokens.next();
-        return switch (self) {
-            .binary_op => |binary_op| try parseBinaryOp(codebase, tokens, left, binary_op.kind, binary_op.precedence),
+        return try switch (self) {
+            .binary_op => |binary_op| parseBinaryOp(
+                codebase,
+                tokens,
+                left,
+                binary_op.kind,
+                parser_precedence,
+            ),
+            .define => parseDefine(codebase, tokens, left, parser_precedence),
         };
     }
 };
@@ -95,6 +105,17 @@ fn parseBinaryOp(codebase: *ECS, tokens: *Tokens, left: Entity, kind: BinaryOp.K
         .end = right.get(Span).end,
     };
     return try codebase.createEntity(.{ Kind.binary_op, op, span });
+}
+
+fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
+    assert(name.get(Kind) == .symbol);
+    const value = try parseExpression(codebase, tokens, precedence);
+    const define = Define{ .name = name, .value = value };
+    const span = Span{
+        .begin = name.get(Span).begin,
+        .end = value.get(Span).end,
+    };
+    return try codebase.createEntity(.{ Kind.define, define, span });
 }
 
 test "parse symbol" {
@@ -127,52 +148,53 @@ test "parse int" {
     });
 }
 
-fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
-    var entities = List(Entity).init(codebase.arena);
-    const left_paren = tokens.consume(.left_paren);
-    const begin = left_paren.get(Span).begin;
-    const end = while (tokens.next()) |token| {
+fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !List(Entity) {
+    var parameters = List(Entity).init(codebase.arena);
+    _ = tokens.consume(.left_paren);
+    while (tokens.next()) |token| {
         const kind = token.get(TokenKind);
         switch (kind) {
-            .right_paren => break token.get(Span).end,
+            .right_paren => break,
             .comma => continue,
             .symbol => {
-                try entities.push(token);
                 _ = tokens.consume(.colon);
                 const type_ = Type{ .entity = try parseExpression(codebase, tokens, LOWEST) };
                 _ = try token.set(.{type_});
+                try parameters.push(token);
             },
             else => panic("\ninvalid token kind, {}\n", .{kind}),
         }
-    } else panic("\ncompiler bug!!!\n", .{});
-    const children = Children{ .entities = entities };
-    const span = Span{ .begin = begin, .end = end };
-    const entity = try codebase.createEntity(.{ children, span });
-    return Parameters{ .entity = entity };
+    }
+    return parameters;
 }
 
-fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !Body {
+// TODO: [feature] support multiple expressions in a function body with a similar indent
+fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !List(Entity) {
     if (tokens.peek().?.get(TokenKind) == TokenKind.indent) {
         _ = tokens.next();
     }
-    var entities = List(Entity).init(codebase.arena);
+    var body = List(Entity).init(codebase.arena);
     const expression = try parseExpression(codebase, tokens, LOWEST);
-    try entities.push(expression);
-    const children = Children{ .entities = entities };
-    const entity = try codebase.createEntity(.{ children, expression.get(Span) });
-    return Body{ .entity = entity };
+    try body.push(expression);
+    return body;
 }
 
 fn parseFunction(codebase: *ECS, tokens: *Tokens) !Entity {
     const begin = tokens.consume(.function).get(Span).begin;
-    const name = Name{ .entity = try tokens.next().?.set(.{Kind.symbol}) };
+    const name = try tokens.next().?.set(.{Kind.symbol});
     const parameters = try parseFunctionParameters(codebase, tokens);
-    const return_type = ReturnType{ .entity = try parseExpression(codebase, tokens, LOWEST) };
+    const return_type = try parseExpression(codebase, tokens, LOWEST);
     _ = tokens.consume(.colon);
     const body = try parseFunctionBody(codebase, tokens);
-    const end = body.entity.get(Span).end;
+    const end = body.nth(body.len - 1).get(Span).end;
     const span = components.Span{ .begin = begin, .end = end };
-    return try codebase.createEntity(.{ Kind.function, name, parameters, return_type, body, span });
+    const function = Function{
+        .name = name,
+        .parameters = parameters,
+        .return_type = return_type,
+        .body = body,
+    };
+    return try codebase.createEntity(.{ Kind.function, function, span });
 }
 
 test "parse function with int literal" {
@@ -181,29 +203,26 @@ test "parse function with int literal" {
     var codebase = try initCodebase(&arena);
     const code = "fn start() u64: 0";
     var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqual(function.get(Kind), .function);
-    const name = function.get(Name).entity;
-    try expectEqualStrings(literalOf(name), "start");
-    try expectEqual(function.get(Span), Span{
+    const entity = try parseFunction(&codebase, &tokens);
+    try expectEqual(entity.get(Kind), .function);
+    const function = entity.get(Function);
+    try expectEqualStrings(literalOf(function.name), "start");
+    try expectEqual(entity.get(Span), Span{
         .begin = Position{ .column = 0, .row = 0 },
         .end = Position{ .column = 17, .row = 0 },
     });
-    const parameters = function.get(Parameters).entity.get(Children).entities;
-    try expectEqual(parameters.len, 0);
-    const return_type = function.get(ReturnType).entity;
-    try expectEqual(return_type.get(Kind), .symbol);
-    try expectEqualStrings(literalOf(return_type), "u64");
-    try expectEqual(return_type.get(Span), Span{
+    try expectEqual(function.parameters.len, 0);
+    try expectEqual(function.return_type.get(Kind), .symbol);
+    try expectEqualStrings(literalOf(function.return_type), "u64");
+    try expectEqual(function.return_type.get(Span), Span{
         .begin = Position{ .column = 11, .row = 0 },
         .end = Position{ .column = 14, .row = 0 },
     });
-    const body = function.get(Body).entity.get(Children).entities;
-    try expectEqual(body.len, 1);
-    const entity = body.nth(0);
-    try expectEqual(entity.get(Kind), .int);
-    try expectEqualStrings(literalOf(entity), "0");
-    try expectEqual(entity.get(Span), Span{
+    try expectEqual(function.body.len, 1);
+    const zero = function.body.nth(0);
+    try expectEqual(zero.get(Kind), .int);
+    try expectEqualStrings(literalOf(zero), "0");
+    try expectEqual(zero.get(Span), Span{
         .begin = Position{ .column = 16, .row = 0 },
         .end = Position{ .column = 17, .row = 0 },
     });
@@ -215,47 +234,21 @@ test "parse function with binary entity" {
     var codebase = try initCodebase(&arena);
     const code = "fn start() u64: 5 + x";
     var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqual(function.get(Kind), .function);
-    const name = function.get(Name).entity;
-    try expectEqualStrings(literalOf(name), "start");
-    const parameters = function.get(Parameters).entity.get(Children).entities;
-    try expectEqual(parameters.len, 0);
-    try expectEqual(function.get(Span), Span{
-        .begin = Position{ .column = 0, .row = 0 },
-        .end = Position{ .column = 21, .row = 0 },
-    });
-    const return_type = function.get(ReturnType).entity;
-    try expectEqual(return_type.get(Kind), .symbol);
-    try expectEqualStrings(literalOf(return_type), "u64");
-    try expectEqual(return_type.get(Span), Span{
-        .begin = Position{ .column = 11, .row = 0 },
-        .end = Position{ .column = 14, .row = 0 },
-    });
-    const body = function.get(Body).entity.get(Children).entities;
-    try expectEqual(body.len, 1);
-    const entity = body.nth(0);
+    const function = (try parseFunction(&codebase, &tokens)).get(Function);
+    try expectEqualStrings(literalOf(function.name), "start");
+    try expectEqual(function.parameters.len, 0);
+    try expectEqualStrings(literalOf(function.return_type), "u64");
+    try expectEqual(function.body.len, 1);
+    const entity = function.body.nth(0);
     try expectEqual(entity.get(Kind), .binary_op);
-    try expectEqual(entity.get(Span), Span{
-        .begin = Position{ .column = 16, .row = 0 },
-        .end = Position{ .column = 21, .row = 0 },
-    });
-    const binary_op = entity.get(BinaryOp);
-    try expectEqual(binary_op.kind, .add);
-    const left = binary_op.left;
+    const add = entity.get(BinaryOp);
+    try expectEqual(add.kind, .add);
+    const left = add.left;
     try expectEqual(left.get(Kind), .int);
     try expectEqualStrings(literalOf(left), "5");
-    try expectEqual(left.get(Span), Span{
-        .begin = Position{ .column = 16, .row = 0 },
-        .end = Position{ .column = 17, .row = 0 },
-    });
-    const right = binary_op.right;
+    const right = add.right;
     try expectEqual(right.get(Kind), .symbol);
     try expectEqualStrings(literalOf(right), "x");
-    try expectEqual(right.get(Span), Span{
-        .begin = Position{ .column = 20, .row = 0 },
-        .end = Position{ .column = 21, .row = 0 },
-    });
 }
 
 test "parse function with compound binary entity" {
@@ -264,15 +257,11 @@ test "parse function with compound binary entity" {
     var codebase = try initCodebase(&arena);
     const code = "fn line() u64: m * x + b";
     var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqual(function.get(Kind), .function);
-    const name = function.get(Name).entity;
-    try expectEqualStrings(literalOf(name), "line");
-    const parameters = function.get(Parameters).entity.get(Children).entities;
-    try expectEqual(parameters.len, 0);
-    const body = function.get(Body).entity.get(Children).entities;
-    try expectEqual(body.len, 1);
-    const add = body.nth(0).get(BinaryOp);
+    const function = (try parseFunction(&codebase, &tokens)).get(Function);
+    try expectEqualStrings(literalOf(function.name), "line");
+    try expectEqual(function.parameters.len, 0);
+    try expectEqual(function.body.len, 1);
+    const add = function.body.nth(0).get(BinaryOp);
     try expectEqual(add.kind, .add);
     const multiply = add.left.get(BinaryOp);
     try expectEqual(multiply.kind, .multiply);
@@ -293,21 +282,18 @@ test "parse function parameters" {
     var codebase = try initCodebase(&arena);
     const code = "fn add(x: u64, y: u64) u64: x + y";
     var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqual(function.get(Kind), .function);
-    const name = function.get(Name).entity;
-    try expectEqualStrings(literalOf(name), "add");
-    const parameters = function.get(Parameters).entity.get(Children).entities;
-    try expectEqual(parameters.len, 2);
-    const param0 = parameters.nth(0);
+    const function = (try parseFunction(&codebase, &tokens)).get(Function);
+    try expectEqualStrings(literalOf(function.name), "add");
+    try expectEqual(function.parameters.len, 2);
+    const param0 = function.parameters.nth(0);
     try expectEqualStrings(literalOf(param0), "x");
     try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
-    const param1 = parameters.nth(1);
+    const param1 = function.parameters.nth(1);
     try expectEqualStrings(literalOf(param1), "y");
     try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
-    const body = function.get(Body).entity.get(Children).entities;
-    try expectEqual(body.len, 1);
-    const add = body.nth(0).get(BinaryOp);
+    try expectEqualStrings(literalOf(function.return_type), "u64");
+    try expectEqual(function.body.len, 1);
+    const add = function.body.nth(0).get(BinaryOp);
     try expectEqual(add.kind, .add);
     const x = add.left;
     try expectEqualStrings(literalOf(x), "x");
@@ -325,25 +311,49 @@ test "parse function with newline" {
         \\  x + y
     ;
     var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqual(function.get(Kind), .function);
-    const name = function.get(Name).entity;
-    try expectEqualStrings(literalOf(name), "add");
-    const parameters = function.get(Parameters).entity.get(Children).entities;
-    try expectEqual(parameters.len, 2);
-    const param0 = parameters.nth(0);
+    const function = (try parseFunction(&codebase, &tokens)).get(Function);
+    try expectEqualStrings(literalOf(function.name), "add");
+    try expectEqual(function.parameters.len, 2);
+    const param0 = function.parameters.nth(0);
     try expectEqualStrings(literalOf(param0), "x");
     try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
-    const param1 = parameters.nth(1);
+    const param1 = function.parameters.nth(1);
     try expectEqualStrings(literalOf(param1), "y");
     try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
-    const body = function.get(Body).entity.get(Children).entities;
-    try expectEqual(body.len, 1);
-    const add = body.nth(0).get(BinaryOp);
+    try expectEqual(function.body.len, 1);
+    const add = function.body.nth(0).get(BinaryOp);
     try expectEqual(add.kind, .add);
     const x = add.left;
     try expectEqualStrings(literalOf(x), "x");
     const y = add.right;
     try expectEqual(y.get(Kind), .symbol);
     try expectEqualStrings(literalOf(y), "y");
+}
+
+test "parse constant definition" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\fn sum_of_squares(x: u64, y: u64) u64:
+        \\  x2 = x * x
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const function = (try parseFunction(&codebase, &tokens)).get(Function);
+    try expectEqualStrings(literalOf(function.name), "sum_of_squares");
+    try expectEqual(function.parameters.len, 2);
+    const param0 = function.parameters.nth(0);
+    try expectEqualStrings(literalOf(param0), "x");
+    try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
+    const param1 = function.parameters.nth(1);
+    try expectEqualStrings(literalOf(param1), "y");
+    try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
+    try expectEqual(function.body.len, 1);
+    try expectEqual(function.body.nth(0).get(Kind), .define);
+    const define = function.body.nth(0).get(Define);
+    try expectEqualStrings(literalOf(define.name), "x2");
+    const multiply = define.value.get(BinaryOp);
+    try expectEqual(multiply.kind, .multiply);
+    try expectEqualStrings(literalOf(multiply.left), "x");
+    try expectEqualStrings(literalOf(multiply.right), "x");
 }

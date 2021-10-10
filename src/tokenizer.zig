@@ -83,6 +83,7 @@ pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
             '+' => try tokenizeOne(codebase, &source, .plus),
             '*' => try tokenizeOne(codebase, &source, .times),
             ',' => try tokenizeOne(codebase, &source, .comma),
+            '=' => try tokenizeOne(codebase, &source, .equal),
             '\n' => try tokenizeIndent(codebase, &source),
             else => try tokenizeSymbol(codebase, &source),
         };
