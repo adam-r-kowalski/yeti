@@ -24,6 +24,7 @@ const Kind = components.AstKind;
 const BinaryOp = components.BinaryOp;
 const Parameters = components.Parameters;
 const Children = components.Children;
+const Type = components.Type;
 const tokenizer = @import("tokenizer.zig");
 const Tokens = tokenizer.Tokens;
 const tokenize = tokenizer.tokenize;
@@ -134,10 +135,12 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
         const kind = token.get(TokenKind);
         switch (kind) {
             .right_paren => break token.get(Span).end,
+            .comma => continue,
             .symbol => {
                 try entities.push(token);
                 _ = tokens.consume(.colon);
-                _ = tokens.consume(.symbol);
+                const type_ = Type{ .entity = try parseExpression(codebase, tokens, LOWEST) };
+                _ = try token.set(.{type_});
             },
             else => panic("\ninvalid token kind, {}\n", .{kind}),
         }
@@ -149,6 +152,9 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
 }
 
 fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !Body {
+    if (tokens.peek().?.get(TokenKind) == TokenKind.indent) {
+        _ = tokens.next();
+    }
     var entities = List(Entity).init(codebase.arena);
     const expression = try parseExpression(codebase, tokens, LOWEST);
     try entities.push(expression);
@@ -281,7 +287,7 @@ test "parse function with compound binary entity" {
     try expectEqualStrings(literalOf(b), "b");
 }
 
-test "parse function argument" {
+test "parse function parameters" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -293,14 +299,49 @@ test "parse function argument" {
     try expectEqualStrings(literalOf(name), "add");
     const parameters = function.get(Parameters).entity.get(Children).entities;
     try expectEqual(parameters.len, 2);
-    try expectEqualStrings(literalOf(parameters.nth(0)), "x");
-    try expectEqualStrings(literalOf(parameters.nth(1)), "y");
+    const param0 = parameters.nth(0);
+    try expectEqualStrings(literalOf(param0), "x");
+    try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
+    const param1 = parameters.nth(1);
+    try expectEqualStrings(literalOf(param1), "y");
+    try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
     const body = function.get(Body).entity.get(Children).entities;
     try expectEqual(body.len, 1);
     const add = body.nth(0).get(BinaryOp);
     try expectEqual(add.kind, .add);
     const x = add.left;
-    try expectEqual(x.get(Kind), .symbol);
+    try expectEqualStrings(literalOf(x), "x");
+    const y = add.right;
+    try expectEqual(y.get(Kind), .symbol);
+    try expectEqualStrings(literalOf(y), "y");
+}
+
+test "parse function with newline" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\fn add(x: u64, y: u64) u64:
+        \\  x + y
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const function = try parseFunction(&codebase, &tokens);
+    try expectEqual(function.get(Kind), .function);
+    const name = function.get(Name).entity;
+    try expectEqualStrings(literalOf(name), "add");
+    const parameters = function.get(Parameters).entity.get(Children).entities;
+    try expectEqual(parameters.len, 2);
+    const param0 = parameters.nth(0);
+    try expectEqualStrings(literalOf(param0), "x");
+    try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
+    const param1 = parameters.nth(1);
+    try expectEqualStrings(literalOf(param1), "y");
+    try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
+    const body = function.get(Body).entity.get(Children).entities;
+    try expectEqual(body.len, 1);
+    const add = body.nth(0).get(BinaryOp);
+    try expectEqual(add.kind, .add);
+    const x = add.left;
     try expectEqualStrings(literalOf(x), "x");
     const y = add.right;
     try expectEqual(y.get(Kind), .symbol);

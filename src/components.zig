@@ -25,6 +25,12 @@ pub const TokenKind = enum(u8) {
     colon,
     plus,
     times,
+    comma,
+    indent,
+};
+
+pub const Indent = struct {
+    spaces: u64,
 };
 
 pub const Literal = struct {
@@ -51,6 +57,10 @@ pub const Body = struct {
     entity: Entity,
 };
 
+pub const Type = struct {
+    entity: Entity,
+};
+
 pub const AstKind = enum(u8) {
     symbol,
     int,
@@ -64,7 +74,7 @@ pub const BinaryOp = struct {
         multiply,
     };
 
-    kind: Kind,
     left: Entity,
     right: Entity,
+    kind: Kind,
 };

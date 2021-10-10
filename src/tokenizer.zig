@@ -18,6 +18,7 @@ const Position = components.Position;
 const Span = components.Span;
 const Literal = components.Literal;
 const Kind = components.TokenKind;
+const Indent = components.Indent;
 
 const Source = struct {
     code: []const u8,
@@ -38,6 +39,12 @@ const Source = struct {
         self.code = self.code[columns..];
         self.position.column += columns;
         return result;
+    }
+
+    fn newline(self: *Source) void {
+        self.code = self.code[1..];
+        self.position.row += 1;
+        self.position.column = 0;
     }
 };
 
@@ -75,6 +82,8 @@ pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
             ':' => try tokenizeOne(codebase, &source, .colon),
             '+' => try tokenizeOne(codebase, &source, .plus),
             '*' => try tokenizeOne(codebase, &source, .times),
+            ',' => try tokenizeOne(codebase, &source, .comma),
+            '\n' => try tokenizeIndent(codebase, &source),
             else => try tokenizeSymbol(codebase, &source),
         };
         try tokens.push(token);
@@ -92,7 +101,7 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
     var i: u64 = 1;
     while (i < source.code.len) : (i += 1) {
         switch (source.code[i]) {
-            '(', ')', '[', ']', '{', '}', ' ', ':', '+', '-', '*', '/', '&', '|', '<', '>' => break,
+            '(', ')', '[', ']', '{', '}', ' ', ':', '+', '-', '*', '/', '&', '|', '<', '>', ',' => break,
             else => continue,
         }
     }
@@ -296,5 +305,46 @@ test "tokenize function" {
             .end = Position{ .column = 17, .row = 0 },
         });
     }
+    try expectEqual(tokens.next(), null);
+}
+
+fn tokenizeIndent(codebase: *ECS, source: *Source) !Entity {
+    const begin = source.position;
+    source.newline();
+    var i: u64 = 0;
+    while (i < source.code.len and source.code[i] == ' ') : (i += 1) {}
+    _ = source.advance(i);
+    const span = Span{ .begin = begin, .end = source.position };
+    const indent = Indent{ .spaces = i };
+    return try codebase.createEntity(.{
+        Kind.indent,
+        indent,
+        span,
+    });
+}
+
+test "tokenize function with newline" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\fn start() u64:
+        \\  0
+    ;
+    var tokens = try tokenize(&codebase, code);
+    try expectEqual(tokens.next().?.get(Kind), .function);
+    try expectEqual(tokens.next().?.get(Kind), .symbol);
+    try expectEqual(tokens.next().?.get(Kind), .left_paren);
+    try expectEqual(tokens.next().?.get(Kind), .right_paren);
+    try expectEqual(tokens.next().?.get(Kind), .symbol);
+    try expectEqual(tokens.next().?.get(Kind), .colon);
+    const token = tokens.next().?;
+    try expectEqual(token.get(Kind), .indent);
+    try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
+    try expectEqual(token.get(Span), Span{
+        .begin = Position{ .row = 0, .column = 15 },
+        .end = Position{ .row = 1, .column = 2 },
+    });
+    try expectEqual(tokens.next().?.get(Kind), .int);
     try expectEqual(tokens.next(), null);
 }
