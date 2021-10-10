@@ -329,8 +329,10 @@ test "tokenize function with newline" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\fn start() u64:
-        \\  0
+        \\fn f() u64:
+        \\  x = 5
+        \\  y = 15
+        \\  x + y
     ;
     var tokens = try tokenize(&codebase, code);
     try expectEqual(tokens.next().?.get(Kind), .function);
@@ -339,13 +341,41 @@ test "tokenize function with newline" {
     try expectEqual(tokens.next().?.get(Kind), .right_paren);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .colon);
-    const token = tokens.next().?;
-    try expectEqual(token.get(Kind), .indent);
-    try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
-    try expectEqual(token.get(Span), Span{
-        .begin = Position{ .row = 0, .column = 15 },
-        .end = Position{ .row = 1, .column = 2 },
-    });
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(Kind), .indent);
+        try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
+        try expectEqual(token.get(Span), Span{
+            .begin = Position{ .row = 0, .column = 11 },
+            .end = Position{ .row = 1, .column = 2 },
+        });
+    }
+    try expectEqual(tokens.next().?.get(Kind), .symbol);
+    try expectEqual(tokens.next().?.get(Kind), .equal);
     try expectEqual(tokens.next().?.get(Kind), .int);
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(Kind), .indent);
+        try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
+        try expectEqual(token.get(Span), Span{
+            .begin = Position{ .row = 1, .column = 7 },
+            .end = Position{ .row = 2, .column = 2 },
+        });
+    }
+    try expectEqual(tokens.next().?.get(Kind), .symbol);
+    try expectEqual(tokens.next().?.get(Kind), .equal);
+    try expectEqual(tokens.next().?.get(Kind), .int);
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(Kind), .indent);
+        try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
+        try expectEqual(token.get(Span), Span{
+            .begin = Position{ .row = 2, .column = 8 },
+            .end = Position{ .row = 3, .column = 2 },
+        });
+    }
+    try expectEqual(tokens.next().?.get(Kind), .symbol);
+    try expectEqual(tokens.next().?.get(Kind), .plus);
+    try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next(), null);
 }
