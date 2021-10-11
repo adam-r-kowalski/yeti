@@ -23,16 +23,11 @@ const Function = components.Function;
 const Type = components.Type;
 const Define = components.Define;
 const Indent = components.Indent;
+const Call = components.Call;
 const tokenizer = @import("tokenizer.zig");
 const Tokens = tokenizer.Tokens;
 const tokenize = tokenizer.tokenize;
 const literalOf = @import("test_utils.zig").literalOf;
-
-const NEXT_PRECEDENCE: u64 = 10;
-const LOWEST: u64 = 0;
-const DEFINE: u64 = LOWEST;
-const ADD: u64 = DEFINE + NEXT_PRECEDENCE;
-const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
 
 fn parseExpression(codebase: *ECS, tokens: *Tokens, precedence: u64) error{OutOfMemory}!Entity {
     const token = tokens.next().?;
@@ -57,9 +52,17 @@ fn prefixParser(token: Entity) !Entity {
     };
 }
 
+const NEXT_PRECEDENCE: u64 = 10;
+const LOWEST: u64 = 0;
+const DEFINE: u64 = LOWEST;
+const ADD: u64 = DEFINE + NEXT_PRECEDENCE;
+const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
+const CALL: u64 = MULTIPLY + NEXT_PRECEDENCE;
+
 const InfixParser = union(enum) {
     binary_op: struct { kind: BinaryOp.Kind, precedence: u64 },
     define,
+    call,
 
     fn init(tokens: *Tokens) ?InfixParser {
         if (tokens.peek()) |token| {
@@ -68,6 +71,7 @@ const InfixParser = union(enum) {
                 .plus => .{ .binary_op = .{ .kind = .add, .precedence = ADD } },
                 .times => .{ .binary_op = .{ .kind = .multiply, .precedence = MULTIPLY } },
                 .equal => .define,
+                .left_paren => .call,
                 else => null,
             };
         } else {
@@ -79,6 +83,7 @@ const InfixParser = union(enum) {
         return switch (self) {
             .binary_op => |binary_op| binary_op.precedence,
             .define => DEFINE,
+            .call => CALL,
         };
     }
 
@@ -93,6 +98,7 @@ const InfixParser = union(enum) {
                 parser_precedence,
             ),
             .define => parseDefine(codebase, tokens, left, parser_precedence),
+            .call => parseCall(codebase, tokens, left, parser_precedence),
         };
     }
 };
@@ -116,6 +122,20 @@ fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !
         .end = value.get(Span).end,
     };
     return try codebase.createEntity(.{ Kind.define, define, span });
+}
+
+fn parseCall(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
+    assert(name.get(Kind) == .symbol);
+    var arguments = List(Entity).init(codebase.arena);
+    const argument = try parseExpression(codebase, tokens, precedence);
+    try arguments.push(argument);
+    const end = tokens.consume(.right_paren).get(Span).end;
+    const call = Call{ .function = name, .arguments = arguments };
+    const span = Span{
+        .begin = name.get(Span).begin,
+        .end = end,
+    };
+    return try codebase.createEntity(.{ Kind.call, call, span });
 }
 
 test "parse symbol" {
@@ -408,4 +428,42 @@ test "parse constant definition with binary op" {
     try expectEqual(add.kind, .add);
     try expectEqualStrings(literalOf(add.left), "x2");
     try expectEqualStrings(literalOf(add.right), "y2");
+}
+
+test "parse function call" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\fn sum_of_squares(x: u64, y: u64) u64:
+        \\  square(x) + square(y)
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const function = (try parseFunction(&codebase, &tokens)).get(Function);
+    try expectEqualStrings(literalOf(function.name), "sum_of_squares");
+    try expectEqualStrings(literalOf(function.return_type), "u64");
+    try expectEqual(function.parameters.len, 2);
+    const param0 = function.parameters.nth(0);
+    try expectEqualStrings(literalOf(param0), "x");
+    try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
+    const param1 = function.parameters.nth(1);
+    try expectEqualStrings(literalOf(param1), "y");
+    try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
+    try expectEqual(function.body.len, 1);
+    const add = function.body.nth(0).get(BinaryOp);
+    try expectEqual(add.kind, .add);
+    {
+        try expectEqual(add.left.get(Kind), .call);
+        const call = add.left.get(Call);
+        try expectEqualStrings(literalOf(call.function), "square");
+        try expectEqual(call.arguments.len, 1);
+        try expectEqualStrings(literalOf(call.arguments.nth(0)), "x");
+    }
+    {
+        try expectEqual(add.right.get(Kind), .call);
+        const call = add.right.get(Call);
+        try expectEqualStrings(literalOf(call.function), "square");
+        try expectEqual(call.arguments.len, 1);
+        try expectEqualStrings(literalOf(call.arguments.nth(0)), "y");
+    }
 }

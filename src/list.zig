@@ -52,6 +52,7 @@ pub fn List(comptime T: type) type {
         }
 
         pub fn nth(self: Self, index: u64) T {
+            assert(index < self.len);
             var bucket = index / BUCKET_SIZE;
             var current = self.head.?;
             while (bucket > 0) : (bucket -= 1) {

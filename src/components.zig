@@ -55,6 +55,7 @@ pub const AstKind = enum(u8) {
     function,
     binary_op,
     define,
+    call,
 };
 
 pub const BinaryOp = struct {
@@ -71,4 +72,9 @@ pub const BinaryOp = struct {
 pub const Define = struct {
     name: Entity,
     value: Entity,
+};
+
+pub const Call = struct {
+    function: Entity,
+    arguments: List(Entity),
 };
