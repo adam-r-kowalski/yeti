@@ -22,6 +22,7 @@ const BinaryOp = components.BinaryOp;
 const Function = components.Function;
 const Type = components.Type;
 const Define = components.Define;
+const Indent = components.Indent;
 const tokenizer = @import("tokenizer.zig");
 const Tokens = tokenizer.Tokens;
 const tokenize = tokenizer.tokenize;
@@ -169,12 +170,20 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !List(Entity) {
 
 // TODO: [feature] support multiple expressions in a function body with a similar indent
 fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !List(Entity) {
-    if (tokens.peek().?.get(TokenKind) == TokenKind.indent) {
-        _ = tokens.next();
-    }
     var body = List(Entity).init(codebase.arena);
-    const expression = try parseExpression(codebase, tokens, LOWEST);
-    try body.push(expression);
+    if (tokens.peek().?.get(TokenKind) == .indent) {
+        const spaces = tokens.next().?.get(Indent).spaces;
+        while (true) {
+            try body.push(try parseExpression(codebase, tokens, LOWEST));
+            if (tokens.peek()) |token| {
+                if (token.get(TokenKind) != .indent or token.get(Indent).spaces != spaces)
+                    break;
+                _ = tokens.next();
+            } else break;
+        }
+    } else {
+        try body.push(try parseExpression(codebase, tokens, LOWEST));
+    }
     return body;
 }
 
@@ -334,6 +343,34 @@ test "parse constant definition" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
+        \\fn f() u64:
+        \\  x = 5
+        \\  y = 15
+        \\  x + y
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const function = (try parseFunction(&codebase, &tokens)).get(Function);
+    try expectEqualStrings(literalOf(function.name), "f");
+    try expectEqualStrings(literalOf(function.return_type), "u64");
+    try expectEqual(function.parameters.len, 0);
+    try expectEqual(function.body.len, 3);
+    const x = function.body.nth(0).get(Define);
+    try expectEqualStrings(literalOf(x.name), "x");
+    try expectEqualStrings(literalOf(x.value), "5");
+    const y = function.body.nth(1).get(Define);
+    try expectEqualStrings(literalOf(y.name), "y");
+    try expectEqualStrings(literalOf(y.value), "15");
+    const add = function.body.nth(2).get(BinaryOp);
+    try expectEqual(add.kind, .add);
+    try expectEqualStrings(literalOf(add.left), "x");
+    try expectEqualStrings(literalOf(add.right), "y");
+}
+
+test "parse constant definition with binary op" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
         \\fn sum_of_squares(x: u64, y: u64) u64:
         \\  x2 = x * x
         \\  y2 = y * y
@@ -342,6 +379,7 @@ test "parse constant definition" {
     var tokens = try tokenize(&codebase, code);
     const function = (try parseFunction(&codebase, &tokens)).get(Function);
     try expectEqualStrings(literalOf(function.name), "sum_of_squares");
+    try expectEqualStrings(literalOf(function.return_type), "u64");
     try expectEqual(function.parameters.len, 2);
     const param0 = function.parameters.nth(0);
     try expectEqualStrings(literalOf(param0), "x");
@@ -350,10 +388,24 @@ test "parse constant definition" {
     try expectEqualStrings(literalOf(param1), "y");
     try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
     try expectEqual(function.body.len, 3);
-    const define = function.body.nth(0).get(Define);
-    try expectEqualStrings(literalOf(define.name), "x2");
-    const multiply = define.value.get(BinaryOp);
-    try expectEqual(multiply.kind, .multiply);
-    try expectEqualStrings(literalOf(multiply.left), "x");
-    // try expectEqualStrings(literalOf(multiply.right), "x");
+    {
+        const x2 = function.body.nth(0).get(Define);
+        try expectEqualStrings(literalOf(x2.name), "x2");
+        const multiply = x2.value.get(BinaryOp);
+        try expectEqual(multiply.kind, .multiply);
+        try expectEqualStrings(literalOf(multiply.left), "x");
+        try expectEqualStrings(literalOf(multiply.right), "x");
+    }
+    {
+        const y2 = function.body.nth(1).get(Define);
+        try expectEqualStrings(literalOf(y2.name), "y2");
+        const multiply = y2.value.get(BinaryOp);
+        try expectEqual(multiply.kind, .multiply);
+        try expectEqualStrings(literalOf(multiply.left), "y");
+        try expectEqualStrings(literalOf(multiply.right), "y");
+    }
+    const add = function.body.nth(2).get(BinaryOp);
+    try expectEqual(add.kind, .add);
+    try expectEqualStrings(literalOf(add.left), "x2");
+    try expectEqualStrings(literalOf(add.right), "y2");
 }
