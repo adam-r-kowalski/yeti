@@ -98,7 +98,7 @@ const InfixParser = union(enum) {
                 parser_precedence,
             ),
             .define => parseDefine(codebase, tokens, left, parser_precedence),
-            .call => parseCall(codebase, tokens, left, parser_precedence),
+            .call => parseCall(codebase, tokens, left),
         };
     }
 };
@@ -124,12 +124,19 @@ fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !
     return try codebase.createEntity(.{ Kind.define, define, span });
 }
 
-fn parseCall(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
+fn parseCall(codebase: *ECS, tokens: *Tokens, name: Entity) !Entity {
     assert(name.get(Kind) == .symbol);
     var arguments = List(Entity).init(codebase.arena);
-    const argument = try parseExpression(codebase, tokens, precedence);
-    try arguments.push(argument);
-    const end = tokens.consume(.right_paren).get(Span).end;
+    const end = while (tokens.peek()) |token| {
+        switch (token.get(TokenKind)) {
+            .right_paren => break tokens.next().?.get(Span).end,
+            .comma => _ = tokens.next(),
+            else => {
+                const argument = try parseExpression(codebase, tokens, LOWEST);
+                try arguments.push(argument);
+            },
+        }
+    } else panic("expected a right paren at the end of function call", .{});
     const call = Call{ .function = name, .arguments = arguments };
     const span = Span{
         .begin = name.get(Span).begin,
@@ -188,7 +195,6 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !List(Entity) {
     return parameters;
 }
 
-// TODO: [feature] support multiple expressions in a function body with a similar indent
 fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !List(Entity) {
     var body = List(Entity).init(codebase.arena);
     if (tokens.peek().?.get(TokenKind) == .indent) {
@@ -466,4 +472,28 @@ test "parse function call" {
         try expectEqual(call.arguments.len, 1);
         try expectEqualStrings(literalOf(call.arguments.nth(0)), "y");
     }
+}
+
+test "parse function call with multiple arguments" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\fn start() u64:
+        \\  sum_of_squares(10, 56 * 3)
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const function = (try parseFunction(&codebase, &tokens)).get(Function);
+    try expectEqualStrings(literalOf(function.name), "start");
+    try expectEqualStrings(literalOf(function.return_type), "u64");
+    try expectEqual(function.parameters.len, 0);
+    try expectEqual(function.body.len, 1);
+    const call = function.body.nth(0).get(Call);
+    try expectEqualStrings(literalOf(call.function), "sum_of_squares");
+    try expectEqual(call.arguments.len, 2);
+    try expectEqualStrings(literalOf(call.arguments.nth(0)), "10");
+    const multiply = call.arguments.nth(1).get(BinaryOp);
+    try expectEqual(multiply.kind, .multiply);
+    try expectEqualStrings(literalOf(multiply.left), "56");
+    try expectEqualStrings(literalOf(multiply.right), "3");
 }
