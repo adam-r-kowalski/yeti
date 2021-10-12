@@ -19,7 +19,6 @@ pub const TokenKind = enum(u8) {
     symbol,
     int,
     float,
-    function,
     left_paren,
     right_paren,
     colon,

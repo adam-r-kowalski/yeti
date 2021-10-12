@@ -126,9 +126,6 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
     }
     const string = source.advance(i);
     const span = Span{ .begin = begin, .end = source.position };
-    if (std.mem.eql(u8, string, "fn")) {
-        return try codebase.createEntity(.{ Kind.function, span });
-    }
     const interned = try codebase.getPtr(Strings).intern(string);
     const literal = Literal{ .interned = interned };
     return try codebase.createEntity(.{
@@ -263,39 +260,31 @@ test "tokenize function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "fn start() u64: 0";
+    const code = "start() u64 = 0";
     var tokens = try tokenize(&codebase, code);
-    {
-        const token = tokens.next().?;
-        try expectEqual(token.get(Kind), .function);
-        try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 0, .row = 0 },
-            .end = Position{ .column = 2, .row = 0 },
-        });
-    }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .symbol);
         try expectEqualStrings(literalOf(token), "start");
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 3, .row = 0 },
-            .end = Position{ .column = 8, .row = 0 },
+            .begin = Position{ .column = 0, .row = 0 },
+            .end = Position{ .column = 5, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .left_paren);
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 8, .row = 0 },
-            .end = Position{ .column = 9, .row = 0 },
+            .begin = Position{ .column = 5, .row = 0 },
+            .end = Position{ .column = 6, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .right_paren);
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 9, .row = 0 },
-            .end = Position{ .column = 10, .row = 0 },
+            .begin = Position{ .column = 6, .row = 0 },
+            .end = Position{ .column = 7, .row = 0 },
         });
     }
     {
@@ -303,16 +292,16 @@ test "tokenize function" {
         try expectEqual(token.get(Kind), .symbol);
         try expectEqualStrings(literalOf(token), "u64");
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 11, .row = 0 },
-            .end = Position{ .column = 14, .row = 0 },
+            .begin = Position{ .column = 8, .row = 0 },
+            .end = Position{ .column = 11, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind), .colon);
+        try expectEqual(token.get(Kind), .equal);
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 14, .row = 0 },
-            .end = Position{ .column = 15, .row = 0 },
+            .begin = Position{ .column = 12, .row = 0 },
+            .end = Position{ .column = 13, .row = 0 },
         });
     }
     {
@@ -320,8 +309,8 @@ test "tokenize function" {
         try expectEqual(token.get(Kind), .int);
         try expectEqualStrings(literalOf(token), "0");
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 16, .row = 0 },
-            .end = Position{ .column = 17, .row = 0 },
+            .begin = Position{ .column = 14, .row = 0 },
+            .end = Position{ .column = 15, .row = 0 },
         });
     }
     try expectEqual(tokens.next(), null);
@@ -347,24 +336,23 @@ test "tokenize function with newline" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\fn f() u64:
+        \\f() u64 =
         \\  x = 5
         \\  y = 15
         \\  x + y
     ;
     var tokens = try tokenize(&codebase, code);
-    try expectEqual(tokens.next().?.get(Kind), .function);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .left_paren);
     try expectEqual(tokens.next().?.get(Kind), .right_paren);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
-    try expectEqual(tokens.next().?.get(Kind), .colon);
+    try expectEqual(tokens.next().?.get(Kind), .equal);
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .indent);
         try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .row = 0, .column = 11 },
+            .begin = Position{ .row = 0, .column = 9 },
             .end = Position{ .row = 1, .column = 2 },
         });
     }
@@ -403,13 +391,12 @@ test "tokenize function with newline with binary op" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\fn sum_of_squares(x: u64, y: u64) u64:
+        \\sum_of_squares(x: u64, y: u64) u64 =
         \\  x2 = x * x
         \\  x2 = y * y
         \\  x2 + y2
     ;
     var tokens = try tokenize(&codebase, code);
-    try expectEqual(tokens.next().?.get(Kind), .function);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .left_paren);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
@@ -421,7 +408,7 @@ test "tokenize function with newline with binary op" {
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .right_paren);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
-    try expectEqual(tokens.next().?.get(Kind), .colon);
+    try expectEqual(tokens.next().?.get(Kind), .equal);
     try expectEqual(tokens.next().?.get(Kind), .indent);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .equal);
