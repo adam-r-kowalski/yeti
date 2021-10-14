@@ -11,16 +11,18 @@ const TypeInfo = std.builtin.TypeInfo;
 const List = @import("list.zig").List;
 
 fn Component(comptime T: type) type {
+    const Data = List(T, .{ .bucket_size = 1024 });
+
     return struct {
         lookup: std.AutoHashMap(u64, u64),
-        data: List(T),
+        data: Data,
 
         const Self = @This();
 
         fn init(arena: *Arena) Self {
             return Self{
                 .lookup = std.AutoHashMap(u64, u64).init(&arena.allocator),
-                .data = List(T).init(arena),
+                .data = Data.init(arena),
             };
         }
 

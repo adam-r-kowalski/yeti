@@ -6,12 +6,13 @@ const expectEqualSlices = std.testing.expectEqualSlices;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 
-//  TODO: [performance] make the bucket size dynamic
-const BUCKET_SIZE: u64 = 32;
+const Config = struct {
+    bucket_size: u64 = 32,
+};
 
-pub fn List(comptime T: type) type {
+pub fn List(comptime T: type, comptime config: Config) type {
     const Node = struct {
-        data: [BUCKET_SIZE]T,
+        data: [config.bucket_size]T,
         next: ?*@This(),
     };
 
@@ -33,7 +34,7 @@ pub fn List(comptime T: type) type {
         }
 
         pub fn push(self: *Self, value: T) !void {
-            const index = self.len % BUCKET_SIZE;
+            const index = self.len % config.bucket_size;
             if (index == 0) {
                 if (self.tail) |tail| {
                     const node = try self.arena.allocator.create(Node);
@@ -53,12 +54,12 @@ pub fn List(comptime T: type) type {
 
         pub fn nth(self: Self, index: u64) T {
             assert(index < self.len);
-            var bucket = index / BUCKET_SIZE;
+            var bucket = index / config.bucket_size;
             var current = self.head.?;
             while (bucket > 0) : (bucket -= 1) {
                 current = current.next.?;
             }
-            return current.data[index % BUCKET_SIZE];
+            return current.data[index % config.bucket_size];
         }
 
         pub const Iterator = struct {
@@ -71,7 +72,7 @@ pub fn List(comptime T: type) type {
                 const node = self.node.?;
                 const value = node.data[self.i];
                 self.i += 1;
-                if (self.i == BUCKET_SIZE) {
+                if (self.i == config.bucket_size) {
                     self.node = node.next;
                     self.i = 0;
                 }
@@ -99,7 +100,7 @@ pub fn List(comptime T: type) type {
 test "list push 1" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    var list = List(u64).init(&arena);
+    var list = List(u64, .{}).init(&arena);
     try list.push(1);
     try expectEqual(list.nth(0), 1);
 }
@@ -107,7 +108,7 @@ test "list push 1" {
 test "list push 50" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    var list = List(u64).init(&arena);
+    var list = List(u64, .{}).init(&arena);
     const elements = 1_000;
     var i: u64 = 0;
     while (i < elements) : (i += 1) {
@@ -122,7 +123,7 @@ test "list push 50" {
 test "list iterate" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    var list = List(u64).init(&arena);
+    var list = List(u64, .{}).init(&arena);
     const elements = 1_000;
     var i: u64 = 0;
     while (i < elements) : (i += 1) {

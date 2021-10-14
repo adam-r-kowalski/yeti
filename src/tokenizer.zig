@@ -48,8 +48,10 @@ const Source = struct {
     }
 };
 
+const TokenList = List(Entity, .{ .bucket_size = 1024 });
+
 pub const Tokens = struct {
-    iterator: List(Entity).Iterator,
+    iterator: TokenList.Iterator,
 
     pub fn next(self: *Tokens) ?Entity {
         return self.iterator.next();
@@ -67,7 +69,7 @@ pub const Tokens = struct {
 };
 
 pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
-    var tokens = List(Entity).init(codebase.arena);
+    var tokens = TokenList.init(codebase.arena);
     var source = Source.init(code);
     while (true) {
         trimWhitespace(&source);
