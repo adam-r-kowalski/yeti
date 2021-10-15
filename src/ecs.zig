@@ -11,28 +11,26 @@ const TypeInfo = std.builtin.TypeInfo;
 const List = @import("list.zig").List;
 
 fn Component(comptime T: type) type {
-    const Data = List(T, .{ .bucket_size = 1024 });
-
     return struct {
         lookup: std.AutoHashMap(u64, u64),
-        data: Data,
+        data: List(T),
 
         const Self = @This();
 
         fn init(arena: *Arena) Self {
             return Self{
                 .lookup = std.AutoHashMap(u64, u64).init(&arena.allocator),
-                .data = Data.init(arena),
+                .data = List(T).init(&arena.allocator, .{ .initial_capacity = 1024 }),
             };
         }
 
         fn set(self: *Self, entity: Entity, value: T) !void {
             try self.lookup.putNoClobber(entity.uuid, self.data.len);
-            try self.data.push(value);
+            try self.data.append(value);
         }
 
         fn get(self: Self, entity: Entity) T {
-            return self.data.nth(self.lookup.get(entity.uuid).?);
+            return self.data.items[self.lookup.get(entity.uuid).?];
         }
     };
 }

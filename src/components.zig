@@ -1,8 +1,8 @@
 const std = @import("std");
 const Arena = std.heap.ArenaAllocator;
 
-const InternedString = @import("strings.zig").InternedString;
 const List = @import("list.zig").List;
+const InternedString = @import("strings.zig").InternedString;
 const Entity = @import("ecs.zig").Entity;
 
 pub const Position = struct {
@@ -54,24 +54,10 @@ pub const Name = struct {
 };
 
 pub const Parameters = struct {
-    const Entities = List(Entity, .{ .bucket_size = 8 });
+    entities: []Entity,
 
-    entities: Entities,
-
-    pub fn init(arena: *Arena) Parameters {
-        return Parameters{ .entities = Entities.init(arena) };
-    }
-
-    pub fn push(self: *Parameters, entity: Entity) !void {
-        try self.entities.push(entity);
-    }
-
-    pub fn nth(self: Parameters, index: u64) Entity {
-        return self.entities.nth(index);
-    }
-
-    pub fn len(self: Parameters) u64 {
-        return self.entities.len;
+    pub fn init(entities: List(Entity)) Parameters {
+        return Parameters{ .entities = entities.slice() };
     }
 };
 
@@ -84,24 +70,10 @@ pub const ReturnType = struct {
 };
 
 pub const Body = struct {
-    const Entities = List(Entity, .{ .bucket_size = 16 });
+    entities: []Entity,
 
-    entities: Entities,
-
-    pub fn init(arena: *Arena) Body {
-        return Body{ .entities = Entities.init(arena) };
-    }
-
-    pub fn push(self: *Body, entity: Entity) !void {
-        try self.entities.push(entity);
-    }
-
-    pub fn nth(self: Body, index: u64) Entity {
-        return self.entities.nth(index);
-    }
-
-    pub fn len(self: Body) u64 {
-        return self.entities.len;
+    pub fn init(entities: List(Entity)) Body {
+        return Body{ .entities = entities.slice() };
     }
 };
 
@@ -136,24 +108,10 @@ pub const BinaryOp = enum(u8) {
 };
 
 pub const Arguments = struct {
-    const Entities = List(Entity, .{ .bucket_size = 8 });
+    entities: []Entity,
 
-    entities: Entities,
-
-    pub fn init(arena: *Arena) Arguments {
-        return Arguments{ .entities = Entities.init(arena) };
-    }
-
-    pub fn push(self: *Arguments, entity: Entity) !void {
-        try self.entities.push(entity);
-    }
-
-    pub fn nth(self: Arguments, index: u64) Entity {
-        return self.entities.nth(index);
-    }
-
-    pub fn len(self: Arguments) u64 {
-        return self.entities.len;
+    pub fn init(entities: List(Entity)) Arguments {
+        return Arguments{ .entities = entities.slice() };
     }
 };
 

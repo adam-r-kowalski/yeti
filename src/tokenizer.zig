@@ -48,17 +48,23 @@ const Source = struct {
     }
 };
 
-const TokenList = List(Entity, .{ .bucket_size = 1024 });
-
 pub const Tokens = struct {
-    iterator: TokenList.Iterator,
+    entities: []Entity,
+
+    pub fn init(entities: List(Entity)) Tokens {
+        return Tokens{ .entities = entities.slice() };
+    }
 
     pub fn next(self: *Tokens) ?Entity {
-        return self.iterator.next();
+        if (self.entities.len == 0) return null;
+        const entity = self.entities[0];
+        self.entities = self.entities[1..];
+        return entity;
     }
 
     pub fn peek(self: Tokens) ?Entity {
-        return self.iterator.peek();
+        if (self.entities.len == 0) return null;
+        return self.entities[0];
     }
 
     pub fn consume(self: *Tokens, kind: Kind) Entity {
@@ -69,13 +75,11 @@ pub const Tokens = struct {
 };
 
 pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
-    var tokens = TokenList.init(codebase.arena);
+    var entities = List(Entity).init(&codebase.arena.allocator, .{ .initial_capacity = 1024 });
     var source = Source.init(code);
     while (true) {
         trimWhitespace(&source);
-        if (source.code.len == 0) {
-            return Tokens{ .iterator = tokens.iterate() };
-        }
+        if (source.code.len == 0) return Tokens.init(entities);
         const token = switch (source.code[0]) {
             '0'...'9', '-' => try tokenizeNumber(codebase, &source, false),
             '.' => try tokenizeNumber(codebase, &source, true),
@@ -89,7 +93,7 @@ pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
             '\n' => try tokenizeIndent(codebase, &source),
             else => try tokenizeSymbol(codebase, &source),
         };
-        try tokens.push(token);
+        try entities.append(token);
     }
 }
 
