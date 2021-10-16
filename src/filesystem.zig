@@ -9,16 +9,32 @@ const expectEqualSlices = std.testing.expectEqualSlices;
 
 const ECS = @import("ecs.zig").ECS;
 
-test "ecs get and set components" {
+const File = struct {
+    bytes: []const u8,
+
+    fn init(bytes: []const u8) File {
+        return File{ .bytes = bytes };
+    }
+};
+
+const Contents = struct {
+    bytes: []const u8,
+
+    fn init(bytes: []const u8) Contents {
+        return Contents{ .bytes = bytes };
+    }
+};
+
+test "filesystem create and lookup file" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var ecs = ECS.init(&arena);
-    const file = ecs.createEntity(.{
+    _ = try ecs.createEntity(.{
         File.init("beti.yeti"),
         Contents.init(
-            \\fn f() u64 = 0
+            \\fn f() u64 = 10
             \\
-            \\fn g() u64 = 0
+            \\fn g() u64 = f()
         ),
     });
 }

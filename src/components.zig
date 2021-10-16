@@ -1,7 +1,9 @@
 const std = @import("std");
 const Arena = std.heap.ArenaAllocator;
 
-const InternedString = @import("strings.zig").InternedString;
+const strings_module = @import("strings.zig");
+const Strings = strings_module.Strings;
+const InternedString = strings_module.InternedString;
 const Entity = @import("ecs.zig").Entity;
 
 pub const Position = struct {
@@ -131,9 +133,22 @@ pub const Functions = struct {
 };
 
 pub const Lookup = struct {
-    map: std.AutoHashMap(InternedString, Entity),
+    const Map = std.AutoHashMap(InternedString, Entity);
 
-    pub fn init(map: std.AutoHashMap(InternedString, Entity)) Lookup {
-        return Lookup{ .map = map };
+    map: Map,
+    strings: *Strings,
+
+    pub fn init(map: Map, strings: *Strings) Lookup {
+        return Lookup{ .map = map, .strings = strings };
+    }
+
+    pub fn literal(self: Lookup, string: []const u8) Entity {
+        const interned = self.strings.lookup.get(string).?;
+        return self.map.get(interned).?;
+    }
+
+    pub fn name(self: Lookup, value: Name) Entity {
+        const interned = value.entity.get(Literal).interned;
+        return self.map.get(interned).?;
     }
 };

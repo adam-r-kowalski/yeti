@@ -6,7 +6,7 @@ const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 const panic = std.debug.panic;
 
-const initCodebase = @import("codebase.zig").initCodebase;
+const initCodebase = @import("init_codebase.zig").initCodebase;
 const ecs = @import("ecs.zig");
 const Entity = ecs.Entity;
 const ECS = ecs.ECS;

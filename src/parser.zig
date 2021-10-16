@@ -6,7 +6,7 @@ const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 
-const initCodebase = @import("codebase.zig").initCodebase;
+const initCodebase = @import("init_codebase.zig").initCodebase;
 const List = @import("list.zig").List;
 const ecs = @import("ecs.zig");
 const Entity = ecs.Entity;
@@ -536,7 +536,7 @@ fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
     }
     return try codebase.createEntity(.{
         Functions.init(functions.slice()),
-        Lookup.init(lookup),
+        Lookup.init(lookup, codebase.getPtr(Strings)),
     });
 }
 
@@ -565,7 +565,9 @@ test "parse full file" {
     try expectEqual(start.get(Parameters).entities.len, 0);
     try expectEqualStrings(literalOf(start.get(ReturnType).entity), "u64");
     try expectEqual(start.get(Body).entities.len, 1);
-    const lookup = module.get(Lookup).map;
-    try expectEqual(lookup.get(codebase.get(Strings).lookup.get("sum_of_squares").?), sum_of_squares);
-    try expectEqual(lookup.get(codebase.get(Strings).lookup.get("start").?), start);
+    const lookup = module.get(Lookup);
+    try expectEqual(lookup.literal("sum_of_squares"), sum_of_squares);
+    try expectEqual(lookup.name(sum_of_squares.get(Name)), sum_of_squares);
+    try expectEqual(lookup.literal("start"), start);
+    try expectEqual(lookup.name(start.get(Name)), start);
 }
