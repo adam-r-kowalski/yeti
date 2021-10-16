@@ -121,3 +121,19 @@ pub const Callable = struct {
         return Callable{ .entity = entity };
     }
 };
+
+pub const Functions = struct {
+    entities: []const Entity,
+
+    pub fn init(entities: []const Entity) Functions {
+        return Functions{ .entities = entities };
+    }
+};
+
+pub const Lookup = struct {
+    map: std.AutoHashMap(InternedString, Entity),
+
+    pub fn init(map: std.AutoHashMap(InternedString, Entity)) Lookup {
+        return Lookup{ .map = map };
+    }
+};
