@@ -133,14 +133,14 @@ fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !
 }
 
 fn parseCall(codebase: *ECS, tokens: *Tokens, callable: Entity) !Entity {
-    var arguments = List(Entity).init(&codebase.arena.allocator, .{ .initial_capacity = 8 });
+    var arguments = List(Entity, .{}).init(&codebase.arena.allocator);
     while (tokens.peek()) |token| {
         switch (token.get(TokenKind)) {
             .right_paren => {
                 return try codebase.createEntity(.{
                     Kind.call,
                     Callable.init(callable),
-                    Arguments.init(arguments),
+                    Arguments.init(arguments.slice()),
                     Span.init(callable.get(Span).begin, tokens.next().?.get(Span).end),
                 });
             },
@@ -182,7 +182,7 @@ test "parse int" {
 }
 
 fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
-    var parameters = List(Entity).init(&codebase.arena.allocator, .{ .initial_capacity = 8 });
+    var parameters = List(Entity, .{}).init(&codebase.arena.allocator);
     _ = tokens.consume(.left_paren);
     while (tokens.next()) |token| {
         const kind = token.get(TokenKind);
@@ -199,11 +199,11 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
             else => panic("\ninvalid token kind, {}\n", .{kind}),
         }
     }
-    return Parameters.init(parameters);
+    return Parameters.init(parameters.slice());
 }
 
 fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !Body {
-    var body = List(Entity).init(&codebase.arena.allocator, .{});
+    var body = List(Entity, .{}).init(&codebase.arena.allocator);
     if (tokens.peek().?.get(TokenKind) == .indent) {
         const spaces = tokens.next().?.get(Indent).spaces;
         while (true) {
@@ -215,7 +215,7 @@ fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !Body {
             } else break;
         }
     } else try body.append(try parseExpression(codebase, tokens, LOWEST));
-    return Body.init(body);
+    return Body.init(body.slice());
 }
 
 fn parseFunction(codebase: *ECS, tokens: *Tokens) !Entity {

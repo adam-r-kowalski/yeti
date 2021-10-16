@@ -1,7 +1,6 @@
 const std = @import("std");
 const Arena = std.heap.ArenaAllocator;
 
-const List = @import("list.zig").List;
 const InternedString = @import("strings.zig").InternedString;
 const Entity = @import("ecs.zig").Entity;
 
@@ -54,10 +53,10 @@ pub const Name = struct {
 };
 
 pub const Parameters = struct {
-    entities: []Entity,
+    entities: []const Entity,
 
-    pub fn init(entities: List(Entity)) Parameters {
-        return Parameters{ .entities = entities.slice() };
+    pub fn init(entities: []const Entity) Parameters {
+        return Parameters{ .entities = entities };
     }
 };
 
@@ -70,10 +69,10 @@ pub const ReturnType = struct {
 };
 
 pub const Body = struct {
-    entities: []Entity,
+    entities: []const Entity,
 
-    pub fn init(entities: List(Entity)) Body {
-        return Body{ .entities = entities.slice() };
+    pub fn init(entities: []const Entity) Body {
+        return Body{ .entities = entities };
     }
 };
 
@@ -108,10 +107,10 @@ pub const BinaryOp = enum(u8) {
 };
 
 pub const Arguments = struct {
-    entities: []Entity,
+    entities: []const Entity,
 
-    pub fn init(entities: List(Entity)) Arguments {
-        return Arguments{ .entities = entities.slice() };
+    pub fn init(entities: []const Entity) Arguments {
+        return Arguments{ .entities = entities };
     }
 };
 

@@ -13,15 +13,17 @@ pub const InternedString = struct {
 };
 
 pub const Strings = struct {
+    const Inverse = List([]const u8, .{ .initial_capacity = 1024 });
+
     lookup: std.StringHashMap(InternedString),
-    inverse: List([]const u8),
+    inverse: Inverse,
     next: InternedString,
     arena: *Arena,
 
     pub fn init(arena: *Arena) Strings {
         return Strings{
             .lookup = std.StringHashMap(InternedString).init(&arena.allocator),
-            .inverse = List([]const u8).init(&arena.allocator, .{ .initial_capacity = 1024 }),
+            .inverse = Inverse.init(&arena.allocator),
             .next = InternedString{ .value = 0 },
             .arena = arena,
         };
@@ -41,7 +43,7 @@ pub const Strings = struct {
     }
 
     pub fn get(self: Strings, interned: InternedString) []const u8 {
-        return self.inverse.items[interned.value];
+        return self.inverse.slice()[interned.value];
     }
 };
 

@@ -49,10 +49,10 @@ const Source = struct {
 };
 
 pub const Tokens = struct {
-    entities: []Entity,
+    entities: []const Entity,
 
-    pub fn init(entities: List(Entity)) Tokens {
-        return Tokens{ .entities = entities.slice() };
+    pub fn init(entities: []const Entity) Tokens {
+        return Tokens{ .entities = entities };
     }
 
     pub fn next(self: *Tokens) ?Entity {
@@ -75,11 +75,11 @@ pub const Tokens = struct {
 };
 
 pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
-    var entities = List(Entity).init(&codebase.arena.allocator, .{ .initial_capacity = 1024 });
+    var entities = List(Entity, .{ .initial_capacity = 1024 }).init(&codebase.arena.allocator);
     var source = Source.init(code);
     while (true) {
         trimWhitespace(&source);
-        if (source.code.len == 0) return Tokens.init(entities);
+        if (source.code.len == 0) return Tokens.init(entities.slice());
         const token = switch (source.code[0]) {
             '0'...'9', '-' => try tokenizeNumber(codebase, &source, false),
             '.' => try tokenizeNumber(codebase, &source, true),
