@@ -134,6 +134,14 @@ pub const Functions = struct {
     }
 };
 
+pub const Imports = struct {
+    entities: []const Entity,
+
+    pub fn init(entities: []const Entity) Imports {
+        return Imports{ .entities = entities };
+    }
+};
+
 pub const Unqualified = struct {
     entities: []const Entity,
 

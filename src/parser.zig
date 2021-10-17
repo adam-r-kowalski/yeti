@@ -31,6 +31,7 @@ const Value = components.Value;
 const Indent = components.Indent;
 const Callable = components.Callable;
 const Functions = components.Functions;
+const Imports = components.Imports;
 const Lookup = components.Lookup;
 const Unqualified = components.Unqualified;
 const tokenizer = @import("tokenizer.zig");
@@ -520,59 +521,6 @@ test "parse function call with multiple arguments" {
     try expectEqualStrings(literalOf(arguments[1]), "3");
 }
 
-pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
-    var functions = List(Entity, .{}).init(&codebase.arena.allocator);
-    var lookup = std.AutoHashMap(InternedString, Entity).init(&codebase.arena.allocator);
-    while (tokens.peek()) |token| {
-        const kind = token.get(TokenKind);
-        switch (kind) {
-            .symbol => {
-                const function = try parseFunction(codebase, tokens);
-                try functions.append(function);
-                try lookup.putNoClobber(function.get(Name).entity.get(Literal).interned, function);
-            },
-            .indent => _ = tokens.next(),
-            else => panic("\ncannot parse top level expression {}\n", .{kind}),
-        }
-    }
-    return try codebase.createEntity(.{
-        Functions.init(functions.slice()),
-        Lookup.init(lookup, codebase.getPtr(Strings)),
-    });
-}
-
-test "parse full file" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const code =
-        \\sum_of_squares(x: u64, y: u64) u64 =
-        \\  x*2 + y*2
-        \\
-        \\start() u64 =
-        \\  sum_of_squares(10, 56 * 3)
-    ;
-    var tokens = try tokenize(&codebase, code);
-    const module = try parse(&codebase, &tokens);
-    const functions = module.get(Functions).entities;
-    try expectEqual(functions.len, 2);
-    const sum_of_squares = functions[0];
-    try expectEqualStrings(literalOf(sum_of_squares.get(Name).entity), "sum_of_squares");
-    try expectEqual(sum_of_squares.get(Parameters).entities.len, 2);
-    try expectEqualStrings(literalOf(sum_of_squares.get(ReturnType).entity), "u64");
-    try expectEqual(sum_of_squares.get(Body).entities.len, 1);
-    const start = functions[1];
-    try expectEqualStrings(literalOf(start.get(Name).entity), "start");
-    try expectEqual(start.get(Parameters).entities.len, 0);
-    try expectEqualStrings(literalOf(start.get(ReturnType).entity), "u64");
-    try expectEqual(start.get(Body).entities.len, 1);
-    const lookup = module.get(Lookup);
-    try expectEqual(lookup.literal("sum_of_squares"), sum_of_squares);
-    try expectEqual(lookup.name(sum_of_squares.get(Name)), sum_of_squares);
-    try expectEqual(lookup.literal("start"), start);
-    try expectEqual(lookup.name(start.get(Name)), start);
-}
-
 fn parseUnqualifiedImports(codebase: *ECS, tokens: *Tokens) !Unqualified {
     var unqualified = List(Entity, .{}).init(&codebase.arena.allocator);
     while (true) {
@@ -643,4 +591,83 @@ test "parse import unqualified" {
     try expectEqual(unqualified.len, 2);
     try expectEqualStrings(literalOf(unqualified[0]), "bar");
     try expectEqualStrings(literalOf(unqualified[1]), "baz");
+}
+
+pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
+    var functions = List(Entity, .{}).init(&codebase.arena.allocator);
+    var imports = List(Entity, .{}).init(&codebase.arena.allocator);
+    var lookup = std.AutoHashMap(InternedString, Entity).init(&codebase.arena.allocator);
+    while (tokens.peek()) |token| {
+        const kind = token.get(TokenKind);
+        switch (kind) {
+            .symbol => {
+                const function = try parseFunction(codebase, tokens);
+                try functions.append(function);
+                try lookup.putNoClobber(function.get(Name).entity.get(Literal).interned, function);
+            },
+            .indent => _ = tokens.next(),
+            .import => {
+                const import = try parseImport(codebase, tokens);
+                try imports.append(import);
+            },
+            else => panic("\ncannot parse top level expression {}\n", .{kind}),
+        }
+    }
+    return try codebase.createEntity(.{
+        Functions.init(functions.slice()),
+        Imports.init(imports.slice()),
+        Lookup.init(lookup, codebase.getPtr(Strings)),
+    });
+}
+
+test "parse two functions" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\sum_of_squares(x: u64, y: u64) u64 =
+        \\  x*2 + y*2
+        \\
+        \\start() u64 =
+        \\  sum_of_squares(10, 56 * 3)
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const module = try parse(&codebase, &tokens);
+    const functions = module.get(Functions).entities;
+    try expectEqual(functions.len, 2);
+    const sum_of_squares = functions[0];
+    try expectEqualStrings(literalOf(sum_of_squares.get(Name).entity), "sum_of_squares");
+    try expectEqual(sum_of_squares.get(Parameters).entities.len, 2);
+    try expectEqualStrings(literalOf(sum_of_squares.get(ReturnType).entity), "u64");
+    try expectEqual(sum_of_squares.get(Body).entities.len, 1);
+    const start = functions[1];
+    try expectEqualStrings(literalOf(start.get(Name).entity), "start");
+    try expectEqual(start.get(Parameters).entities.len, 0);
+    try expectEqualStrings(literalOf(start.get(ReturnType).entity), "u64");
+    try expectEqual(start.get(Body).entities.len, 1);
+    const lookup = module.get(Lookup);
+    try expectEqual(lookup.literal("sum_of_squares"), sum_of_squares);
+    try expectEqual(lookup.name(sum_of_squares.get(Name)), sum_of_squares);
+    try expectEqual(lookup.literal("start"), start);
+    try expectEqual(lookup.name(start.get(Name)), start);
+}
+
+test "parse import and function" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\import foo: sum_of_squares
+        \\
+        \\start() u64 =
+        \\  sum_of_squares(10, 56 * 3)
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const module = try parse(&codebase, &tokens);
+    const imports = module.get(Imports).entities;
+    try expectEqual(imports.len, 1);
+    try expectEqualStrings(literalOf(imports[0].get(Name).entity), "foo");
+    const unqualified = imports[0].get(Unqualified).entities;
+    try expectEqual(unqualified.len, 1);
+    try expectEqualStrings(literalOf(unqualified[0]), "sum_of_squares");
 }

@@ -37,7 +37,12 @@ test "build codebase" {
     _ = try initCodebase(&arena);
     var fs = try initFileSystem(&arena);
     _ = try newFile(&fs, "foo.yeti",
-        \\start() u64 = 10
+        \\import bar: baz
+        \\
+        \\start() u64 = baz()
+    );
+    _ = try newFile(&fs, "bar.yeti",
+        \\baz() u64 = 10
     );
     const module = try buildCodebase(&arena, fs, "foo.yeti");
     try expectEqual(module.get(Functions).entities.len, 1);
