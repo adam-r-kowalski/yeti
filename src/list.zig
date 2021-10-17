@@ -51,6 +51,10 @@ pub fn List(comptime T: type, comptime config: Config) type {
         pub fn slice(self: Self) []const T {
             return self.items[0..self.len];
         }
+
+        pub fn mutSlice(self: Self) []T {
+            return self.items[0..self.len];
+        }
     };
 }
 
