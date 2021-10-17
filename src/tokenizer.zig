@@ -126,6 +126,7 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
             '>',
             ',',
             '\n',
+            '.',
             => break,
             else => continue,
         }
@@ -206,15 +207,19 @@ fn tokenizeNumber(codebase: *ECS, source: *Source, starts_with_decimal: bool) !E
     }
     assert(decimals_seen <= 1);
     const string = source.advance(i);
-    const interned = try codebase.getPtr(Strings).intern(string);
-    const literal = Literal{ .interned = interned };
     const span = Span{ .begin = begin, .end = source.position };
-    const kind: Kind = if (decimals_seen == 0) .int else .float;
-    return try codebase.createEntity(.{
-        literal,
-        kind,
-        span,
-    });
+    if (i == 1 and starts_with_decimal) {
+        return try codebase.createEntity(.{ Kind.dot, span });
+    } else {
+        const interned = try codebase.getPtr(Strings).intern(string);
+        const literal = Literal{ .interned = interned };
+        const kind: Kind = if (decimals_seen == 0) .int else .float;
+        return try codebase.createEntity(.{
+            literal,
+            kind,
+            span,
+        });
+    }
 }
 
 test "tokenize number" {

@@ -37,7 +37,7 @@ test "build codebase" {
     _ = try initCodebase(&arena);
     var fs = try initFileSystem(&arena);
     _ = try newFile(&fs, "foo.yeti",
-        \\import bar: baz
+        \\import bar
         \\
         \\start() u64 = baz()
     );

@@ -66,7 +66,8 @@ const LOWEST: u64 = 0;
 const DEFINE: u64 = LOWEST;
 const ADD: u64 = DEFINE + NEXT_PRECEDENCE;
 const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
-const CALL: u64 = MULTIPLY + NEXT_PRECEDENCE;
+const DOT: u64 = MULTIPLY + NEXT_PRECEDENCE;
+const CALL: u64 = DOT + NEXT_PRECEDENCE;
 const HIGHEST: u64 = CALL;
 
 const InfixParser = union(enum) {
@@ -80,6 +81,7 @@ const InfixParser = union(enum) {
             return switch (kind) {
                 .plus => .{ .binary_op = .{ .op = .add, .precedence = ADD } },
                 .times => .{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
+                .dot => .{ .binary_op = .{ .op = .dot, .precedence = DOT } },
                 .equal => .define,
                 .left_paren => .call,
                 else => null,
@@ -548,23 +550,31 @@ fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
                 _ = tokens.next();
                 const unqualified = try parseUnqualifiedImports(codebase, tokens);
                 const end = unqualified.entities[unqualified.entities.len - 1].get(Span).end;
-                const span = components.Span.init(begin, end);
                 return try codebase.createEntity(.{
                     Kind.import,
                     name,
-                    span,
+                    Span.init(begin, end),
                     unqualified,
+                });
+            },
+            .indent => {
+                const end = name.entity.get(Span).end;
+                return try codebase.createEntity(.{
+                    Kind.import,
+                    name,
+                    Span.init(begin, end),
+                    Unqualified.init(&.{}),
                 });
             },
             else => panic("\nexpected colon got {}\n", .{kind}),
         }
     } else {
         const end = name.entity.get(Span).end;
-        const span = components.Span.init(begin, end);
         return try codebase.createEntity(.{
             Kind.import,
             name,
-            span,
+            Span.init(begin, end),
+            Unqualified.init(&.{}),
         });
     }
 }
@@ -652,12 +662,12 @@ test "parse two functions" {
     try expectEqual(lookup.name(start.get(Name)), start);
 }
 
-test "parse import and function" {
+test "parse unqualified import and function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\import foo: sum_of_squares
+        \\import math: sum_of_squares
         \\
         \\start() u64 =
         \\  sum_of_squares(10, 56 * 3)
@@ -666,8 +676,43 @@ test "parse import and function" {
     const module = try parse(&codebase, &tokens);
     const imports = module.get(Imports).entities;
     try expectEqual(imports.len, 1);
-    try expectEqualStrings(literalOf(imports[0].get(Name).entity), "foo");
+    try expectEqualStrings(literalOf(imports[0].get(Name).entity), "math");
     const unqualified = imports[0].get(Unqualified).entities;
     try expectEqual(unqualified.len, 1);
     try expectEqualStrings(literalOf(unqualified[0]), "sum_of_squares");
+}
+
+test "parse import and function" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\import math
+        \\
+        \\start() u64 =
+        \\  math.sum_of_squares(10, 56 * 3)
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const module = try parse(&codebase, &tokens);
+    const imports = module.get(Imports).entities;
+    try expectEqual(imports.len, 1);
+    try expectEqualStrings(literalOf(imports[0].get(Name).entity), "math");
+    try expectEqual(imports[0].get(Unqualified).entities.len, 0);
+    const start = module.get(Lookup).literal("start");
+    const body = start.get(Body).entities;
+    try expectEqual(body.len, 1);
+    const dot = body[0];
+    try expectEqual(dot.get(Kind), .binary_op);
+    const dot_arguments = dot.get(Arguments).entities;
+    try expectEqualStrings(literalOf(dot_arguments[0]), "math");
+    const sum_of_squares = dot_arguments[1];
+    const callable = sum_of_squares.get(Callable).entity;
+    try expectEqualStrings(literalOf(callable), "sum_of_squares");
+    const sum_of_squares_arguments = sum_of_squares.get(Arguments).entities;
+    try expectEqualStrings(literalOf(sum_of_squares_arguments[0]), "10");
+    const multiply = sum_of_squares_arguments[1];
+    try expectEqual(multiply.get(BinaryOp), .multiply);
+    const arguments = multiply.get(Arguments).entities;
+    try expectEqualStrings(literalOf(arguments[0]), "56");
+    try expectEqualStrings(literalOf(arguments[1]), "3");
 }
