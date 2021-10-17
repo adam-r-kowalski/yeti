@@ -36,6 +36,7 @@ pub const TokenKind = enum(u8) {
     comma,
     indent,
     equal,
+    import,
 };
 
 pub const Indent = struct {
@@ -101,6 +102,7 @@ pub const AstKind = enum(u8) {
     binary_op,
     define,
     call,
+    import,
 };
 
 pub const BinaryOp = enum(u8) {

@@ -132,13 +132,20 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
     }
     const string = source.advance(i);
     const span = Span{ .begin = begin, .end = source.position };
-    const interned = try codebase.getPtr(Strings).intern(string);
-    const literal = Literal{ .interned = interned };
-    return try codebase.createEntity(.{
-        literal,
-        Kind.symbol,
-        span,
-    });
+    if (std.mem.eql(u8, string, "import")) {
+        return try codebase.createEntity(.{
+            Kind.import,
+            span,
+        });
+    } else {
+        const interned = try codebase.getPtr(Strings).intern(string);
+        const literal = Literal{ .interned = interned };
+        return try codebase.createEntity(.{
+            literal,
+            Kind.symbol,
+            span,
+        });
+    }
 }
 
 test "tokenize symbol" {

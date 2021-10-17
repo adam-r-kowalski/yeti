@@ -571,3 +571,26 @@ test "parse full file" {
     try expectEqual(lookup.literal("start"), start);
     try expectEqual(lookup.name(start.get(Name)), start);
 }
+
+fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
+    const import = tokens.consume(.import);
+    const name = Name.init(try tokens.next().?.set(.{Kind.symbol}));
+    const begin = import.get(Span).begin;
+    const end = name.entity.get(Span).end;
+    const span = components.Span.init(begin, end);
+    return try codebase.createEntity(.{
+        Kind.import,
+        name,
+        span,
+    });
+}
+
+test "parse import module" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code = "import foo";
+    var tokens = try tokenize(&codebase, code);
+    const import = try parseImport(&codebase, &tokens);
+    try expectEqualStrings(literalOf(import.get(Name).entity), "foo");
+}
