@@ -24,7 +24,7 @@ const newFile = file_system.newFile;
 const components = @import("components.zig");
 const Functions = components.Functions;
 
-fn buildCodebase(arena: *Arena, fs: ECS, entry_point: []const u8) !Entity {
+pub fn buildCodebase(arena: *Arena, fs: ECS, entry_point: []const u8) !Entity {
     var codebase = try initCodebase(arena);
     const contents = read(fs, entry_point);
     var tokens = try tokenize(&codebase, contents);
