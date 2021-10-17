@@ -519,7 +519,7 @@ test "parse function call with multiple arguments" {
     try expectEqualStrings(literalOf(arguments[1]), "3");
 }
 
-fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
+pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
     var functions = List(Entity, .{}).init(&codebase.arena.allocator);
     var lookup = std.AutoHashMap(InternedString, Entity).init(&codebase.arena.allocator);
     while (tokens.peek()) |token| {
