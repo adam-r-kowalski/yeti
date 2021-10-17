@@ -134,6 +134,14 @@ pub const Functions = struct {
     }
 };
 
+pub const Unqualified = struct {
+    entities: []const Entity,
+
+    pub fn init(entities: []const Entity) Unqualified {
+        return Unqualified{ .entities = entities };
+    }
+};
+
 pub const Lookup = struct {
     const Map = std.AutoHashMap(InternedString, Entity);
 

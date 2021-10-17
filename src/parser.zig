@@ -32,6 +32,7 @@ const Indent = components.Indent;
 const Callable = components.Callable;
 const Functions = components.Functions;
 const Lookup = components.Lookup;
+const Unqualified = components.Unqualified;
 const tokenizer = @import("tokenizer.zig");
 const Tokens = tokenizer.Tokens;
 const tokenize = tokenizer.tokenize;
@@ -572,17 +573,52 @@ test "parse full file" {
     try expectEqual(lookup.name(start.get(Name)), start);
 }
 
+fn parseUnqualifiedImports(codebase: *ECS, tokens: *Tokens) !Unqualified {
+    var unqualified = List(Entity, .{}).init(&codebase.arena.allocator);
+    while (true) {
+        try unqualified.append(tokens.consume(.symbol));
+        if (tokens.peek()) |token| {
+            const kind = token.get(TokenKind);
+            switch (kind) {
+                .comma => _ = tokens.next(),
+                .indent => break,
+                else => panic("\nexpected comma, found {}\n", .{kind}),
+            }
+        } else break;
+    }
+    return Unqualified.init(unqualified.slice());
+}
+
 fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
     const import = tokens.consume(.import);
-    const name = Name.init(try tokens.next().?.set(.{Kind.symbol}));
     const begin = import.get(Span).begin;
-    const end = name.entity.get(Span).end;
-    const span = components.Span.init(begin, end);
-    return try codebase.createEntity(.{
-        Kind.import,
-        name,
-        span,
-    });
+    const name = Name.init(try tokens.next().?.set(.{Kind.symbol}));
+    if (tokens.peek()) |token| {
+        const kind = token.get(TokenKind);
+        switch (kind) {
+            .colon => {
+                _ = tokens.next();
+                const unqualified = try parseUnqualifiedImports(codebase, tokens);
+                const end = unqualified.entities[unqualified.entities.len - 1].get(Span).end;
+                const span = components.Span.init(begin, end);
+                return try codebase.createEntity(.{
+                    Kind.import,
+                    name,
+                    span,
+                    unqualified,
+                });
+            },
+            else => panic("\nexpected colon got {}\n", .{kind}),
+        }
+    } else {
+        const end = name.entity.get(Span).end;
+        const span = components.Span.init(begin, end);
+        return try codebase.createEntity(.{
+            Kind.import,
+            name,
+            span,
+        });
+    }
 }
 
 test "parse import module" {
@@ -593,4 +629,18 @@ test "parse import module" {
     var tokens = try tokenize(&codebase, code);
     const import = try parseImport(&codebase, &tokens);
     try expectEqualStrings(literalOf(import.get(Name).entity), "foo");
+}
+
+test "parse import unqualified" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code = "import foo: bar, baz";
+    var tokens = try tokenize(&codebase, code);
+    const import = try parseImport(&codebase, &tokens);
+    try expectEqualStrings(literalOf(import.get(Name).entity), "foo");
+    const unqualified = import.get(Unqualified).entities;
+    try expectEqual(unqualified.len, 2);
+    try expectEqualStrings(literalOf(unqualified[0]), "bar");
+    try expectEqualStrings(literalOf(unqualified[1]), "baz");
 }
