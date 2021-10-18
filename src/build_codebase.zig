@@ -22,7 +22,6 @@ const initFileSystem = file_system.initFileSystem;
 const read = file_system.read;
 const newFile = file_system.newFile;
 const components = @import("components.zig");
-const Functions = components.Functions;
 
 pub fn buildCodebase(arena: *Arena, fs: ECS, entry_point: []const u8) !Entity {
     var codebase = try initCodebase(arena);
@@ -44,6 +43,5 @@ test "build codebase" {
     _ = try newFile(&fs, "bar.yeti",
         \\baz() u64 = 10
     );
-    const module = try buildCodebase(&arena, fs, "foo.yeti");
-    try expectEqual(module.get(Functions).entities.len, 1);
+    _ = try buildCodebase(&arena, fs, "foo.yeti");
 }

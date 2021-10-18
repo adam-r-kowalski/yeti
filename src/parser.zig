@@ -626,7 +626,7 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
             .indent => _ = tokens.next(),
             .import => {
                 const import = try parseImport(codebase, tokens);
-                const name = import.get(Literal).interned;
+                const name = import.get(Name).entity.get(Literal).interned;
                 try top_level.putNoClobber(name, import);
             },
             else => panic("\ncannot parse top level expression {}\n", .{kind}),
@@ -637,37 +637,32 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
     });
 }
 
-// test "parse two functions" {
-//     var arena = Arena.init(std.heap.page_allocator);
-//     defer arena.deinit();
-//     var codebase = try initCodebase(&arena);
-//     const code =
-//         \\sum_of_squares(x: u64, y: u64) u64 =
-//         \\  x*2 + y*2
-//         \\
-//         \\start() u64 =
-//         \\  sum_of_squares(10, 56 * 3)
-//     ;
-//     var tokens = try tokenize(&codebase, code);
-//     const module = try parse(&codebase, &tokens);
-//     const functions = module.get(Functions).entities;
-//     try expectEqual(functions.len, 2);
-//     const sum_of_squares = functions[0];
-//     try expectEqualStrings(literalOf(sum_of_squares.get(Name).entity), "sum_of_squares");
-//     try expectEqual(sum_of_squares.get(Parameters).entities.len, 2);
-//     try expectEqualStrings(literalOf(sum_of_squares.get(ReturnType).entity), "u64");
-//     try expectEqual(sum_of_squares.get(Body).entities.len, 1);
-//     const start = functions[1];
-//     try expectEqualStrings(literalOf(start.get(Name).entity), "start");
-//     try expectEqual(start.get(Parameters).entities.len, 0);
-//     try expectEqualStrings(literalOf(start.get(ReturnType).entity), "u64");
-//     try expectEqual(start.get(Body).entities.len, 1);
-//     const lookup = module.get(Lookup);
-//     try expectEqual(lookup.literal("sum_of_squares"), sum_of_squares);
-//     try expectEqual(lookup.name(sum_of_squares.get(Name)), sum_of_squares);
-//     try expectEqual(lookup.literal("start"), start);
-//     try expectEqual(lookup.name(start.get(Name)), start);
-// }
+test "parse two functions" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\sum_of_squares(x: u64, y: u64) u64 =
+        \\  x*2 + y*2
+        \\
+        \\start() u64 =
+        \\  sum_of_squares(10, 56 * 3)
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const module = try parse(&codebase, &tokens);
+    {
+        const sum_of_squares = module.get(TopLevel).literal("sum_of_squares");
+        const overloads = sum_of_squares.get(Overloads).entities.slice();
+        try expectEqual(overloads.len, 1);
+        try expectEqual(overloads[0].get(Parameters).entities.len, 2);
+    }
+    {
+        const start = module.get(TopLevel).literal("start");
+        const overloads = start.get(Overloads).entities.slice();
+        try expectEqual(overloads.len, 1);
+        try expectEqual(overloads[0].get(Parameters).entities.len, 0);
+    }
+}
 
 test "parse overload" {
     var arena = Arena.init(std.heap.page_allocator);
@@ -680,79 +675,83 @@ test "parse overload" {
     ;
     var tokens = try tokenize(&codebase, code);
     const module = try parse(&codebase, &tokens);
-    const overloads = module.get(TopLevel).literal("f").get(Overloads).entities.slice();
+    const f = module.get(TopLevel).literal("f");
+    const overloads = f.get(Overloads).entities.slice();
     try expectEqual(overloads.len, 2);
     {
-        const f = overloads[0];
-        const parameters = f.get(Parameters).entities;
+        const f_u64 = overloads[0];
+        const parameters = f_u64.get(Parameters).entities;
         try expectEqual(parameters.len, 1);
         const x = parameters[0];
         try expectEqualStrings(literalOf(x), "x");
         try expectEqualStrings(literalOf(x.get(Type).entity), "u64");
-        try expectEqualStrings(literalOf(f.get(ReturnType).entity), "u64");
+        try expectEqualStrings(literalOf(f_u64.get(ReturnType).entity), "u64");
     }
     {
-        const f = overloads[1];
-        const parameters = f.get(Parameters).entities;
+        const f_f64 = overloads[1];
+        const parameters = f_f64.get(Parameters).entities;
         try expectEqual(parameters.len, 1);
         const x = parameters[0];
         try expectEqualStrings(literalOf(x), "x");
         try expectEqualStrings(literalOf(x.get(Type).entity), "f64");
-        try expectEqualStrings(literalOf(f.get(ReturnType).entity), "f64");
+        try expectEqualStrings(literalOf(f_f64.get(ReturnType).entity), "f64");
     }
 }
 
-// test "parse unqualified import and function" {
-//     var arena = Arena.init(std.heap.page_allocator);
-//     defer arena.deinit();
-//     var codebase = try initCodebase(&arena);
-//     const code =
-//         \\import math: sum_of_squares
-//         \\
-//         \\start() u64 =
-//         \\  sum_of_squares(10, 56 * 3)
-//     ;
-//     var tokens = try tokenize(&codebase, code);
-//     const module = try parse(&codebase, &tokens);
-//     const imports = module.get(Imports).entities;
-//     try expectEqual(imports.len, 1);
-//     try expectEqualStrings(literalOf(imports[0].get(Name).entity), "math");
-//     const unqualified = imports[0].get(Unqualified).entities;
-//     try expectEqual(unqualified.len, 1);
-//     try expectEqualStrings(literalOf(unqualified[0]), "sum_of_squares");
-// }
+test "parse unqualified import and function" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\import math: sum_of_squares
+        \\
+        \\start() u64 =
+        \\  sum_of_squares(10, 56 * 3)
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const module = try parse(&codebase, &tokens);
+    const top_level = module.get(TopLevel);
+    const math = top_level.literal("math");
+    const unqualified = math.get(Unqualified).entities;
+    try expectEqual(unqualified.len, 1);
+    try expectEqualStrings(literalOf(unqualified[0]), "sum_of_squares");
+    const start = top_level.literal("start");
+    const overloads = start.get(Overloads).entities.slice();
+    try expectEqual(overloads.len, 1);
+    try expectEqual(overloads[0].get(Parameters).entities.len, 0);
+}
 
-// test "parse import and function" {
-//     var arena = Arena.init(std.heap.page_allocator);
-//     defer arena.deinit();
-//     var codebase = try initCodebase(&arena);
-//     const code =
-//         \\import math
-//         \\
-//         \\start() u64 =
-//         \\  math.sum_of_squares(10, 56 * 3)
-//     ;
-//     var tokens = try tokenize(&codebase, code);
-//     const module = try parse(&codebase, &tokens);
-//     const imports = module.get(Imports).entities;
-//     try expectEqual(imports.len, 1);
-//     try expectEqualStrings(literalOf(imports[0].get(Name).entity), "math");
-//     try expectEqual(imports[0].get(Unqualified).entities.len, 0);
-//     const start = module.get(Lookup).literal("start");
-//     const body = start.get(Body).entities;
-//     try expectEqual(body.len, 1);
-//     const dot = body[0];
-//     try expectEqual(dot.get(Kind), .binary_op);
-//     const dot_arguments = dot.get(Arguments).entities;
-//     try expectEqualStrings(literalOf(dot_arguments[0]), "math");
-//     const sum_of_squares = dot_arguments[1];
-//     const callable = sum_of_squares.get(Callable).entity;
-//     try expectEqualStrings(literalOf(callable), "sum_of_squares");
-//     const sum_of_squares_arguments = sum_of_squares.get(Arguments).entities;
-//     try expectEqualStrings(literalOf(sum_of_squares_arguments[0]), "10");
-//     const multiply = sum_of_squares_arguments[1];
-//     try expectEqual(multiply.get(BinaryOp), .multiply);
-//     const arguments = multiply.get(Arguments).entities;
-//     try expectEqualStrings(literalOf(arguments[0]), "56");
-//     try expectEqualStrings(literalOf(arguments[1]), "3");
-// }
+test "parse import and function" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\import math
+        \\
+        \\start() u64 =
+        \\  math.sum_of_squares(10, 56 * 3)
+    ;
+    var tokens = try tokenize(&codebase, code);
+    const module = try parse(&codebase, &tokens);
+    const top_level = module.get(TopLevel);
+    const math = top_level.literal("math");
+    try expectEqual(math.get(Unqualified).entities.len, 0);
+    const start = top_level.literal("start");
+    const overloads = start.get(Overloads).entities.slice();
+    const body = overloads[0].get(Body).entities;
+    try expectEqual(body.len, 1);
+    const dot = body[0];
+    try expectEqual(dot.get(Kind), .binary_op);
+    const dot_arguments = dot.get(Arguments).entities;
+    try expectEqualStrings(literalOf(dot_arguments[0]), "math");
+    const sum_of_squares = dot_arguments[1];
+    const callable = sum_of_squares.get(Callable).entity;
+    try expectEqualStrings(literalOf(callable), "sum_of_squares");
+    const sum_of_squares_arguments = sum_of_squares.get(Arguments).entities;
+    try expectEqualStrings(literalOf(sum_of_squares_arguments[0]), "10");
+    const multiply = sum_of_squares_arguments[1];
+    try expectEqual(multiply.get(BinaryOp), .multiply);
+    const arguments = multiply.get(Arguments).entities;
+    try expectEqualStrings(literalOf(arguments[0]), "56");
+    try expectEqualStrings(literalOf(arguments[1]), "3");
+}
