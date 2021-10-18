@@ -1,10 +1,11 @@
 const std = @import("std");
-const Arena = std.heap.ArenaAllocator;
+const Allocator = std.mem.Allocator;
 
 const strings_module = @import("strings.zig");
 const Strings = strings_module.Strings;
 const InternedString = strings_module.InternedString;
 const Entity = @import("ecs.zig").Entity;
+const List = @import("list.zig").List;
 
 pub const Position = struct {
     column: u64,
@@ -104,6 +105,7 @@ pub const AstKind = enum(u8) {
     define,
     call,
     import,
+    overload_set,
 };
 
 pub const BinaryOp = enum(u8) {
@@ -128,22 +130,6 @@ pub const Callable = struct {
     }
 };
 
-pub const Functions = struct {
-    entities: []const Entity,
-
-    pub fn init(entities: []const Entity) Functions {
-        return Functions{ .entities = entities };
-    }
-};
-
-pub const Imports = struct {
-    entities: []const Entity,
-
-    pub fn init(entities: []const Entity) Imports {
-        return Imports{ .entities = entities };
-    }
-};
-
 pub const Unqualified = struct {
     entities: []const Entity,
 
@@ -152,22 +138,30 @@ pub const Unqualified = struct {
     }
 };
 
-pub const Lookup = struct {
+pub const Overloads = struct {
+    entities: List(Entity, .{}),
+
+    pub fn init(allocator: *Allocator) Overloads {
+        return Overloads{ .entities = List(Entity, .{}).init(allocator) };
+    }
+};
+
+pub const TopLevel = struct {
     const Map = std.AutoHashMap(InternedString, Entity);
 
     map: Map,
     strings: *Strings,
 
-    pub fn init(map: Map, strings: *Strings) Lookup {
-        return Lookup{ .map = map, .strings = strings };
+    pub fn init(map: Map, strings: *Strings) TopLevel {
+        return TopLevel{ .map = map, .strings = strings };
     }
 
-    pub fn literal(self: Lookup, string: []const u8) Entity {
+    pub fn literal(self: TopLevel, string: []const u8) Entity {
         const interned = self.strings.lookup.get(string).?;
         return self.map.get(interned).?;
     }
 
-    pub fn name(self: Lookup, value: Name) Entity {
+    pub fn name(self: TopLevel, value: Name) Entity {
         const interned = value.entity.get(Literal).interned;
         return self.map.get(interned).?;
     }
