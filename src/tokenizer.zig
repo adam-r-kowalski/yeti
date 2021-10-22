@@ -140,9 +140,8 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
         });
     } else {
         const interned = try codebase.getPtr(Strings).intern(string);
-        const literal = Literal{ .interned = interned };
         return try codebase.createEntity(.{
-            literal,
+            Literal.init(interned),
             Kind.symbol,
             span,
         });
@@ -212,10 +211,9 @@ fn tokenizeNumber(codebase: *ECS, source: *Source, starts_with_decimal: bool) !E
         return try codebase.createEntity(.{ Kind.dot, span });
     } else {
         const interned = try codebase.getPtr(Strings).intern(string);
-        const literal = Literal{ .interned = interned };
         const kind: Kind = if (decimals_seen == 0) .int else .float;
         return try codebase.createEntity(.{
-            literal,
+            Literal.init(interned),
             kind,
             span,
         });

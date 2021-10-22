@@ -47,6 +47,10 @@ pub const Indent = struct {
 
 pub const Literal = struct {
     interned: InternedString,
+
+    pub fn init(interned: InternedString) Literal {
+        return Literal{ .interned = interned };
+    }
 };
 
 pub const Name = struct {

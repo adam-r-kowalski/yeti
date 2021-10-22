@@ -738,6 +738,7 @@ test "parse import and function" {
     try expectEqual(math.get(Unqualified).entities.len, 0);
     const start = top_level.literal("start");
     const overloads = start.get(Overloads).entities.slice();
+    try expectEqual(overloads.len, 1);
     const body = overloads[0].get(Body).entities;
     try expectEqual(body.len, 1);
     const dot = body[0];
