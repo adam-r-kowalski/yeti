@@ -24,41 +24,32 @@ const initFileSystem = file_system.initFileSystem;
 const read = file_system.read;
 const newFile = file_system.newFile;
 const components = @import("components.zig");
-const TopLevel = components.TopLevel;
-const Overloads = components.Overloads;
-const Parameters = components.Parameters;
-const Literal = components.Literal;
-const Type = components.Type;
-const AstKind = components.AstKind;
-const ReturnType = components.ReturnType;
-const Builtins = components.Builtins;
-const Scope = components.Scope;
 const literalOf = @import("test_utils.zig").literalOf;
 
-fn builtinType(codebase: *ECS, scope: *Scope, symbol: []const u8, Type_: Entity) !Entity {
+fn builtinType(codebase: *ECS, scope: *components.ir.Scope, symbol: []const u8, Type: Entity) !Entity {
     const interned = try codebase.getPtr(Strings).intern(symbol);
     const entity = try codebase.createEntity(.{
-        Literal.init(interned),
-        Type.init(Type_),
+        components.token.Literal.init(interned),
+        components.ir.Type.init(Type),
     });
     try scope.put(interned, entity);
     return entity;
 }
 
 fn initBuiltins(codebase: *ECS) !void {
-    var scope = Scope.init(&codebase.arena.allocator, codebase.getPtr(Strings));
+    var scope = components.ir.Scope.init(&codebase.arena.allocator, codebase.getPtr(Strings));
     const interned = try codebase.getPtr(Strings).intern("type");
-    const Type_ = try codebase.createEntity(.{
-        Literal.init(interned),
+    const Type = try codebase.createEntity(.{
+        components.token.Literal.init(interned),
     });
-    try scope.put(interned, Type_);
-    _ = try Type_.set(.{Type.init(Type_)});
-    const I64 = try builtinType(codebase, &scope, "i64", Type_);
-    const I32 = try builtinType(codebase, &scope, "i32", Type_);
-    const U64 = try builtinType(codebase, &scope, "u64", Type_);
-    const U32 = try builtinType(codebase, &scope, "u32", Type_);
-    const builtins = Builtins{
-        .Type = Type_,
+    try scope.put(interned, Type);
+    _ = try Type.set(.{components.ir.Type.init(Type)});
+    const I64 = try builtinType(codebase, &scope, "i64", Type);
+    const I32 = try builtinType(codebase, &scope, "i32", Type);
+    const U64 = try builtinType(codebase, &scope, "u64", Type);
+    const U32 = try builtinType(codebase, &scope, "u32", Type);
+    const builtins = components.ir.Builtins{
+        .Type = Type,
         .I64 = I64,
         .I32 = I32,
         .U64 = U64,
@@ -68,7 +59,7 @@ fn initBuiltins(codebase: *ECS) !void {
 }
 
 fn typeOf(entity: Entity) Entity {
-    return entity.get(Type).entity;
+    return entity.get(components.ir.Type).entity;
 }
 
 test "builtins" {
@@ -76,12 +67,12 @@ test "builtins" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     try initBuiltins(&codebase);
-    const builtins = codebase.get(Builtins);
-    const scope = codebase.get(Scope);
+    const builtins = codebase.get(components.ir.Builtins);
+    const scope = codebase.get(components.ir.Scope);
     try expectEqualStrings(literalOf(builtins.Type), "type");
     try expectEqual(typeOf(builtins.Type), builtins.Type);
     try expectEqual(scope.findString("type"), builtins.Type);
-    try expectEqual(scope.findLiteral(builtins.Type.get(Literal)), builtins.Type);
+    try expectEqual(scope.findLiteral(builtins.Type.get(components.token.Literal)), builtins.Type);
     try expectEqualStrings(literalOf(builtins.I64), "i64");
     try expectEqual(typeOf(builtins.I64), builtins.Type);
     try expectEqual(scope.findString("i64"), builtins.I64);
@@ -97,9 +88,9 @@ test "builtins" {
 }
 
 fn eval(entity: Entity) Entity {
-    const kind = entity.get(AstKind);
+    const kind = entity.get(components.ast.Kind);
     switch (kind) {
-        .symbol => return entity.ecs.get(Scope).findLiteral(entity.get(Literal)),
+        .symbol => return entity.ecs.get(components.ir.Scope).findLiteral(entity.get(components.token.Literal)),
         else => panic("\nunsupported kind {}\n", .{kind}),
     }
 }
@@ -110,13 +101,13 @@ pub fn buildCodebase(arena: *Arena, fs: ECS, entry_point: []const u8) !ECS {
     const contents = read(fs, entry_point);
     var tokens = try tokenize(&codebase, contents);
     const module = try parse(&codebase, &tokens);
-    const top_level = module.get(TopLevel);
-    const overloads = top_level.findString("start").get(Overloads).entities.slice();
+    const top_level = module.get(components.ast.TopLevel);
+    const overloads = top_level.findString("start").get(components.ast.Overloads).entities.slice();
     assert(overloads.len == 1);
     const start = overloads[0];
-    assert(start.get(Parameters).entities.len == 0);
-    const return_type = eval(start.get(ReturnType).entity);
-    assert(eql(return_type, codebase.get(Builtins).I64));
+    assert(start.get(components.ast.Parameters).entities.len == 0);
+    const return_type = eval(start.get(components.ast.ReturnType).entity);
+    assert(eql(return_type, codebase.get(components.ir.Builtins).I64));
     return codebase;
 }
 

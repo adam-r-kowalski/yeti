@@ -1,7 +1,7 @@
 const ecs = @import("ecs.zig");
 const Entity = ecs.Entity;
 const ECS = ecs.ECS;
-const Literal = @import("components.zig").Literal;
+const Literal = @import("components.zig").token.Literal;
 const Strings = @import("strings.zig").Strings;
 
 pub fn literalOf(entity: Entity) []const u8 {

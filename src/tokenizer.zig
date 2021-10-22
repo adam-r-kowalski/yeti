@@ -14,11 +14,11 @@ const List = @import("list.zig").List;
 const Strings = @import("strings.zig").Strings;
 const literalOf = @import("test_utils.zig").literalOf;
 const components = @import("components.zig");
-const Position = components.Position;
-const Span = components.Span;
-const Literal = components.Literal;
-const Kind = components.TokenKind;
-const Indent = components.Indent;
+const Position = components.token.Position;
+const Span = components.token.Span;
+const Literal = components.token.Literal;
+const Kind = components.token.Kind;
+const Indent = components.token.Indent;
 
 const Source = struct {
     code: []const u8,
