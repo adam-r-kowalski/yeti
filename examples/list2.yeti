@@ -1,0 +1,51 @@
+List('a, T: type) type = 
+  ( slice: Slice('a, T)
+  , length: u64
+  , allocator: RefCell(Allocator('a))
+  )
+
+
+List(T: type, allocator: RefCell(Allocator('a)) !List('a, T) =
+  capacity = 32
+  slice = try allocate(allocator, T, capacity)
+  List(slice, capacity, allocator)
+
+
+ensure_capacity{T}(list: &'a mut List('a, T)) !void =
+  if list.length < list.capacity:
+    return
+  capacity = list.capacity * 2
+  slice = try allocate(list.allocator, T, capacity)
+  memcpy(to=slice, from=list.slice)
+  free(list.allocator, list.slice)
+  list.slice = slice
+  list.capacity = capacity
+
+
+push{T}(list: &'a mut List('a, T), element: T) !void =
+  try ensure_capacity(list)
+  list.data[list.length] = element
+  list.length += 1
+
+
+drop{T}(list: &'a mut List('a, T)) void =
+  free(list.allocator, list.data)
+
+
+[]{T}(list: &'a mut List('a, T), index: u64) &'a mut T =
+  assert index < list.length
+  list.data[index]
+
+
+[]{T}(list: &'a List('a, T), index: u64) &'a T =
+  assert index < list.length
+  list.data[index]
+
+
+test_list() void =
+  allocator = DebugAllocator()
+  list = List(i64, allocator)
+  for i in range(10):
+    try push(&mut list, i * i)
+  for i in range(10):
+    assert list[i] == i * i

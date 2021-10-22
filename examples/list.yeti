@@ -1,0 +1,50 @@
+List(T: type) type = 
+  ( data: *T
+  , length: u64
+  , capacity: u64
+  , allocator: *Allocator
+  )
+
+
+List(T: type, allocator: *Allocator) !List(T) =
+  length = 0
+  capacity = 32
+  data = try allocate(allocator, T, capacity)
+  List(data, length, capacity, allocator)
+
+
+ensure_capacity{T}(list: *List(T)) !void =
+  if list.length < list.capacity:
+    return
+  capacity = list.capacity * 2
+  data = try allocate(list.allocator, T, capacity)
+  memcpy(to=data, from=list.data)
+  free(list.allocator, list.data)
+  list.data = data
+  list.capacity = capacity
+
+
+push{T}(list: *List(T), element: T) !void =
+  try ensure_capacity(list)
+  list.data[list.length] = element
+  list.length += 1
+
+
+deinit{T}(list: *List(T)) void =
+  free(list.allocator, list.data)
+
+
+[]{T}(list: *List(T), index: u64) *T =
+  assert index < list.length
+  &list.data[index]
+
+
+test_list() void =
+  allocator = DebugAllocator()
+  defer validate(allocator)
+  list = List(i64, &allocator)
+  defer deinit(&list)
+  for i in range(10):
+    try push(&list, i * i)
+  for i in range(10):
+    assert list[i] == i * i

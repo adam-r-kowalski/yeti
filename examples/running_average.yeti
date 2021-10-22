@@ -1,5 +1,3 @@
-u64 = int(0, 2^64)
-
 Average = (count: u64, total: f64)
 
 

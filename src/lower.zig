@@ -90,7 +90,10 @@ test "builtins" {
 fn evalAstNode(entity: Entity) Entity {
     const kind = entity.get(components.ast.Kind);
     switch (kind) {
-        .symbol => return entity.ecs.get(components.ir.Scope).findLiteral(entity.get(components.token.Literal)),
+        .symbol => {
+            const scope = entity.ecs.get(components.ir.Scope);
+            return scope.findLiteral(entity.get(components.token.Literal));
+        },
         else => panic("\nunsupported kind {}\n", .{kind}),
     }
 }
