@@ -6,6 +6,7 @@ const strings_module = @import("../strings.zig");
 const Strings = strings_module.Strings;
 const InternedString = strings_module.InternedString;
 const Literal = @import("token.zig").Literal;
+const Name = @import("ast.zig").Name;
 
 pub const Type = struct {
     entity: Entity,
@@ -44,5 +45,45 @@ pub const Scope = struct {
 
     pub fn findLiteral(self: Scope, literal: Literal) Entity {
         return self.map.get(literal.interned).?;
+    }
+};
+
+pub const ReturnType = struct {
+    entity: Entity,
+
+    pub fn init(entity: Entity) ReturnType {
+        return ReturnType{ .entity = entity };
+    }
+};
+
+pub const TopLevel = struct {
+    const Map = std.AutoHashMap(InternedString, Entity);
+
+    map: Map,
+    strings: *Strings,
+
+    pub fn init(allocator: *Allocator, strings: *Strings) TopLevel {
+        return TopLevel{
+            .map = Map.init(allocator),
+            .strings = strings,
+        };
+    }
+
+    pub fn findString(self: TopLevel, string: []const u8) Entity {
+        const interned = self.strings.lookup.get(string).?;
+        return self.map.get(interned).?;
+    }
+
+    pub fn findName(self: TopLevel, name: Name) Entity {
+        return self.hasName(name).?;
+    }
+
+    pub fn hasName(self: TopLevel, name: Name) ?Entity {
+        const interned = name.entity.get(Literal).interned;
+        return self.map.get(interned);
+    }
+
+    pub fn put(self: *TopLevel, value: Name, entity: Entity) !void {
+        try self.map.putNoClobber(value.entity.get(Literal).interned, entity);
     }
 };

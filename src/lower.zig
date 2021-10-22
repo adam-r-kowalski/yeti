@@ -87,7 +87,7 @@ test "builtins" {
     try expectEqual(scope.findString("u32"), builtins.U32);
 }
 
-fn eval(entity: Entity) Entity {
+fn evalAstNode(entity: Entity) Entity {
     const kind = entity.get(components.ast.Kind);
     switch (kind) {
         .symbol => return entity.ecs.get(components.ir.Scope).findLiteral(entity.get(components.token.Literal)),
@@ -95,25 +95,37 @@ fn eval(entity: Entity) Entity {
     }
 }
 
-pub fn buildCodebase(arena: *Arena, fs: ECS, entry_point: []const u8) !ECS {
-    var codebase = try initCodebase(arena);
-    try initBuiltins(&codebase);
-    const contents = read(fs, entry_point);
-    var tokens = try tokenize(&codebase, contents);
-    const module = try parse(&codebase, &tokens);
-    const top_level = module.get(components.ast.TopLevel);
-    const overloads = top_level.findString("start").get(components.ast.Overloads).entities.slice();
+fn lowerFunction(function: Entity) !Entity {
+    const codebase = function.ecs;
+    const entity = evalAstNode(function.get(components.ast.ReturnType).entity);
+    const return_type = components.ir.ReturnType.init(entity);
+    return try codebase.createEntity(.{
+        // NOTE: should the name be the module name concatenated with the function name?
+        function.get(components.ast.Name),
+        return_type,
+    });
+}
+
+pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []const u8) !Entity {
+    try initBuiltins(codebase);
+    const contents = read(fs, module_name);
+    var tokens = try tokenize(codebase, contents);
+    const ast = try parse(codebase, &tokens);
+    var ir_top_level = components.ir.TopLevel.init(&codebase.arena.allocator, codebase.getPtr(Strings));
+    const ast_top_level = ast.get(components.ast.TopLevel);
+    const overloads = ast_top_level.findString(function_name).get(components.ast.Overloads).entities.slice();
     assert(overloads.len == 1);
-    const start = overloads[0];
-    assert(start.get(components.ast.Parameters).entities.len == 0);
-    const return_type = eval(start.get(components.ast.ReturnType).entity);
-    assert(eql(return_type, codebase.get(components.ir.Builtins).I64));
-    return codebase;
+    const start_ast = overloads[0];
+    assert(start_ast.get(components.ast.Parameters).entities.len == 0);
+    const start_ir = try lowerFunction(start_ast);
+    try ir_top_level.put(start_ir.get(components.ast.Name), start_ir);
+    return try codebase.createEntity(.{ir_top_level});
 }
 
 test "call function from import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
+    var codebase = try initCodebase(&arena);
     var fs = try initFileSystem(&arena);
     _ = try newFile(&fs, "foo",
         \\import bar
@@ -123,5 +135,9 @@ test "call function from import" {
     _ = try newFile(&fs, "bar",
         \\baz() i64 = 10
     );
-    _ = try buildCodebase(&arena, fs, "foo");
+    const ir = try lower(&codebase, fs, "foo", "start");
+    const builtins = codebase.get(components.ir.Builtins);
+    const top_level = ir.get(components.ir.TopLevel);
+    const start = top_level.findString("start");
+    try expectEqual(start.get(components.ir.ReturnType).entity, builtins.I64);
 }

@@ -647,15 +647,15 @@ test "parse two functions" {
         \\  sum_of_squares(10, 56 * 3)
     ;
     var tokens = try tokenize(&codebase, code);
-    const module = try parse(&codebase, &tokens);
+    const ast = try parse(&codebase, &tokens);
     {
-        const sum_of_squares = module.get(TopLevel).findString("sum_of_squares");
+        const sum_of_squares = ast.get(TopLevel).findString("sum_of_squares");
         const overloads = sum_of_squares.get(Overloads).entities.slice();
         try expectEqual(overloads.len, 1);
         try expectEqual(overloads[0].get(Parameters).entities.len, 2);
     }
     {
-        const start = module.get(TopLevel).findString("start");
+        const start = ast.get(TopLevel).findString("start");
         const overloads = start.get(Overloads).entities.slice();
         try expectEqual(overloads.len, 1);
         try expectEqual(overloads[0].get(Parameters).entities.len, 0);
@@ -672,8 +672,8 @@ test "parse overload" {
         \\f(x: f64) f64 = x
     ;
     var tokens = try tokenize(&codebase, code);
-    const module = try parse(&codebase, &tokens);
-    const f = module.get(TopLevel).findString("f");
+    const ast = try parse(&codebase, &tokens);
+    const f = ast.get(TopLevel).findString("f");
     const overloads = f.get(Overloads).entities.slice();
     try expectEqual(overloads.len, 2);
     {
@@ -707,8 +707,8 @@ test "parse unqualified import and function" {
         \\  sum_of_squares(10, 56 * 3)
     ;
     var tokens = try tokenize(&codebase, code);
-    const module = try parse(&codebase, &tokens);
-    const top_level = module.get(TopLevel);
+    const ast = try parse(&codebase, &tokens);
+    const top_level = ast.get(TopLevel);
     const math = top_level.findString("math");
     const unqualified = math.get(Unqualified).entities;
     try expectEqual(unqualified.len, 1);
@@ -730,8 +730,8 @@ test "parse import and function" {
         \\  math.sum_of_squares(10, 56 * 3)
     ;
     var tokens = try tokenize(&codebase, code);
-    const module = try parse(&codebase, &tokens);
-    const top_level = module.get(TopLevel);
+    const ast = try parse(&codebase, &tokens);
+    const top_level = ast.get(TopLevel);
     const math = top_level.findString("math");
     try expectEqual(math.get(Unqualified).entities.len, 0);
     const start = top_level.findString("start");
