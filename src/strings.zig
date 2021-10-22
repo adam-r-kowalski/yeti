@@ -29,15 +29,15 @@ pub const Strings = struct {
         };
     }
 
-    pub fn intern(self: *Strings, value: []const u8) !InternedString {
-        const result = try self.lookup.getOrPut(value);
+    pub fn intern(self: *Strings, string: []const u8) !InternedString {
+        const result = try self.lookup.getOrPut(string);
         if (result.found_existing) {
             return result.value_ptr.*;
         } else {
             const interned = self.next;
             result.value_ptr.* = interned;
             self.next.value += 1;
-            try self.inverse.append(try self.arena.allocator.dupe(u8, value));
+            try self.inverse.append(try self.arena.allocator.dupe(u8, string));
             return interned;
         }
     }

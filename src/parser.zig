@@ -604,14 +604,14 @@ test "parse import unqualified" {
 }
 
 pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
-    var top_level = std.AutoHashMap(InternedString, Entity).init(&codebase.arena.allocator);
+    var top_level = TopLevel.init(&codebase.arena.allocator, codebase.getPtr(Strings));
     while (tokens.peek()) |token| {
         const kind = token.get(TokenKind);
         switch (kind) {
             .symbol => {
                 const function = try parseFunction(codebase, tokens);
-                const name = function.get(Name).entity.get(Literal).interned;
-                if (top_level.get(name)) |overload_set| {
+                const name = function.get(Name);
+                if (top_level.hasName(name)) |overload_set| {
                     try overload_set.getPtr(Overloads).entities.append(function);
                 } else {
                     var overloads = Overloads.init(&codebase.arena.allocator);
@@ -620,21 +620,19 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
                         Kind.overload_set,
                         overloads,
                     });
-                    try top_level.putNoClobber(name, overload_set);
+                    try top_level.put(name, overload_set);
                 }
             },
             .indent => _ = tokens.next(),
             .import => {
                 const import = try parseImport(codebase, tokens);
-                const name = import.get(Name).entity.get(Literal).interned;
-                try top_level.putNoClobber(name, import);
+                const name = import.get(Name);
+                try top_level.put(name, import);
             },
             else => panic("\ncannot parse top level expression {}\n", .{kind}),
         }
     }
-    return try codebase.createEntity(.{
-        TopLevel.init(top_level, codebase.getPtr(Strings)),
-    });
+    return try codebase.createEntity(.{top_level});
 }
 
 test "parse two functions" {
@@ -651,13 +649,13 @@ test "parse two functions" {
     var tokens = try tokenize(&codebase, code);
     const module = try parse(&codebase, &tokens);
     {
-        const sum_of_squares = module.get(TopLevel).literal("sum_of_squares");
+        const sum_of_squares = module.get(TopLevel).findString("sum_of_squares");
         const overloads = sum_of_squares.get(Overloads).entities.slice();
         try expectEqual(overloads.len, 1);
         try expectEqual(overloads[0].get(Parameters).entities.len, 2);
     }
     {
-        const start = module.get(TopLevel).literal("start");
+        const start = module.get(TopLevel).findString("start");
         const overloads = start.get(Overloads).entities.slice();
         try expectEqual(overloads.len, 1);
         try expectEqual(overloads[0].get(Parameters).entities.len, 0);
@@ -675,7 +673,7 @@ test "parse overload" {
     ;
     var tokens = try tokenize(&codebase, code);
     const module = try parse(&codebase, &tokens);
-    const f = module.get(TopLevel).literal("f");
+    const f = module.get(TopLevel).findString("f");
     const overloads = f.get(Overloads).entities.slice();
     try expectEqual(overloads.len, 2);
     {
@@ -711,11 +709,11 @@ test "parse unqualified import and function" {
     var tokens = try tokenize(&codebase, code);
     const module = try parse(&codebase, &tokens);
     const top_level = module.get(TopLevel);
-    const math = top_level.literal("math");
+    const math = top_level.findString("math");
     const unqualified = math.get(Unqualified).entities;
     try expectEqual(unqualified.len, 1);
     try expectEqualStrings(literalOf(unqualified[0]), "sum_of_squares");
-    const start = top_level.literal("start");
+    const start = top_level.findString("start");
     const overloads = start.get(Overloads).entities.slice();
     try expectEqual(overloads.len, 1);
     try expectEqual(overloads[0].get(Parameters).entities.len, 0);
@@ -734,9 +732,9 @@ test "parse import and function" {
     var tokens = try tokenize(&codebase, code);
     const module = try parse(&codebase, &tokens);
     const top_level = module.get(TopLevel);
-    const math = top_level.literal("math");
+    const math = top_level.findString("math");
     try expectEqual(math.get(Unqualified).entities.len, 0);
-    const start = top_level.literal("start");
+    const start = top_level.findString("start");
     const overloads = start.get(Overloads).entities.slice();
     try expectEqual(overloads.len, 1);
     const body = overloads[0].get(Body).entities;

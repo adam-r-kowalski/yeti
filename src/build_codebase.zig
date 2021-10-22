@@ -30,33 +30,41 @@ const Literal = components.Literal;
 const Type = components.Type;
 const AstKind = components.AstKind;
 const ReturnType = components.ReturnType;
+const Builtins = components.Builtins;
+const Scope = components.Scope;
 const literalOf = @import("test_utils.zig").literalOf;
 
-pub const Builtins = struct {
-    Type: Entity,
-    I64: Entity,
+fn builtinType(codebase: *ECS, scope: *Scope, symbol: []const u8, Type_: Entity) !Entity {
+    const interned = try codebase.getPtr(Strings).intern(symbol);
+    const entity = try codebase.createEntity(.{
+        Literal.init(interned),
+        Type.init(Type_),
+    });
+    try scope.put(interned, entity);
+    return entity;
+}
 
-    pub fn init(codebase: *ECS) !Builtins {
-        const Type_ = blk: {
-            const interned = try codebase.getPtr(Strings).intern("type");
-            const entity = try codebase.createEntity(.{
-                Literal.init(interned),
-            });
-            break :blk try entity.set(.{Type.init(entity)});
-        };
-        const I64 = blk: {
-            const interned = try codebase.getPtr(Strings).intern("i64");
-            break :blk try codebase.createEntity(.{
-                Literal.init(interned),
-                Type.init(Type_),
-            });
-        };
-        return Builtins{
-            .Type = Type_,
-            .I64 = I64,
-        };
-    }
-};
+fn initBuiltins(codebase: *ECS) !void {
+    var scope = Scope.init(&codebase.arena.allocator, codebase.getPtr(Strings));
+    const interned = try codebase.getPtr(Strings).intern("type");
+    const Type_ = try codebase.createEntity(.{
+        Literal.init(interned),
+    });
+    try scope.put(interned, Type_);
+    _ = try Type_.set(.{Type.init(Type_)});
+    const I64 = try builtinType(codebase, &scope, "i64", Type_);
+    const I32 = try builtinType(codebase, &scope, "i32", Type_);
+    const U64 = try builtinType(codebase, &scope, "u64", Type_);
+    const U32 = try builtinType(codebase, &scope, "u32", Type_);
+    const builtins = Builtins{
+        .Type = Type_,
+        .I64 = I64,
+        .I32 = I32,
+        .U64 = U64,
+        .U32 = U32,
+    };
+    try codebase.set(.{ builtins, scope });
+}
 
 fn typeOf(entity: Entity) Entity {
     return entity.get(Type).entity;
@@ -66,34 +74,48 @@ test "builtins" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const builtins = try Builtins.init(&codebase);
+    try initBuiltins(&codebase);
+    const builtins = codebase.get(Builtins);
+    const scope = codebase.get(Scope);
     try expectEqualStrings(literalOf(builtins.Type), "type");
     try expectEqual(typeOf(builtins.Type), builtins.Type);
+    try expectEqual(scope.findString("type"), builtins.Type);
+    try expectEqual(scope.findLiteral(builtins.Type.get(Literal)), builtins.Type);
     try expectEqualStrings(literalOf(builtins.I64), "i64");
     try expectEqual(typeOf(builtins.I64), builtins.Type);
+    try expectEqual(scope.findString("i64"), builtins.I64);
+    try expectEqualStrings(literalOf(builtins.I32), "i32");
+    try expectEqual(typeOf(builtins.I32), builtins.Type);
+    try expectEqual(scope.findString("i32"), builtins.I32);
+    try expectEqualStrings(literalOf(builtins.U64), "u64");
+    try expectEqual(typeOf(builtins.U64), builtins.Type);
+    try expectEqual(scope.findString("u64"), builtins.U64);
+    try expectEqualStrings(literalOf(builtins.U32), "u32");
+    try expectEqual(typeOf(builtins.U32), builtins.Type);
+    try expectEqual(scope.findString("u32"), builtins.U32);
 }
 
 fn eval(entity: Entity) Entity {
     const kind = entity.get(AstKind);
     switch (kind) {
-        .symbol => {
-            panic("got here", .{});
-        },
+        .symbol => return entity.ecs.get(Scope).findLiteral(entity.get(Literal)),
         else => panic("\nunsupported kind {}\n", .{kind}),
     }
 }
 
 pub fn buildCodebase(arena: *Arena, fs: ECS, entry_point: []const u8) !ECS {
     var codebase = try initCodebase(arena);
+    try initBuiltins(&codebase);
     const contents = read(fs, entry_point);
     var tokens = try tokenize(&codebase, contents);
     const module = try parse(&codebase, &tokens);
     const top_level = module.get(TopLevel);
-    const overloads = top_level.literal("start").get(Overloads).entities.slice();
+    const overloads = top_level.findString("start").get(Overloads).entities.slice();
     assert(overloads.len == 1);
     const start = overloads[0];
     assert(start.get(Parameters).entities.len == 0);
-    _ = eval(start.get(ReturnType).entity);
+    const return_type = eval(start.get(ReturnType).entity);
+    assert(return_type.uuid == codebase.get(Builtins).I64.uuid);
     return codebase;
 }
 
