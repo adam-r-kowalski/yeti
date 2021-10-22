@@ -1,4 +1,5 @@
 const std = @import("std");
+const eql = std.meta.eql;
 const Arena = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
 const panic = std.debug.panic;
@@ -115,7 +116,7 @@ pub fn buildCodebase(arena: *Arena, fs: ECS, entry_point: []const u8) !ECS {
     const start = overloads[0];
     assert(start.get(Parameters).entities.len == 0);
     const return_type = eval(start.get(ReturnType).entity);
-    assert(return_type.uuid == codebase.get(Builtins).I64.uuid);
+    assert(eql(return_type, codebase.get(Builtins).I64));
     return codebase;
 }
 

@@ -9,6 +9,7 @@ const expectEqualSlices = std.testing.expectEqualSlices;
 const TypeInfo = std.builtin.TypeInfo;
 
 const List = @import("list.zig").List;
+const typeid = @import("typeid.zig").typeid;
 
 fn Component(comptime T: type) type {
     const Data = List(T, .{ .initial_capacity = 1024 });
@@ -42,15 +43,15 @@ fn Component(comptime T: type) type {
 }
 
 pub const ECS = struct {
-    components: std.StringHashMap(u64),
-    resources: std.StringHashMap(u64),
+    components: std.AutoHashMap(u64, u64),
+    resources: std.AutoHashMap(u64, u64),
     next_uuid: u64,
     arena: *Arena,
 
     pub fn init(arena: *Arena) ECS {
         return ECS{
-            .components = std.StringHashMap(u64).init(&arena.allocator),
-            .resources = std.StringHashMap(u64).init(&arena.allocator),
+            .components = std.AutoHashMap(u64, u64).init(&arena.allocator),
+            .resources = std.AutoHashMap(u64, u64).init(&arena.allocator),
             .next_uuid = 0,
             .arena = arena,
         };
@@ -71,7 +72,7 @@ pub const ECS = struct {
         assert(type_info.is_tuple);
         inline for (type_info.fields) |field| {
             const T = field.field_type;
-            const result = try self.resources.getOrPut(@typeName(T));
+            const result = try self.resources.getOrPut(typeid(T));
             if (result.found_existing) {
                 const resource = @intToPtr(*T, result.value_ptr.*);
                 resource.* = @field(resources, field.name);
@@ -84,11 +85,11 @@ pub const ECS = struct {
     }
 
     pub fn get(self: ECS, comptime T: type) T {
-        return @intToPtr(*T, self.resources.get(@typeName(T)).?).*;
+        return @intToPtr(*T, self.resources.get(typeid(T)).?).*;
     }
 
     pub fn getPtr(self: ECS, comptime T: type) *T {
-        return @intToPtr(*T, self.resources.get(@typeName(T)).?);
+        return @intToPtr(*T, self.resources.get(typeid(T)).?);
     }
 };
 
@@ -101,7 +102,7 @@ pub const Entity = struct {
         assert(type_info.is_tuple);
         inline for (type_info.fields) |field| {
             const T = field.field_type;
-            const result = try self.ecs.components.getOrPut(@typeName(T));
+            const result = try self.ecs.components.getOrPut(typeid(T));
             if (result.found_existing) {
                 const component = @intToPtr(*Component(T), result.value_ptr.*);
                 try component.*.set(self, @field(components, field.name));
@@ -116,12 +117,12 @@ pub const Entity = struct {
     }
 
     pub fn get(self: Entity, comptime T: type) T {
-        const component = self.ecs.components.get(@typeName(T)).?;
+        const component = self.ecs.components.get(typeid(T)).?;
         return @intToPtr(*Component(T), component).get(self);
     }
 
     pub fn getPtr(self: Entity, comptime T: type) *T {
-        const component = self.ecs.components.get(@typeName(T)).?;
+        const component = self.ecs.components.get(typeid(T)).?;
         return @intToPtr(*Component(T), component).getPtr(self);
     }
 };
