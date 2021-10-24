@@ -1,50 +1,57 @@
-List(T: type) type = 
-  ( data: *T
-  , length: u64
-  , capacity: u64
-  , allocator: *Allocator
-  )
+function List(T: Type) Type
+  struct
+    data: []T
+    length: Natural
+    allocator: *Allocator
+  end
+end
 
+function List(T: Type, allocator: *Allocator) List(T)
+  List([], 0, allocator)
+end
 
-List(T: type, allocator: *Allocator) !List(T) =
-  length = 0
-  capacity = 32
-  data = try allocate(allocator, T, capacity)
-  List(data, length, capacity, allocator)
+function capacity{T}(list: List(T)) Natural
+  list.data.length
+end
 
+function length{T}(list: List(T)) Natural
+  list.length
+end
 
-ensure_capacity{T}(list: *List(T)) !void =
-  if list.length < list.capacity:
-    return
-  capacity = list.capacity * 2
-  data = try allocate(list.allocator, T, capacity)
-  memcpy(to=data, from=list.data)
+function ensure_capacity{T}(list: *List(T)) OutOfMemory or Nothing
+  current_capacity = capacity(list)
+  if length(list) < current_capacity then return end
+  result = allocate(list.allocator, T, max(current_capacity * 2, 32))
+  if result is OutOfMemory then return result end
+  memcpy(to=result, from=list.data)
   free(list.allocator, list.data)
-  list.data = data
-  list.capacity = capacity
+  list.data = result
+end
 
-
-push{T}(list: *List(T), element: T) !void =
-  try ensure_capacity(list)
+function push{T}(list: *List(T), element: T) OutOfMemory or Nothing
+  if ensure_capacity(list) is OutOfMemory then return OutOfMemory end
   list.data[list.length] = element
   list.length += 1
+end
 
-
-deinit{T}(list: *List(T)) void =
+function deinit{T}(list: *List(T)) Nothing
   free(list.allocator, list.data)
+end
 
-
-[]{T}(list: *List(T), index: u64) *T =
+function []{T}(list: *List(T), index: Natural) *T
   assert index < list.length
   &list.data[index]
+end
 
-
-test_list() void =
+test "push and index into list"
   allocator = DebugAllocator()
-  defer validate(allocator)
+  defer deinit(allocator)
   list = List(i64, &allocator)
   defer deinit(&list)
-  for i in range(10):
+  for i in range(10)
     try push(&list, i * i)
-  for i in range(10):
+  end
+  for i in range(10)
     assert list[i] == i * i
+  end
+end

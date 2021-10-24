@@ -1,14 +1,18 @@
-Average = (count: u64, total: f64)
+Average = struct
+  count: Natural
+  total: Real
+end
 
-
-accumulate(average: &mut Average, value: f64) void =
+function accumulate(average: *Average, value: Real) Nothing
   average.count += 1
   average.total += value
+end
 
-
-start() u64 =
+function start() Natural
   data = [3.5, 2.3, 7.32]
   average = Average(count=0, total=0)
-  for element in data:
-    accumulate(&mut average, element))
+  for element in data
+    accumulate(&average, element)
+  end
   print(average.total / average.count)
+end
