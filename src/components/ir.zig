@@ -18,10 +18,9 @@ pub const Type = struct {
 
 pub const Builtins = struct {
     Type: Entity,
-    I64: Entity,
-    I32: Entity,
-    U64: Entity,
-    U32: Entity,
+    Int: Entity,
+    Nat: Entity,
+    Real: Entity,
 };
 
 pub const Scope = struct {

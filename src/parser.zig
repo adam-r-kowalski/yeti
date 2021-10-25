@@ -212,14 +212,15 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
 
 fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !Body {
     var body = List(Entity, .{}).init(&codebase.arena.allocator);
-    if (tokens.peek().?.get(TokenKind) == .indent) {
-        const spaces = tokens.next().?.get(Indent).spaces;
+    if (tokens.peek().?.get(TokenKind) == .begin) {
+        _ = tokens.next();
         while (true) {
             try body.append(try parseExpression(codebase, tokens, LOWEST));
             if (tokens.peek()) |token| {
-                if (token.get(TokenKind) != .indent or token.get(Indent).spaces != spaces)
+                if (token.get(TokenKind) == .end) {
+                    _ = tokens.next();
                     break;
-                _ = tokens.next();
+                }
             } else break;
         }
     } else try body.append(try parseExpression(codebase, tokens, LOWEST));
@@ -249,7 +250,7 @@ test "parse function with int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "start() u64 = 0";
+    const code = "start() Nat = 0";
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqual(function.get(Kind), .function);
@@ -258,7 +259,7 @@ test "parse function with int literal" {
     try expectEqual(function.get(Parameters).entities.len, 0);
     const return_type = function.get(ReturnType).entity;
     try expectEqual(return_type.get(Kind), .symbol);
-    try expectEqualStrings(literalOf(return_type), "u64");
+    try expectEqualStrings(literalOf(return_type), "Nat");
     try expectEqual(return_type.get(Span), Span.init(Position.init(8, 0), Position.init(11, 0)));
     const body = function.get(Body).entities;
     try expectEqual(body.len, 1);
@@ -272,12 +273,12 @@ test "parse function with binary entity" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "start() u64 = 5 + x";
+    const code = "start() Nat = 5 + x";
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "start");
     try expectEqual(function.get(Parameters).entities.len, 0);
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "u64");
+    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "Nat");
     const body = function.get(Body).entities;
     try expectEqual(body.len, 1);
     const add = body[0];
@@ -292,7 +293,7 @@ test "parse function with compound binary entity" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "line() u64 = m * x + b";
+    const code = "line() Nat = m * x + b";
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "line");
@@ -321,7 +322,7 @@ test "parse function parameters" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "add(x: u64, y: u64) u64 = x + y";
+    const code = "add(x: Nat, y: Nat) Nat = x + y";
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "add");
@@ -329,11 +330,11 @@ test "parse function parameters" {
     try expectEqual(parameters.len, 2);
     const param0 = parameters[0];
     try expectEqualStrings(literalOf(param0), "x");
-    try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
+    try expectEqualStrings(literalOf(param0.get(Type).entity), "Nat");
     const param1 = parameters[1];
     try expectEqualStrings(literalOf(param1), "y");
-    try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "u64");
+    try expectEqualStrings(literalOf(param1.get(Type).entity), "Nat");
+    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "Nat");
     const body = function.get(Body).entities;
     try expectEqual(body.len, 1);
     const add = body[0];
@@ -348,8 +349,9 @@ test "parse function with newline" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\add(x: u64, y: u64) u64 =
+        \\add(x: Nat, y: Nat) Nat = begin
         \\  x + y
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
@@ -358,10 +360,10 @@ test "parse function with newline" {
     try expectEqual(parameters.len, 2);
     const param0 = parameters[0];
     try expectEqualStrings(literalOf(param0), "x");
-    try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
+    try expectEqualStrings(literalOf(param0.get(Type).entity), "Nat");
     const param1 = parameters[1];
     try expectEqualStrings(literalOf(param1), "y");
-    try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
+    try expectEqualStrings(literalOf(param1.get(Type).entity), "Nat");
     const body = function.get(Body).entities;
     try expectEqual(body.len, 1);
     const add = body[0];
@@ -376,15 +378,16 @@ test "parse constant definition" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\f() u64 =
+        \\f() Nat = begin
         \\  x = 5
         \\  y = 15
         \\  x + y
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "f");
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "u64");
+    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "Nat");
     try expectEqual(function.get(Parameters).entities.len, 0);
     const body = function.get(Body).entities;
     try expectEqual(body.len, 3);
@@ -409,23 +412,24 @@ test "parse constant definition with binary op" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\sum_of_squares(x: u64, y: u64) u64 =
+        \\sum_of_squares(x: Nat, y: Nat) Nat = begin
         \\  x2 = x * x
         \\  y2 = y * y
         \\  x2 + y2
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "sum_of_squares");
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "u64");
+    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "Nat");
     const parameters = function.get(Parameters).entities;
     try expectEqual(parameters.len, 2);
     const param0 = parameters[0];
     try expectEqualStrings(literalOf(param0), "x");
-    try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
+    try expectEqualStrings(literalOf(param0.get(Type).entity), "Nat");
     const param1 = parameters[1];
     try expectEqualStrings(literalOf(param1), "y");
-    try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
+    try expectEqualStrings(literalOf(param1.get(Type).entity), "Nat");
     const body = function.get(Body).entities;
     try expectEqual(body.len, 3);
     {
@@ -458,21 +462,22 @@ test "parse function call" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\sum_of_squares(x: u64, y: u64) u64 =
+        \\sum_of_squares(x: Nat, y: Nat) Nat = begin
         \\  square(x) + square(y)
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "sum_of_squares");
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "u64");
+    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "Nat");
     const parameters = function.get(Parameters).entities;
     try expectEqual(parameters.len, 2);
     const param0 = parameters[0];
     try expectEqualStrings(literalOf(param0), "x");
-    try expectEqualStrings(literalOf(param0.get(Type).entity), "u64");
+    try expectEqualStrings(literalOf(param0.get(Type).entity), "Nat");
     const param1 = parameters[1];
     try expectEqualStrings(literalOf(param1), "y");
-    try expectEqualStrings(literalOf(param1.get(Type).entity), "u64");
+    try expectEqualStrings(literalOf(param1.get(Type).entity), "Nat");
     const body = function.get(Body).entities;
     try expectEqual(body.len, 1);
     const add = body[0];
@@ -501,13 +506,14 @@ test "parse function call with multiple arguments" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\start() u64 =
+        \\start() Nat = begin
         \\  sum_of_squares(10, 56 * 3)
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "start");
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "u64");
+    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "Nat");
     try expectEqual(function.get(Parameters).entities.len, 0);
     const body = function.get(Body).entities;
     try expectEqual(body.len, 1);
@@ -531,8 +537,7 @@ fn parseUnqualifiedImports(codebase: *ECS, tokens: *Tokens) !Unqualified {
             const kind = token.get(TokenKind);
             switch (kind) {
                 .comma => _ = tokens.next(),
-                .indent => break,
-                else => panic("\nexpected comma, found {}\n", .{kind}),
+                else => break,
             }
         } else break;
     }
@@ -557,7 +562,7 @@ fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
                     unqualified,
                 });
             },
-            .indent => {
+            else => {
                 const end = name.entity.get(Span).end;
                 return try codebase.createEntity(.{
                     Kind.import,
@@ -566,7 +571,6 @@ fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
                     Unqualified.init(&.{}),
                 });
             },
-            else => panic("\nexpected colon got {}\n", .{kind}),
         }
     } else {
         const end = name.entity.get(Span).end;
@@ -623,7 +627,6 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
                     try top_level.put(name, overload_set);
                 }
             },
-            .indent => _ = tokens.next(),
             .import => {
                 const import = try parseImport(codebase, tokens);
                 const name = import.get(Name);
@@ -640,11 +643,13 @@ test "parse two functions" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\sum_of_squares(x: u64, y: u64) u64 =
+        \\sum_of_squares(x: Nat, y: Nat) Nat = begin
         \\  x*2 + y*2
+        \\end
         \\
-        \\start() u64 =
+        \\start() Nat = begin
         \\  sum_of_squares(10, 56 * 3)
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     const ast = try parse(&codebase, &tokens);
@@ -667,9 +672,9 @@ test "parse overload" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\f(x: u64) u64 = x
+        \\f(x: Nat) Nat = x
         \\
-        \\f(x: f64) f64 = x
+        \\f(x: Real) Real = x
     ;
     var tokens = try tokenize(&codebase, code);
     const ast = try parse(&codebase, &tokens);
@@ -677,22 +682,22 @@ test "parse overload" {
     const overloads = f.get(Overloads).entities.slice();
     try expectEqual(overloads.len, 2);
     {
-        const f_u64 = overloads[0];
-        const parameters = f_u64.get(Parameters).entities;
+        const f_nat = overloads[0];
+        const parameters = f_nat.get(Parameters).entities;
         try expectEqual(parameters.len, 1);
         const x = parameters[0];
         try expectEqualStrings(literalOf(x), "x");
-        try expectEqualStrings(literalOf(x.get(Type).entity), "u64");
-        try expectEqualStrings(literalOf(f_u64.get(ReturnType).entity), "u64");
+        try expectEqualStrings(literalOf(x.get(Type).entity), "Nat");
+        try expectEqualStrings(literalOf(f_nat.get(ReturnType).entity), "Nat");
     }
     {
-        const f_f64 = overloads[1];
-        const parameters = f_f64.get(Parameters).entities;
+        const f_real = overloads[1];
+        const parameters = f_real.get(Parameters).entities;
         try expectEqual(parameters.len, 1);
         const x = parameters[0];
         try expectEqualStrings(literalOf(x), "x");
-        try expectEqualStrings(literalOf(x.get(Type).entity), "f64");
-        try expectEqualStrings(literalOf(f_f64.get(ReturnType).entity), "f64");
+        try expectEqualStrings(literalOf(x.get(Type).entity), "Real");
+        try expectEqualStrings(literalOf(f_real.get(ReturnType).entity), "Real");
     }
 }
 
@@ -703,8 +708,9 @@ test "parse unqualified import and function" {
     const code =
         \\import math: sum_of_squares
         \\
-        \\start() u64 =
+        \\start() Nat = begin
         \\  sum_of_squares(10, 56 * 3)
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     const ast = try parse(&codebase, &tokens);
@@ -726,8 +732,9 @@ test "parse import and function" {
     const code =
         \\import math
         \\
-        \\start() u64 =
+        \\start() Nat = begin
         \\  math.sum_of_squares(10, 56 * 3)
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     const ast = try parse(&codebase, &tokens);

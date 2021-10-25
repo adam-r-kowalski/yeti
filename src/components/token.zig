@@ -35,14 +35,11 @@ pub const Kind = enum(u8) {
     plus,
     times,
     comma,
-    indent,
     equal,
     import,
     dot,
-};
-
-pub const Indent = struct {
-    spaces: u64,
+    begin,
+    end,
 };
 
 pub const Literal = struct {

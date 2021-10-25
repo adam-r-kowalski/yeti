@@ -1,14 +1,14 @@
 Average = struct
-  count: Natural
+  count: Nat
   total: Real
 end
 
-function accumulate(average: *Average, value: Real) Nothing
+accumulate(average: *Average, value: Real) Void = begin
   average.count += 1
   average.total += value
 end
 
-function start() Natural
+start() Void = begin
   data = [3.5, 2.3, 7.32]
   average = Average(count=0, total=0)
   for element in data

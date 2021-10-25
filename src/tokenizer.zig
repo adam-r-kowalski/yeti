@@ -41,10 +41,19 @@ const Source = struct {
         return result;
     }
 
-    fn newline(self: *Source) void {
-        self.code = self.code[1..];
-        self.position.row += 1;
-        self.position.column = 0;
+    fn trimWhitespace(self: *Source) void {
+        var i: u64 = 0;
+        while (i < self.code.len) : (i += 1) {
+            switch (self.code[i]) {
+                ' ' => self.position.column += 1,
+                '\n' => {
+                    self.position.column = 0;
+                    self.position.row += 1;
+                },
+                else => break,
+            }
+        }
+        self.code = self.code[i..];
     }
 };
 
@@ -78,7 +87,7 @@ pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
     var entities = List(Entity, .{ .initial_capacity = 1024 }).init(&codebase.arena.allocator);
     var source = Source.init(code);
     while (true) {
-        trimWhitespace(&source);
+        source.trimWhitespace();
         if (source.code.len == 0) return Tokens.init(entities.slice());
         const token = switch (source.code[0]) {
             '0'...'9', '-' => try tokenizeNumber(codebase, &source, false),
@@ -90,17 +99,10 @@ pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
             '*' => try tokenizeOne(codebase, &source, .times),
             ',' => try tokenizeOne(codebase, &source, .comma),
             '=' => try tokenizeOne(codebase, &source, .equal),
-            '\n' => try tokenizeIndent(codebase, &source),
             else => try tokenizeSymbol(codebase, &source),
         };
         try entities.append(token);
     }
-}
-
-fn trimWhitespace(source: *Source) void {
-    var i: u64 = 0;
-    while (i < source.code.len and source.code[i] == ' ') : (i += 1) {}
-    _ = source.advance(i);
 }
 
 fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
@@ -134,10 +136,11 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
     const string = source.advance(i);
     const span = Span{ .begin = begin, .end = source.position };
     if (std.mem.eql(u8, string, "import")) {
-        return try codebase.createEntity(.{
-            Kind.import,
-            span,
-        });
+        return try codebase.createEntity(.{ Kind.import, span });
+    } else if (std.mem.eql(u8, string, "begin")) {
+        return try codebase.createEntity(.{ Kind.begin, span });
+    } else if (std.mem.eql(u8, string, "end")) {
+        return try codebase.createEntity(.{ Kind.end, span });
     } else {
         const interned = try codebase.getPtr(Strings).intern(string);
         return try codebase.createEntity(.{
@@ -276,7 +279,7 @@ test "tokenize function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "start() u64 = 0";
+    const code = "start() Nat = 0";
     var tokens = try tokenize(&codebase, code);
     {
         const token = tokens.next().?;
@@ -306,7 +309,7 @@ test "tokenize function" {
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .symbol);
-        try expectEqualStrings(literalOf(token), "u64");
+        try expectEqualStrings(literalOf(token), "Nat");
         try expectEqual(token.get(Span), Span{
             .begin = Position{ .column = 8, .row = 0 },
             .end = Position{ .column = 11, .row = 0 },
@@ -332,30 +335,16 @@ test "tokenize function" {
     try expectEqual(tokens.next(), null);
 }
 
-fn tokenizeIndent(codebase: *ECS, source: *Source) !Entity {
-    const begin = source.position;
-    source.newline();
-    var i: u64 = 0;
-    while (i < source.code.len and source.code[i] == ' ') : (i += 1) {}
-    _ = source.advance(i);
-    const span = Span{ .begin = begin, .end = source.position };
-    const indent = Indent{ .spaces = i };
-    return try codebase.createEntity(.{
-        Kind.indent,
-        indent,
-        span,
-    });
-}
-
-test "tokenize function with newline" {
+test "tokenize multine function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\f() u64 =
+        \\f() Nat = begin
         \\  x = 5
         \\  y = 15
         \\  x + y
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
@@ -363,54 +352,51 @@ test "tokenize function with newline" {
     try expectEqual(tokens.next().?.get(Kind), .right_paren);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .equal);
+    try expectEqual(tokens.next().?.get(Kind), .begin);
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind), .indent);
-        try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
+        try expectEqual(token.get(Kind), .symbol);
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .row = 0, .column = 9 },
-            .end = Position{ .row = 1, .column = 2 },
+            .begin = Position{ .column = 2, .row = 1 },
+            .end = Position{ .column = 3, .row = 1 },
         });
     }
-    try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .equal);
     try expectEqual(tokens.next().?.get(Kind), .int);
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind), .indent);
-        try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
+        try expectEqual(token.get(Kind), .symbol);
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .row = 1, .column = 7 },
-            .end = Position{ .row = 2, .column = 2 },
+            .begin = Position{ .column = 2, .row = 2 },
+            .end = Position{ .column = 3, .row = 2 },
         });
     }
-    try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .equal);
     try expectEqual(tokens.next().?.get(Kind), .int);
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(Kind), .indent);
-        try expectEqual(token.get(Indent), Indent{ .spaces = 2 });
+        try expectEqual(token.get(Kind), .symbol);
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .row = 2, .column = 8 },
-            .end = Position{ .row = 3, .column = 2 },
+            .begin = Position{ .column = 2, .row = 3 },
+            .end = Position{ .column = 3, .row = 3 },
         });
     }
-    try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .plus);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
+    try expectEqual(tokens.next().?.get(Kind), .end);
     try expectEqual(tokens.next(), null);
 }
 
-test "tokenize function with newline with binary op" {
+test "tokenize mulitine function with binary op" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\sum_of_squares(x: u64, y: u64) u64 =
+        \\sum_of_squares(x: u64, y: u64) u64 = begin
         \\  x2 = x * x
         \\  x2 = y * y
         \\  x2 + y2
+        \\end
     ;
     var tokens = try tokenize(&codebase, code);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
@@ -425,21 +411,20 @@ test "tokenize function with newline with binary op" {
     try expectEqual(tokens.next().?.get(Kind), .right_paren);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .equal);
-    try expectEqual(tokens.next().?.get(Kind), .indent);
+    try expectEqual(tokens.next().?.get(Kind), .begin);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .equal);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .times);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
-    try expectEqual(tokens.next().?.get(Kind), .indent);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .equal);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .times);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
-    try expectEqual(tokens.next().?.get(Kind), .indent);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
     try expectEqual(tokens.next().?.get(Kind), .plus);
     try expectEqual(tokens.next().?.get(Kind), .symbol);
+    try expectEqual(tokens.next().?.get(Kind), .end);
     try expectEqual(tokens.next(), null);
 }

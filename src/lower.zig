@@ -38,22 +38,20 @@ fn builtinType(codebase: *ECS, scope: *components.ir.Scope, symbol: []const u8, 
 
 fn initBuiltins(codebase: *ECS) !void {
     var scope = components.ir.Scope.init(&codebase.arena.allocator, codebase.getPtr(Strings));
-    const interned = try codebase.getPtr(Strings).intern("type");
+    const interned = try codebase.getPtr(Strings).intern("Type");
     const Type = try codebase.createEntity(.{
         components.token.Literal.init(interned),
     });
     try scope.put(interned, Type);
     _ = try Type.set(.{components.ir.Type.init(Type)});
-    const I64 = try builtinType(codebase, &scope, "i64", Type);
-    const I32 = try builtinType(codebase, &scope, "i32", Type);
-    const U64 = try builtinType(codebase, &scope, "u64", Type);
-    const U32 = try builtinType(codebase, &scope, "u32", Type);
+    const Int = try builtinType(codebase, &scope, "Int", Type);
+    const Nat = try builtinType(codebase, &scope, "Nat", Type);
+    const Real = try builtinType(codebase, &scope, "Real", Type);
     const builtins = components.ir.Builtins{
         .Type = Type,
-        .I64 = I64,
-        .I32 = I32,
-        .U64 = U64,
-        .U32 = U32,
+        .Int = Int,
+        .Nat = Nat,
+        .Real = Real,
     };
     try codebase.set(.{ builtins, scope });
 }
@@ -69,22 +67,13 @@ test "builtins" {
     try initBuiltins(&codebase);
     const builtins = codebase.get(components.ir.Builtins);
     const scope = codebase.get(components.ir.Scope);
-    try expectEqualStrings(literalOf(builtins.Type), "type");
+    try expectEqualStrings(literalOf(builtins.Type), "Type");
     try expectEqual(typeOf(builtins.Type), builtins.Type);
-    try expectEqual(scope.findString("type"), builtins.Type);
+    try expectEqual(scope.findString("Type"), builtins.Type);
     try expectEqual(scope.findLiteral(builtins.Type.get(components.token.Literal)), builtins.Type);
-    try expectEqualStrings(literalOf(builtins.I64), "i64");
-    try expectEqual(typeOf(builtins.I64), builtins.Type);
-    try expectEqual(scope.findString("i64"), builtins.I64);
-    try expectEqualStrings(literalOf(builtins.I32), "i32");
-    try expectEqual(typeOf(builtins.I32), builtins.Type);
-    try expectEqual(scope.findString("i32"), builtins.I32);
-    try expectEqualStrings(literalOf(builtins.U64), "u64");
-    try expectEqual(typeOf(builtins.U64), builtins.Type);
-    try expectEqual(scope.findString("u64"), builtins.U64);
-    try expectEqualStrings(literalOf(builtins.U32), "u32");
-    try expectEqual(typeOf(builtins.U32), builtins.Type);
-    try expectEqual(scope.findString("u32"), builtins.U32);
+    try expectEqualStrings(literalOf(builtins.Int), "Int");
+    try expectEqual(typeOf(builtins.Int), builtins.Type);
+    try expectEqual(scope.findString("Int"), builtins.Int);
 }
 
 fn evalAstNode(entity: Entity) Entity {
@@ -133,14 +122,14 @@ test "call function from import" {
     _ = try newFile(&fs, "foo",
         \\import bar
         \\
-        \\start() i64 = bar.baz()
+        \\start() Int = bar.baz()
     );
     _ = try newFile(&fs, "bar",
-        \\baz() i64 = 10
+        \\baz() Int = 10
     );
     const ir = try lower(&codebase, fs, "foo", "start");
     const builtins = codebase.get(components.ir.Builtins);
     const top_level = ir.get(components.ir.TopLevel);
     const start = top_level.findString("start");
-    try expectEqual(start.get(components.ir.ReturnType).entity, builtins.I64);
+    try expectEqual(start.get(components.ir.ReturnType).entity, builtins.Int);
 }

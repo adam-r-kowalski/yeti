@@ -1,4 +1,4 @@
-function start() Natural
+start() Nat = begin
   x = 10
   y = 15
   z = if x > y then
@@ -10,7 +10,7 @@ function start() Natural
   end
 end
 
-function start() Natural
+while_loop() Nat = begin
   i = 0
   while i < 10
     print(i)
@@ -18,8 +18,15 @@ function start() Natural
   end
 end
 
-function start() Natural
+for_loop() Nat = begin
   for i in range(10)
     print(i)
   end
 end
+
+sum_of_even_perfect_squares_under_50() Nat =
+  naturals()
+  |> map((x) = x * x)
+  |> filter((x) = x % 2 == 0)
+  |> take_while((x) = x < 50)
+  |> reduce((acc, x) = acc + x)

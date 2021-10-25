@@ -1,24 +1,20 @@
-function List(T: Type) Type
+List(T: Type) Type =
   struct
     data: []T
-    length: Natural
+    length: Nat
     allocator: *Allocator
   end
-end
 
-function List(T: Type, allocator: *Allocator) List(T)
+List(T: Type, allocator: *Allocator) List(T) =
   List([], 0, allocator)
-end
 
-function capacity{T}(list: List(T)) Natural
+capacity{T}(list: List(T)) Nat =
   list.data.length
-end
 
-function length{T}(list: List(T)) Natural
+length{T}(list: List(T)) Nat =
   list.length
-end
 
-function ensure_capacity{T}(list: *List(T)) OutOfMemory or Nothing
+ensure_capacity{T}(list: *List(T)) OutOfMemory or Void = begin
   current_capacity = capacity(list)
   if length(list) < current_capacity then return end
   result = allocate(list.allocator, T, max(current_capacity * 2, 32))
@@ -28,22 +24,21 @@ function ensure_capacity{T}(list: *List(T)) OutOfMemory or Nothing
   list.data = result
 end
 
-function push{T}(list: *List(T), element: T) OutOfMemory or Nothing
+push{T}(list: *List(T), element: T) OutOfMemory or Void = begin
   if ensure_capacity(list) is OutOfMemory then return OutOfMemory end
   list.data[list.length] = element
   list.length += 1
 end
 
-function deinit{T}(list: *List(T)) Nothing
+deinit{T}(list: *List(T)) Void =
   free(list.allocator, list.data)
-end
 
-function []{T}(list: *List(T), index: Natural) *T
+[]{T}(list: *List(T), index: Nat) *T = begin
   assert index < list.length
   &list.data[index]
 end
 
-test "push and index into list"
+test "push and index into list" begin
   allocator = DebugAllocator()
   defer deinit(allocator)
   list = List(i64, &allocator)
