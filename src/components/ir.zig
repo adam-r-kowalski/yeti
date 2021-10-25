@@ -18,6 +18,7 @@ pub const Type = struct {
 
 pub const Builtins = struct {
     Type: Entity,
+    Module: Entity,
     Int: Entity,
     Nat: Entity,
     Real: Entity,

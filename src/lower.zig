@@ -45,11 +45,13 @@ fn initBuiltins(codebase: *ECS) !void {
     });
     try scope.put(interned, Type);
     _ = try Type.set(.{components.ir.Type.init(Type)});
+    const Module = try builtinType(codebase, &scope, "Module", Type);
     const Int = try builtinType(codebase, &scope, "Int", Type);
     const Nat = try builtinType(codebase, &scope, "Nat", Type);
     const Real = try builtinType(codebase, &scope, "Real", Type);
     const builtins = components.ir.Builtins{
         .Type = Type,
+        .Module = Module,
         .Int = Int,
         .Nat = Nat,
         .Real = Real,
@@ -103,19 +105,42 @@ fn lowerSymbol(context: Context, entity: Entity) !Entity {
                 const contents = read(context.fs, module_name);
                 var tokens = try tokenize(context.codebase, contents);
                 // TODO:cache the ast into ir module component
-                return try parse(context.codebase, &tokens);
+                const ast = try parse(context.codebase, &tokens);
+                // TODO:parse should set the type of the ast to module
+                _ = try ast.set(.{components.ir.Type.init(context.codebase.get(components.ir.Builtins).Module)});
+                return ast;
             },
             else => panic("\nlowerSumbol unspported top level kind {}\n", .{kind}),
         }
-        return top_level;
     }
     panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
 }
 
 fn lowerDot(context: Context, entity: Entity) !Entity {
     const arguments = entity.get(components.ast.Arguments).entities;
-    const left = lowerExpression(context, arguments[0]);
-    return left;
+    const ast = try lowerExpression(context, arguments[0]);
+    assert(eql(typeOf(ast), context.codebase.get(components.ir.Builtins).Module));
+    assert(arguments[1].get(components.ast.Kind) == .call);
+    const callable = arguments[1].get(components.ast.Callable).entity;
+    assert(callable.get(components.ast.Kind) == .symbol);
+    // TODO: check if this function has already been lowered for these parameter types
+    const top_level = ast.get(components.ast.TopLevel);
+    const literal = callable.get(components.token.Literal);
+    const overloads = top_level.findLiteral(literal).get(components.ast.Overloads).entities.slice();
+    assert(overloads.len == 1);
+    const new_context = Context{
+        .allocator = context.allocator,
+        .codebase = context.codebase,
+        .fs = context.fs,
+        .ast = ast,
+        .function = overloads[0],
+    };
+    assert(new_context.function.get(components.ast.Parameters).entities.len == 0);
+    const function = try lowerFunction(new_context);
+    // TODO: return a new entity with a call component which uses the function as the callable
+    // TODO: the ir function arguments should be the lowered ast function arguments
+    // TODO: the ir function return type should be the lowered ast function return type
+    return function;
 }
 
 fn lowerBinaryOp(context: Context, entity: Entity) !Entity {
@@ -165,6 +190,7 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     const contents = read(fs, module_name);
     var tokens = try tokenize(codebase, contents);
     const ast = try parse(codebase, &tokens);
+    _ = try ast.set(.{components.ir.Type.init(codebase.get(components.ir.Builtins).Module)});
     var ir_top_level = components.ir.TopLevel.init(&codebase.arena.allocator, codebase.getPtr(Strings));
     const ast_top_level = ast.get(components.ast.TopLevel);
     const overloads = ast_top_level.findString(function_name).get(components.ast.Overloads).entities.slice();
@@ -177,8 +203,8 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
         .function = overloads[0],
     };
     assert(context.function.get(components.ast.Parameters).entities.len == 0);
-    const start_ir = try lowerFunction(context);
-    try ir_top_level.put(start_ir.get(components.ast.Name), start_ir);
+    const function = try lowerFunction(context);
+    try ir_top_level.put(function.get(components.ast.Name), function);
     return try codebase.createEntity(.{ir_top_level});
 }
 

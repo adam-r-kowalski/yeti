@@ -119,6 +119,10 @@ pub const TopLevel = struct {
         return self.hasName(name).?;
     }
 
+    pub fn findLiteral(self: TopLevel, literal: Literal) Entity {
+        return self.map.get(literal.interned).?;
+    }
+
     pub fn hasName(self: TopLevel, name: Name) ?Entity {
         const interned = name.entity.get(Literal).interned;
         return self.map.get(interned);
