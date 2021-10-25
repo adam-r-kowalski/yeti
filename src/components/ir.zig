@@ -45,6 +45,10 @@ pub const Scope = struct {
     pub fn findLiteral(self: Scope, literal: Literal) Entity {
         return self.map.get(literal.interned).?;
     }
+
+    pub fn hasLiteral(self: Scope, literal: Literal) ?Entity {
+        return self.map.get(literal.interned);
+    }
 };
 
 pub const ReturnType = struct {
@@ -52,6 +56,14 @@ pub const ReturnType = struct {
 
     pub fn init(entity: Entity) ReturnType {
         return ReturnType{ .entity = entity };
+    }
+};
+
+pub const Body = struct {
+    entities: []const Entity,
+
+    pub fn init(entities: []const Entity) Body {
+        return Body{ .entities = entities };
     }
 };
 

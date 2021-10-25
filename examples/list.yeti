@@ -1,6 +1,6 @@
 List(T: Type) Type =
   struct
-    data: []T
+    data: Array(T)
     length: Nat
     allocator: *Allocator
   end
@@ -14,7 +14,7 @@ capacity{T}(list: List(T)) Nat =
 length{T}(list: List(T)) Nat =
   list.length
 
-ensure_capacity{T}(list: *List(T)) OutOfMemory or Void = begin
+ensure_capacity{T}(list: *List(T)) OutOfMemory or Nothing = begin
   current_capacity = capacity(list)
   if length(list) < current_capacity then return end
   result = allocate(list.allocator, T, max(current_capacity * 2, 32))
@@ -24,13 +24,13 @@ ensure_capacity{T}(list: *List(T)) OutOfMemory or Void = begin
   list.data = result
 end
 
-push{T}(list: *List(T), element: T) OutOfMemory or Void = begin
+push{T}(list: *List(T), element: T) OutOfMemory or Nothing = begin
   if ensure_capacity(list) is OutOfMemory then return OutOfMemory end
   list.data[list.length] = element
   list.length += 1
 end
 
-deinit{T}(list: *List(T)) Void =
+deinit{T}(list: *List(T)) Nothing =
   free(list.allocator, list.data)
 
 []{T}(list: *List(T), index: Nat) *T = begin

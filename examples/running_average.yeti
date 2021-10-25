@@ -3,12 +3,12 @@ Average = struct
   total: Real
 end
 
-accumulate(average: *Average, value: Real) Void = begin
+accumulate(average: *Average, value: Real) Nothing = begin
   average.count += 1
   average.total += value
 end
 
-start() Void = begin
+start() Nothing = begin
   data = [3.5, 2.3, 7.32]
   average = Average(count=0, total=0)
   for element in data

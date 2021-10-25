@@ -124,6 +124,10 @@ pub const TopLevel = struct {
         return self.map.get(interned);
     }
 
+    pub fn hasLiteral(self: TopLevel, literal: Literal) ?Entity {
+        return self.map.get(literal.interned);
+    }
+
     pub fn put(self: *TopLevel, value: Name, entity: Entity) !void {
         try self.map.putNoClobber(value.entity.get(Literal).interned, entity);
     }

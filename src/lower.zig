@@ -1,5 +1,6 @@
 const std = @import("std");
 const eql = std.meta.eql;
+const Allocator = std.mem.Allocator;
 const Arena = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
 const panic = std.debug.panic;
@@ -76,25 +77,86 @@ test "builtins" {
     try expectEqual(scope.findString("Int"), builtins.Int);
 }
 
-fn evalAstNode(entity: Entity) Entity {
-    const kind = entity.get(components.ast.Kind);
-    switch (kind) {
-        .symbol => {
-            const scope = entity.ecs.get(components.ir.Scope);
-            return scope.findLiteral(entity.get(components.token.Literal));
-        },
-        else => panic("\nunsupported kind {}\n", .{kind}),
+const Context = struct {
+    allocator: *Allocator,
+    codebase: *ECS,
+    fs: ECS,
+    ast: Entity,
+    function: Entity,
+};
+
+// NOTE:should this take in the active scopes for the current function?
+fn lowerSymbol(context: Context, entity: Entity) !Entity {
+    // TODO:lookup symbol from local variables of current function
+    const literal = entity.get(components.token.Literal);
+    const global_scope = context.codebase.get(components.ir.Scope);
+    if (global_scope.hasLiteral(literal)) |global| {
+        return global;
     }
+    // TODO:lookup symbol from cached ir module component
+    const top_level_scope = context.ast.get(components.ast.TopLevel);
+    if (top_level_scope.hasLiteral(literal)) |top_level| {
+        const kind = top_level.get(components.ast.Kind);
+        switch (kind) {
+            .import => {
+                const module_name = context.codebase.get(Strings).get(literal.interned);
+                const contents = read(context.fs, module_name);
+                var tokens = try tokenize(context.codebase, contents);
+                // TODO:cache the ast into ir module component
+                return try parse(context.codebase, &tokens);
+            },
+            else => panic("\nlowerSumbol unspported top level kind {}\n", .{kind}),
+        }
+        return top_level;
+    }
+    panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
 }
 
-fn lowerFunction(function: Entity) !Entity {
-    const codebase = function.ecs;
-    const entity = evalAstNode(function.get(components.ast.ReturnType).entity);
-    const return_type = components.ir.ReturnType.init(entity);
-    return try codebase.createEntity(.{
+fn lowerDot(context: Context, entity: Entity) !Entity {
+    const arguments = entity.get(components.ast.Arguments).entities;
+    const left = lowerExpression(context, arguments[0]);
+    return left;
+}
+
+fn lowerBinaryOp(context: Context, entity: Entity) !Entity {
+    const binary_op = entity.get(components.ast.BinaryOp);
+    return switch (binary_op) {
+        .dot => lowerDot(context, entity),
+        else => panic("\nlowerBinaryOp unsupported binary op {}\n", .{binary_op}),
+    };
+}
+
+fn lowerExpression(context: Context, entity: Entity) error{OutOfMemory}!Entity {
+    const kind = entity.get(components.ast.Kind);
+    return switch (kind) {
+        .symbol => try lowerSymbol(context, entity),
+        .binary_op => try lowerBinaryOp(context, entity),
+        else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
+    };
+}
+
+fn lowerFunctionBody(context: Context) !components.ir.Body {
+    const body = context.function.get(components.ast.Body).entities;
+    const lowered = try context.allocator.alloc(Entity, body.len);
+    for (body) |expression, i| {
+        lowered[i] = try lowerExpression(context, expression);
+    }
+    return components.ir.Body.init(lowered);
+}
+
+fn lowerFunctionReturnType(context: Context) !components.ir.ReturnType {
+    const return_type = context.function.get(components.ast.ReturnType).entity;
+    return components.ir.ReturnType.init(try lowerExpression(context, return_type));
+}
+
+fn lowerFunction(context: Context) !Entity {
+    const return_type = lowerFunctionReturnType(context);
+    const body = try lowerFunctionBody(context);
+    return try context.codebase.createEntity(.{
         // NOTE: should the name be the module name concatenated with the function name?
-        function.get(components.ast.Name),
+        context.function.get(components.ast.Name),
         return_type,
+        body,
     });
 }
 
@@ -107,9 +169,15 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     const ast_top_level = ast.get(components.ast.TopLevel);
     const overloads = ast_top_level.findString(function_name).get(components.ast.Overloads).entities.slice();
     assert(overloads.len == 1);
-    const start_ast = overloads[0];
-    assert(start_ast.get(components.ast.Parameters).entities.len == 0);
-    const start_ir = try lowerFunction(start_ast);
+    const context = Context{
+        .allocator = &codebase.arena.allocator,
+        .codebase = codebase,
+        .fs = fs,
+        .ast = ast,
+        .function = overloads[0],
+    };
+    assert(context.function.get(components.ast.Parameters).entities.len == 0);
+    const start_ir = try lowerFunction(context);
     try ir_top_level.put(start_ir.get(components.ast.Name), start_ir);
     return try codebase.createEntity(.{ir_top_level});
 }
