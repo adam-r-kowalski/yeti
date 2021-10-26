@@ -38,7 +38,8 @@ pub const Kind = enum(u8) {
     equal,
     import,
     dot,
-    begin,
+    function,
+    right_arrow,
     end,
 };
 

@@ -1,14 +1,14 @@
 Average = struct
-  count: Nat
-  total: Real
+  count: U64
+  total: F64
 end
 
-accumulate(average: *Average, value: Real) Nothing = begin
+accumulate = fn(average: *Average, value: F64) -> Void
   average.count += 1
   average.total += value
 end
 
-start() Nothing = begin
+start = fn() -> Void
   data = [3.5, 2.3, 7.32]
   average = Average(count=0, total=0)
   for element in data

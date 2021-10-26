@@ -46,15 +46,21 @@ fn initBuiltins(codebase: *ECS) !void {
     try scope.put(interned, Type);
     _ = try Type.set(.{components.ir.Type.init(Type)});
     const Module = try builtinType(codebase, &scope, "Module", Type);
-    const Int = try builtinType(codebase, &scope, "Int", Type);
-    const Nat = try builtinType(codebase, &scope, "Nat", Type);
-    const Real = try builtinType(codebase, &scope, "Real", Type);
+    const I64 = try builtinType(codebase, &scope, "I64", Type);
+    const U64 = try builtinType(codebase, &scope, "U64", Type);
+    const F64 = try builtinType(codebase, &scope, "F64", Type);
+    const IntLiteral = try builtinType(codebase, &scope, "IntLiteral", Type);
+    const FloatLiteral = try builtinType(codebase, &scope, "FloatLiteral", Type);
+    const StringLiteral = try builtinType(codebase, &scope, "StringLiteral", Type);
     const builtins = components.ir.Builtins{
         .Type = Type,
         .Module = Module,
-        .Int = Int,
-        .Nat = Nat,
-        .Real = Real,
+        .I64 = I64,
+        .U64 = U64,
+        .F64 = F64,
+        .IntLiteral = IntLiteral,
+        .FloatLiteral = FloatLiteral,
+        .StringLiteral = StringLiteral,
     };
     try codebase.set(.{ builtins, scope });
 }
@@ -74,9 +80,9 @@ test "builtins" {
     try expectEqual(typeOf(builtins.Type), builtins.Type);
     try expectEqual(scope.findString("Type"), builtins.Type);
     try expectEqual(scope.findLiteral(builtins.Type.get(components.token.Literal)), builtins.Type);
-    try expectEqualStrings(literalOf(builtins.Int), "Int");
-    try expectEqual(typeOf(builtins.Int), builtins.Type);
-    try expectEqual(scope.findString("Int"), builtins.Int);
+    try expectEqualStrings(literalOf(builtins.I64), "I64");
+    try expectEqual(typeOf(builtins.I64), builtins.Type);
+    try expectEqual(scope.findString("I64"), builtins.I64);
 }
 
 const Context = struct {
@@ -120,8 +126,9 @@ fn lowerDot(context: Context, entity: Entity) !Entity {
     const arguments = entity.get(components.ast.Arguments).entities;
     const ast = try lowerExpression(context, arguments[0]);
     assert(eql(typeOf(ast), context.codebase.get(components.ir.Builtins).Module));
-    assert(arguments[1].get(components.ast.Kind) == .call);
-    const callable = arguments[1].get(components.ast.Callable).entity;
+    const call = arguments[1];
+    assert(call.get(components.ast.Kind) == .call);
+    const callable = call.get(components.ast.Callable).entity;
     assert(callable.get(components.ast.Kind) == .symbol);
     // TODO: check if this function has already been lowered for these parameter types
     const top_level = ast.get(components.ast.TopLevel);
@@ -137,10 +144,17 @@ fn lowerDot(context: Context, entity: Entity) !Entity {
     };
     assert(new_context.function.get(components.ast.Parameters).entities.len == 0);
     const function = try lowerFunction(new_context);
-    // TODO: return a new entity with a call component which uses the function as the callable
-    // TODO: the ir function arguments should be the lowered ast function arguments
-    // TODO: the ir function return type should be the lowered ast function return type
-    return function;
+    std.debug.print("\n\nlowerDot function name {s}\n\n", .{literalOf(function.get(components.ir.Name).entity)});
+    // TODO: why does this crash? check that when lowering the new function the return type is set.
+    std.debug.print("\n\nlowerDot return type {s}\n\n", .{literalOf(function.get(components.ir.ReturnType).entity)});
+    const ast_arguments = call.get(components.ast.Arguments).entities;
+    const ir_arguments = try context.allocator.alloc(Entity, ast_arguments.len);
+    for (ast_arguments) |argument, i| {
+        ir_arguments[i] = try lowerExpression(context, argument);
+    }
+    // TODO: add a new expression to basic block which calls the function with the ast arguments
+    const return_type = function.get(components.ir.ReturnType).entity;
+    return try context.codebase.createEntity(.{components.ir.Type.init(return_type)});
 }
 
 fn lowerBinaryOp(context: Context, entity: Entity) !Entity {
@@ -151,10 +165,16 @@ fn lowerBinaryOp(context: Context, entity: Entity) !Entity {
     };
 }
 
+fn lowerInt(entity: Entity) !Entity {
+    const builtins = entity.ecs.get(components.ir.Builtins);
+    return try entity.set(.{components.ir.Type.init(builtins.IntLiteral)});
+}
+
 fn lowerExpression(context: Context, entity: Entity) error{OutOfMemory}!Entity {
     const kind = entity.get(components.ast.Kind);
     return switch (kind) {
         .symbol => try lowerSymbol(context, entity),
+        .int => try lowerInt(entity),
         .binary_op => try lowerBinaryOp(context, entity),
         else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
     };
@@ -178,7 +198,7 @@ fn lowerFunction(context: Context) !Entity {
     const return_type = lowerFunctionReturnType(context);
     const body = try lowerFunctionBody(context);
     return try context.codebase.createEntity(.{
-        // NOTE: should the name be the module name concatenated with the function name?
+        components.ir.Name.init(context.function.get(components.ast.Name).entity),
         context.function.get(components.ast.Name),
         return_type,
         body,
@@ -204,7 +224,7 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     };
     assert(context.function.get(components.ast.Parameters).entities.len == 0);
     const function = try lowerFunction(context);
-    try ir_top_level.put(function.get(components.ast.Name), function);
+    try ir_top_level.put(function.get(components.ir.Name), function);
     return try codebase.createEntity(.{ir_top_level});
 }
 
@@ -216,14 +236,18 @@ test "call function from import" {
     _ = try newFile(&fs, "foo",
         \\import bar
         \\
-        \\start() Int = bar.baz()
+        \\start = fn() -> U64
+        \\  bar.baz()
+        \\end
     );
     _ = try newFile(&fs, "bar",
-        \\baz() Int = 10
+        \\baz = fn() -> U64
+        \\  10
+        \\end
     );
     const ir = try lower(&codebase, fs, "foo", "start");
     const builtins = codebase.get(components.ir.Builtins);
     const top_level = ir.get(components.ir.TopLevel);
     const start = top_level.findString("start");
-    try expectEqual(start.get(components.ir.ReturnType).entity, builtins.Int);
+    try expectEqual(start.get(components.ir.ReturnType).entity, builtins.I64);
 }

@@ -6,7 +6,14 @@ const strings_module = @import("../strings.zig");
 const Strings = strings_module.Strings;
 const InternedString = strings_module.InternedString;
 const Literal = @import("token.zig").Literal;
-const Name = @import("ast.zig").Name;
+
+pub const Name = struct {
+    entity: Entity,
+
+    pub fn init(entity: Entity) Name {
+        return Name{ .entity = entity };
+    }
+};
 
 pub const Type = struct {
     entity: Entity,
@@ -19,9 +26,12 @@ pub const Type = struct {
 pub const Builtins = struct {
     Type: Entity,
     Module: Entity,
-    Int: Entity,
-    Nat: Entity,
-    Real: Entity,
+    I64: Entity,
+    U64: Entity,
+    F64: Entity,
+    IntLiteral: Entity,
+    FloatLiteral: Entity,
+    StringLiteral: Entity,
 };
 
 pub const Scope = struct {

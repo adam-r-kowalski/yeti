@@ -1,44 +1,48 @@
-List(T: Type) Type =
+List = fn(T: Type) -> Type
   struct
     data: Array(T)
-    length: Nat
+    length: U64
     allocator: *Allocator
   end
+end
 
-List(T: Type, allocator: *Allocator) List(T) =
+List = fn(T: Type, allocator: *Allocator) -> List(T)
   List([], 0, allocator)
+end
 
-capacity{T}(list: List(T)) Nat =
+capacity = fn{T}(list: List(T)) -> U64
   list.data.length
+end
 
-length{T}(list: List(T)) Nat =
+length = fn{T}(list: List(T)) -> U64
   list.length
+end
 
-ensure_capacity{T}(list: *List(T)) OutOfMemory or Nothing = begin
-  current_capacity = capacity(list)
-  if length(list) < current_capacity then return end
-  result = allocate(list.allocator, T, max(current_capacity * 2, 32))
+ensure_capacity = fn{T}(list: *List(T)) -> OutOfMemory | Void
+  if length(list) < capacity(list) then return end
+  result = allocate(list.allocator, T, max(capacity(list) * 2, 32))
   if result is OutOfMemory then return result end
   memcpy(to=result, from=list.data)
   free(list.allocator, list.data)
   list.data = result
 end
 
-push{T}(list: *List(T), element: T) OutOfMemory or Nothing = begin
+push = fn{T}(list: *List(T), element: T) -> OutOfMemory | Void
   if ensure_capacity(list) is OutOfMemory then return OutOfMemory end
   list.data[list.length] = element
   list.length += 1
 end
 
-deinit{T}(list: *List(T)) Nothing =
+deinit = fn{T}(list: *List(T)) -> Void
   free(list.allocator, list.data)
+end
 
-[]{T}(list: *List(T), index: Nat) *T = begin
+[] = fn{T}(list: *List(T), index: U64) -> *T
   assert index < list.length
   &list.data[index]
 end
 
-test "push and index into list" begin
+test_push_and_index_into_list = fn()
   allocator = DebugAllocator()
   defer deinit(allocator)
   list = List(i64, &allocator)
