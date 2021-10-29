@@ -58,6 +58,10 @@ pub fn DistinctEntities(comptime unique_id: []const u8) type {
         pub fn last(self: Self) Entity {
             return self.entities.last();
         }
+
+        pub fn len(self: Self) u64 {
+            return self.entities.len;
+        }
     };
 }
 

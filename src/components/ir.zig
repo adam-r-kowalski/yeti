@@ -6,7 +6,8 @@ const DistinctEntityMap = distinct.DistinctEntityMap;
 
 pub const Name = DistinctEntity("Name");
 pub const Type = DistinctEntity("Type");
-pub const ReturnType = DistinctEntity("ReturnType");
+pub const Parameters = DistinctEntities("Parameters");
+pub const ReturnType = DistinctEntity("Return Type");
 pub const Body = DistinctEntities("Body");
 pub const Scope = DistinctEntityMap("Scope", Name);
 pub const TopLevel = DistinctEntityMap("TopLevel", Name);

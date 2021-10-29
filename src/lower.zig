@@ -177,6 +177,21 @@ fn lowerExpression(context: Context, entity: Entity) error{OutOfMemory}!Entity {
     };
 }
 
+fn lowerFunctionParameters(context: Context) !components.ir.Parameters {
+    const ast_parameters = context.function.get(components.ast.Parameters).slice();
+    var ir_parameters = try components.ir.Parameters.withCapacity(context.allocator, ast_parameters.len);
+    for (ast_parameters) |parameter| {
+        const parameter_type = try lowerExpression(context, parameter.get(components.ast.Type).entity);
+        _ = try parameter.set(.{components.ir.Type.init(parameter_type)});
+    }
+    return ir_parameters;
+}
+
+fn lowerFunctionReturnType(context: Context) !components.ir.ReturnType {
+    const return_type = context.function.get(components.ast.ReturnType).entity;
+    return components.ir.ReturnType.init(try lowerExpression(context, return_type));
+}
+
 fn lowerFunctionBody(context: Context) !components.ir.Body {
     const ast_body = context.function.get(components.ast.Body).slice();
     var ir_body = try components.ir.Body.withCapacity(context.allocator, ast_body.len);
@@ -186,16 +201,13 @@ fn lowerFunctionBody(context: Context) !components.ir.Body {
     return ir_body;
 }
 
-fn lowerFunctionReturnType(context: Context) !components.ir.ReturnType {
-    const return_type = context.function.get(components.ast.ReturnType).entity;
-    return components.ir.ReturnType.init(try lowerExpression(context, return_type));
-}
-
 fn lowerFunction(context: Context) !Entity {
+    const parameters = try lowerFunctionParameters(context);
     const return_type = try lowerFunctionReturnType(context);
     const body = try lowerFunctionBody(context);
     return try context.codebase.createEntity(.{
         components.ir.Name.init(context.function.get(components.ast.Name).entity),
+        parameters,
         return_type,
         body,
     });
@@ -207,12 +219,13 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     var tokens = try tokenize(codebase, contents);
     const ast = try parse(codebase, &tokens);
     _ = try ast.set(.{components.ir.Type.init(codebase.get(components.ir.Builtins).Module)});
-    var ir_top_level = components.ir.TopLevel.init(&codebase.arena.allocator, codebase.getPtr(Strings));
+    const allocator = &codebase.arena.allocator;
+    var ir_top_level = components.ir.TopLevel.init(allocator, codebase.getPtr(Strings));
     const ast_top_level = ast.get(components.ast.TopLevel);
     const overloads = ast_top_level.findString(function_name).get(components.ast.Overloads).entities.slice();
     assert(overloads.len == 1);
     const context = Context{
-        .allocator = &codebase.arena.allocator,
+        .allocator = allocator,
         .codebase = codebase,
         .fs = fs,
         .ast = ast,
@@ -229,6 +242,7 @@ test "call function from import" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     var fs = try initFileSystem(&arena);
+    // NOTE: should imports look like `bar = import("bar.yeti")`
     _ = try newFile(&fs, "foo",
         \\import bar
         \\
@@ -245,5 +259,9 @@ test "call function from import" {
     const builtins = codebase.get(components.ir.Builtins);
     const top_level = ir.get(components.ir.TopLevel);
     const start = top_level.findString("start");
+    try expectEqual(start.get(components.ir.Parameters).len(), 0);
     try expectEqual(start.get(components.ir.ReturnType).entity, builtins.I64);
+    const body = start.get(components.ir.Body).slice();
+    try expectEqual(body.len, 1);
+    // TODO: the body should a function call whose callable component is baz from the bar module
 }
