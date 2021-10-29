@@ -33,7 +33,7 @@ fn builtinType(codebase: *ECS, scope: *components.ir.Scope, symbol: []const u8, 
         components.token.Literal.init(interned),
         components.ir.Type.init(Type),
     });
-    try scope.put(interned, entity);
+    try scope.putInterned(interned, entity);
     return entity;
 }
 
@@ -43,7 +43,7 @@ fn initBuiltins(codebase: *ECS) !void {
     const Type = try codebase.createEntity(.{
         components.token.Literal.init(interned),
     });
-    try scope.put(interned, Type);
+    try scope.putInterned(interned, Type);
     _ = try Type.set(.{components.ir.Type.init(Type)});
     const Module = try builtinType(codebase, &scope, "Module", Type);
     const I64 = try builtinType(codebase, &scope, "I64", Type);
@@ -178,12 +178,12 @@ fn lowerExpression(context: Context, entity: Entity) error{OutOfMemory}!Entity {
 }
 
 fn lowerFunctionBody(context: Context) !components.ir.Body {
-    const body = context.function.get(components.ast.Body).slice();
-    const lowered = try context.allocator.alloc(Entity, body.len);
-    for (body) |expression, i| {
-        lowered[i] = try lowerExpression(context, expression);
+    const ast_body = context.function.get(components.ast.Body).slice();
+    var ir_body = try components.ir.Body.withCapacity(context.allocator, ast_body.len);
+    for (ast_body) |expression| {
+        ir_body.appendAssumeCapacity(try lowerExpression(context, expression));
     }
-    return components.ir.Body.init(lowered);
+    return ir_body;
 }
 
 fn lowerFunctionReturnType(context: Context) !components.ir.ReturnType {
@@ -220,7 +220,7 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     };
     assert(context.function.get(components.ast.Parameters).entities.len == 0);
     const function = try lowerFunction(context);
-    try ir_top_level.put(function.get(components.ir.Name), function);
+    try ir_top_level.putName(function.get(components.ir.Name), function);
     return try codebase.createEntity(.{ir_top_level});
 }
 

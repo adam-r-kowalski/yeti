@@ -620,13 +620,13 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
                         Kind.overload_set,
                         overloads,
                     });
-                    try top_level.put(name, overload_set);
+                    try top_level.putName(name, overload_set);
                 }
             },
             .import => {
                 const import = try parseImport(codebase, tokens);
                 const name = import.get(Name);
-                try top_level.put(name, import);
+                try top_level.putName(name, import);
             },
             else => panic("\ncannot parse top level expression {}\n", .{kind}),
         }

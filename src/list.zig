@@ -38,6 +38,15 @@ pub fn List(comptime T: type, comptime config: Config) type {
             };
         }
 
+        pub fn withCapacity(allocator: *Allocator, capacity: u64) !Self {
+            const items = try allocator.alloc(T, capacity);
+            return Self{
+                .items = items,
+                .len = 0,
+                .allocator = allocator,
+            };
+        }
+
         pub fn append(self: *Self, value: T) !void {
             if (self.items.len == self.len) {
                 const capacity = std.math.max(
@@ -49,6 +58,12 @@ pub fn List(comptime T: type, comptime config: Config) type {
                 self.allocator.free(self.items);
                 self.items = items;
             }
+            self.items[self.len] = value;
+            self.len += 1;
+        }
+
+        pub fn appendAssumeCapacity(self: *Self, value: T) void {
+            assert(self.len < self.items.len);
             self.items[self.len] = value;
             self.len += 1;
         }
