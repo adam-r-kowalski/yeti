@@ -228,26 +228,26 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     return try codebase.createEntity(.{ir_top_level});
 }
 
-test "call function from import" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    var fs = try initFileSystem(&arena);
-    _ = try newFile(&fs, "foo",
-        \\import bar
-        \\
-        \\start = fn() -> U64
-        \\  bar.baz()
-        \\end
-    );
-    _ = try newFile(&fs, "bar",
-        \\baz = fn() -> U64
-        \\  10
-        \\end
-    );
-    const ir = try lower(&codebase, fs, "foo", "start");
-    const builtins = codebase.get(components.ir.Builtins);
-    const top_level = ir.get(components.ir.TopLevel);
-    const start = top_level.findString("start");
-    try expectEqual(start.get(components.ir.ReturnType).entity, builtins.I64);
-}
+// test "call function from import" {
+//     var arena = Arena.init(std.heap.page_allocator);
+//     defer arena.deinit();
+//     var codebase = try initCodebase(&arena);
+//     var fs = try initFileSystem(&arena);
+//     _ = try newFile(&fs, "foo",
+//         \\import bar
+//         \\
+//         \\start = function() -> U64
+//         \\  bar.baz()
+//         \\end
+//     );
+//     _ = try newFile(&fs, "bar",
+//         \\baz = function() -> U64
+//         \\  10
+//         \\end
+//     );
+//     const ir = try lower(&codebase, fs, "foo", "start");
+//     const builtins = codebase.get(components.ir.Builtins);
+//     const top_level = ir.get(components.ir.TopLevel);
+//     const start = top_level.findString("start");
+//     try expectEqual(start.get(components.ir.ReturnType).entity, builtins.I64);
+// }

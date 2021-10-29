@@ -249,30 +249,30 @@ test "parse function with int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "start = fn() -> U64 0 end";
+    const code = "start = function() -> U64 0 end";
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqual(function.get(Kind), .function);
     try expectEqualStrings(literalOf(function.get(Name).entity), "start");
-    try expectEqual(function.get(Span), Span.init(Position.init(0, 0), Position.init(21, 0)));
+    try expectEqual(function.get(Span), Span.init(Position.init(0, 0), Position.init(27, 0)));
     try expectEqual(function.get(Parameters).entities.len, 0);
     const return_type = function.get(ReturnType).entity;
     try expectEqual(return_type.get(Kind), .symbol);
     try expectEqualStrings(literalOf(return_type), "U64");
-    try expectEqual(return_type.get(Span), Span.init(Position.init(16, 0), Position.init(19, 0)));
+    try expectEqual(return_type.get(Span), Span.init(Position.init(22, 0), Position.init(25, 0)));
     const body = function.get(Body).entities;
     try expectEqual(body.len, 1);
     const zero = body[0];
     try expectEqual(zero.get(Kind), .int);
     try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(zero.get(Span), Span.init(Position.init(20, 0), Position.init(21, 0)));
+    try expectEqual(zero.get(Span), Span.init(Position.init(26, 0), Position.init(27, 0)));
 }
 
 test "parse function with binary entity" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "start = fn() -> U64 5 + x end";
+    const code = "start = function() -> U64 5 + x end";
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "start");
@@ -292,7 +292,7 @@ test "parse function with compound binary entity" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "line = fn() -> U64 m * x + b end";
+    const code = "line = function() -> U64 m * x + b end";
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "line");
@@ -321,7 +321,7 @@ test "parse function parameters" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "add = fn(x: U64, y: U64) -> U64 x + y end";
+    const code = "add = function(x: U64, y: U64) -> U64 x + y end";
     var tokens = try tokenize(&codebase, code);
     const function = try parseFunction(&codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(Name).entity), "add");
@@ -348,7 +348,7 @@ test "parse function with newline" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\add = fn(x: U64, y: U64) -> U64
+        \\add = function(x: U64, y: U64) -> U64
         \\  x + y
         \\end
     ;
@@ -377,7 +377,7 @@ test "parse constant definition" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\f = fn() -> U64
+        \\f = function() -> U64
         \\  x = 5
         \\  y = 15
         \\  x + y
@@ -411,7 +411,7 @@ test "parse constant definition with binary op" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\sum_of_squares = fn(x: U64, y: U64) -> U64
+        \\sum_of_squares = function(x: U64, y: U64) -> U64
         \\  x2 = x * x
         \\  y2 = y * y
         \\  x2 + y2
@@ -461,7 +461,7 @@ test "parse function call" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\sum_of_squares = fn(x: U64, y: U64) -> U64
+        \\sum_of_squares = function(x: U64, y: U64) -> U64
         \\  square(x) + square(y)
         \\end
     ;
@@ -505,7 +505,7 @@ test "parse function call with multiple arguments" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\start = fn() -> U64
+        \\start = function() -> U64
         \\  sum_of_squares(10, 56 * 3)
         \\end
     ;
@@ -642,11 +642,11 @@ test "parse two functions" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\sum_of_squares = fn(x: U64, y: U64) -> U64
+        \\sum_of_squares = function(x: U64, y: U64) -> U64
         \\  x*2 + y*2
         \\end
         \\
-        \\start = fn() -> U64
+        \\start = function() -> U64
         \\  sum_of_squares(10, 56 * 3)
         \\end
     ;
@@ -671,9 +671,9 @@ test "parse overload" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\f = fn(x: U64) -> U64 x end
+        \\f = function(x: U64) -> U64 x end
         \\
-        \\f = fn(x: F64) -> F64 x end
+        \\f = function(x: F64) -> F64 x end
     ;
     var tokens = try tokenize(&codebase, code);
     const ast = try parse(&codebase, &tokens);
@@ -707,7 +707,7 @@ test "parse unqualified import and function" {
     const code =
         \\import math: sum_of_squares
         \\
-        \\start = fn() -> U64
+        \\start = function() -> U64
         \\  sum_of_squares(10, 56 * 3)
         \\end
     ;
@@ -731,7 +731,7 @@ test "parse import and function" {
     const code =
         \\import math
         \\
-        \\start = fn() -> U64
+        \\start = function() -> U64
         \\  math.sum_of_squares(10, 56 * 3)
         \\end
     ;

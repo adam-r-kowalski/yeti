@@ -137,7 +137,7 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
     const span = Span{ .begin = begin, .end = source.position };
     if (std.mem.eql(u8, string, "import")) {
         return try codebase.createEntity(.{ Kind.import, span });
-    } else if (std.mem.eql(u8, string, "fn")) {
+    } else if (std.mem.eql(u8, string, "function")) {
         return try codebase.createEntity(.{ Kind.function, span });
     } else if (std.mem.eql(u8, string, "end")) {
         return try codebase.createEntity(.{ Kind.end, span });
@@ -288,7 +288,7 @@ test "tokenize function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "start = fn() -> U64 0 end";
+    const code = "start = function() -> U64 0 end";
     var tokens = try tokenize(&codebase, code);
     {
         const token = tokens.next().?;
@@ -312,31 +312,31 @@ test "tokenize function" {
         try expectEqual(token.get(Kind), .function);
         try expectEqual(token.get(Span), .{
             .begin = .{ .column = 8, .row = 0 },
-            .end = .{ .column = 10, .row = 0 },
+            .end = .{ .column = 16, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .left_paren);
         try expectEqual(token.get(Span), .{
-            .begin = .{ .column = 10, .row = 0 },
-            .end = .{ .column = 11, .row = 0 },
+            .begin = .{ .column = 16, .row = 0 },
+            .end = .{ .column = 17, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .right_paren);
         try expectEqual(token.get(Span), .{
-            .begin = .{ .column = 11, .row = 0 },
-            .end = .{ .column = 12, .row = 0 },
+            .begin = .{ .column = 17, .row = 0 },
+            .end = .{ .column = 18, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .right_arrow);
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 13, .row = 0 },
-            .end = Position{ .column = 15, .row = 0 },
+            .begin = Position{ .column = 19, .row = 0 },
+            .end = Position{ .column = 21, .row = 0 },
         });
     }
     {
@@ -344,8 +344,8 @@ test "tokenize function" {
         try expectEqual(token.get(Kind), .symbol);
         try expectEqualStrings(literalOf(token), "U64");
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 16, .row = 0 },
-            .end = Position{ .column = 19, .row = 0 },
+            .begin = Position{ .column = 22, .row = 0 },
+            .end = Position{ .column = 25, .row = 0 },
         });
     }
     {
@@ -353,16 +353,16 @@ test "tokenize function" {
         try expectEqual(token.get(Kind), .int);
         try expectEqualStrings(literalOf(token), "0");
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 20, .row = 0 },
-            .end = Position{ .column = 21, .row = 0 },
+            .begin = Position{ .column = 26, .row = 0 },
+            .end = Position{ .column = 27, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(Kind), .end);
         try expectEqual(token.get(Span), Span{
-            .begin = Position{ .column = 22, .row = 0 },
-            .end = Position{ .column = 25, .row = 0 },
+            .begin = Position{ .column = 28, .row = 0 },
+            .end = Position{ .column = 31, .row = 0 },
         });
     }
     try expectEqual(tokens.next(), null);
@@ -373,7 +373,7 @@ test "tokenize multine function" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\f = fn() -> U64
+        \\f = function() -> U64
         \\  x = 5
         \\  y = 15
         \\  x + y
@@ -426,7 +426,7 @@ test "tokenize mulitine function with binary op" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code =
-        \\sum_of_squares = fn(x: U64, y: U64) -> U64
+        \\sum_of_squares = function(x: U64, y: U64) -> U64
         \\  x2 = x * x
         \\  x2 = y * y
         \\  x2 + y2
