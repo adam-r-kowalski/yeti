@@ -123,7 +123,7 @@ fn lowerSymbol(context: Context, entity: Entity) !Entity {
 }
 
 fn lowerDot(context: Context, entity: Entity) !Entity {
-    const arguments = entity.get(components.ast.Arguments).entities;
+    const arguments = entity.get(components.ast.Arguments).slice();
     const ast = try lowerExpression(context, arguments[0]);
     assert(eql(typeOf(ast), context.codebase.get(components.ir.Builtins).Module));
     const call = arguments[1];
@@ -144,7 +144,7 @@ fn lowerDot(context: Context, entity: Entity) !Entity {
     };
     assert(new_context.function.get(components.ast.Parameters).entities.len == 0);
     const function = try lowerFunction(new_context);
-    const ast_arguments = call.get(components.ast.Arguments).entities;
+    const ast_arguments = call.get(components.ast.Arguments).slice();
     const ir_arguments = try context.allocator.alloc(Entity, ast_arguments.len);
     for (ast_arguments) |argument, i| {
         ir_arguments[i] = try lowerExpression(context, argument);
@@ -178,7 +178,7 @@ fn lowerExpression(context: Context, entity: Entity) error{OutOfMemory}!Entity {
 }
 
 fn lowerFunctionBody(context: Context) !components.ir.Body {
-    const body = context.function.get(components.ast.Body).entities;
+    const body = context.function.get(components.ast.Body).slice();
     const lowered = try context.allocator.alloc(Entity, body.len);
     for (body) |expression, i| {
         lowered[i] = try lowerExpression(context, expression);

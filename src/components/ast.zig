@@ -7,46 +7,20 @@ const InternedString = strings_module.InternedString;
 const Entity = @import("../ecs.zig").Entity;
 const List = @import("../list.zig").List;
 const Literal = @import("token.zig").Literal;
+const distinct = @import("distinct.zig");
+const DistinctEntity = distinct.DistinctEntity;
+const DistinctEntities = distinct.DistinctEntities;
 
-pub const Name = struct {
-    entity: Entity,
-
-    pub fn init(entity: Entity) Name {
-        return Name{ .entity = entity };
-    }
-};
-
-pub const Parameters = struct {
-    entities: []const Entity,
-
-    pub fn init(entities: []const Entity) Parameters {
-        return Parameters{ .entities = entities };
-    }
-};
-
-pub const ReturnType = struct {
-    entity: Entity,
-
-    pub fn init(entity: Entity) ReturnType {
-        return ReturnType{ .entity = entity };
-    }
-};
-
-pub const Body = struct {
-    entities: []const Entity,
-
-    pub fn init(entities: []const Entity) Body {
-        return Body{ .entities = entities };
-    }
-};
-
-pub const Value = struct {
-    entity: Entity,
-
-    pub fn init(entity: Entity) Value {
-        return Value{ .entity = entity };
-    }
-};
+pub const Name = DistinctEntity("Name");
+pub const ReturnType = DistinctEntity("Return Type");
+pub const Value = DistinctEntity("Value");
+pub const Callable = DistinctEntity("Callable");
+pub const Type = DistinctEntity("Type");
+pub const Parameters = DistinctEntities("Parameters");
+pub const Body = DistinctEntities("Body");
+pub const Arguments = DistinctEntities("Arguments");
+pub const Unqualified = DistinctEntities("Unqualified");
+pub const Overloads = DistinctEntities("Overloads");
 
 pub const Kind = enum(u8) {
     symbol,
@@ -63,38 +37,6 @@ pub const BinaryOp = enum(u8) {
     add,
     multiply,
     dot,
-};
-
-pub const Arguments = struct {
-    entities: []const Entity,
-
-    pub fn init(entities: []const Entity) Arguments {
-        return Arguments{ .entities = entities };
-    }
-};
-
-pub const Callable = struct {
-    entity: Entity,
-
-    pub fn init(entity: Entity) Callable {
-        return Callable{ .entity = entity };
-    }
-};
-
-pub const Unqualified = struct {
-    entities: []const Entity,
-
-    pub fn init(entities: []const Entity) Unqualified {
-        return Unqualified{ .entities = entities };
-    }
-};
-
-pub const Overloads = struct {
-    entities: List(Entity, .{}),
-
-    pub fn init(allocator: *Allocator) Overloads {
-        return Overloads{ .entities = List(Entity, .{}).init(allocator) };
-    }
 };
 
 pub const TopLevel = struct {
@@ -134,13 +76,5 @@ pub const TopLevel = struct {
 
     pub fn put(self: *TopLevel, value: Name, entity: Entity) !void {
         try self.map.putNoClobber(value.entity.get(Literal).interned, entity);
-    }
-};
-
-pub const Type = struct {
-    entity: Entity,
-
-    pub fn init(entity: Entity) Type {
-        return Type{ .entity = entity };
     }
 };

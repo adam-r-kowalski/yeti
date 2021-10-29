@@ -29,6 +29,15 @@ pub fn List(comptime T: type, comptime config: Config) type {
             };
         }
 
+        pub fn fromSlice(allocator: *Allocator, data: []T) !Self {
+            const items = try allocator.dupe(T, data);
+            return Self{
+                .items = items,
+                .len = data.len,
+                .allocator = allocator,
+            };
+        }
+
         pub fn append(self: *Self, value: T) !void {
             if (self.items.len == self.len) {
                 const capacity = std.math.max(
@@ -54,6 +63,11 @@ pub fn List(comptime T: type, comptime config: Config) type {
 
         pub fn mutSlice(self: Self) []T {
             return self.items[0..self.len];
+        }
+
+        pub fn last(self: Self) T {
+            assert(self.len > 0);
+            return self.items[self.len - 1];
         }
     };
 }
