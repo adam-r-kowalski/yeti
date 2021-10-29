@@ -144,9 +144,6 @@ fn lowerDot(context: Context, entity: Entity) !Entity {
     };
     assert(new_context.function.get(components.ast.Parameters).entities.len == 0);
     const function = try lowerFunction(new_context);
-    std.debug.print("\n\nlowerDot function name {s}\n\n", .{literalOf(function.get(components.ir.Name).entity)});
-    // TODO: why does this crash? check that when lowering the new function the return type is set.
-    std.debug.print("\n\nlowerDot return type {s}\n\n", .{literalOf(function.get(components.ir.ReturnType).entity)});
     const ast_arguments = call.get(components.ast.Arguments).entities;
     const ir_arguments = try context.allocator.alloc(Entity, ast_arguments.len);
     for (ast_arguments) |argument, i| {
@@ -195,11 +192,10 @@ fn lowerFunctionReturnType(context: Context) !components.ir.ReturnType {
 }
 
 fn lowerFunction(context: Context) !Entity {
-    const return_type = lowerFunctionReturnType(context);
+    const return_type = try lowerFunctionReturnType(context);
     const body = try lowerFunctionBody(context);
     return try context.codebase.createEntity(.{
         components.ir.Name.init(context.function.get(components.ast.Name).entity),
-        context.function.get(components.ast.Name),
         return_type,
         body,
     });
@@ -228,26 +224,26 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     return try codebase.createEntity(.{ir_top_level});
 }
 
-// test "call function from import" {
-//     var arena = Arena.init(std.heap.page_allocator);
-//     defer arena.deinit();
-//     var codebase = try initCodebase(&arena);
-//     var fs = try initFileSystem(&arena);
-//     _ = try newFile(&fs, "foo",
-//         \\import bar
-//         \\
-//         \\start = function() -> U64
-//         \\  bar.baz()
-//         \\end
-//     );
-//     _ = try newFile(&fs, "bar",
-//         \\baz = function() -> U64
-//         \\  10
-//         \\end
-//     );
-//     const ir = try lower(&codebase, fs, "foo", "start");
-//     const builtins = codebase.get(components.ir.Builtins);
-//     const top_level = ir.get(components.ir.TopLevel);
-//     const start = top_level.findString("start");
-//     try expectEqual(start.get(components.ir.ReturnType).entity, builtins.I64);
-// }
+test "call function from import" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try initFileSystem(&arena);
+    _ = try newFile(&fs, "foo",
+        \\import bar
+        \\
+        \\start = function() -> I64
+        \\  bar.baz()
+        \\end
+    );
+    _ = try newFile(&fs, "bar",
+        \\baz = function() -> I64
+        \\  10
+        \\end
+    );
+    const ir = try lower(&codebase, fs, "foo", "start");
+    const builtins = codebase.get(components.ir.Builtins);
+    const top_level = ir.get(components.ir.TopLevel);
+    const start = top_level.findString("start");
+    try expectEqual(start.get(components.ir.ReturnType).entity, builtins.I64);
+}
