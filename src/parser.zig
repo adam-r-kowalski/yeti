@@ -546,6 +546,7 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
         switch (kind) {
             .function => {
                 const function = try parseFunction(codebase, tokens);
+                _ = try function.set(.{name});
                 if (top_level.hasName(name)) |overload_set| {
                     try overload_set.getPtr(Overloads).append(function);
                 } else {
@@ -560,6 +561,7 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
             },
             .import => {
                 const import = try parseImport(codebase, tokens);
+                _ = try import.set(.{name});
                 try top_level.putName(name, import);
             },
             else => panic("\ncannot parse top level expression {}\n", .{kind}),

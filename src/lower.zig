@@ -107,7 +107,7 @@ fn lowerSymbol(context: Context, entity: Entity) !Entity {
         const kind = top_level.get(components.ast.Kind);
         switch (kind) {
             .import => {
-                const module_name = context.codebase.get(Strings).get(literal.interned);
+                const module_name = literalOf(top_level.get(components.ast.Path).entity);
                 const contents = read(context.fs, module_name);
                 var tokens = try tokenize(context.codebase, contents);
                 // TODO:cache the ast into ir module component
@@ -254,7 +254,7 @@ test "call function from import" {
         \\  10
         \\end
     );
-    const ir = try lower(&codebase, fs, "foo", "start");
+    const ir = try lower(&codebase, fs, "foo.yeti", "start");
     const builtins = codebase.get(components.ir.Builtins);
     const top_level = ir.get(components.ir.TopLevel);
     const start = top_level.findString("start");
