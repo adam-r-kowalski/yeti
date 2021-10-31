@@ -1,4 +1,4 @@
-List = function(T: Type) -> Type
+List = function(T: Type): Type
   struct
     data: Array(T)
     length: U64
@@ -6,19 +6,19 @@ List = function(T: Type) -> Type
   end
 end
 
-List = function(T: Type, allocator: *Allocator) -> List(T)
+List = function(T: Type, allocator: *Allocator): List(T)
   List([], 0, allocator)
 end
 
-capacity = function{T}(list: List(T)) -> U64
+capacity = function{T}(list: List(T)): U64
   list.data.length
 end
 
-length = function{T}(list: List(T)) -> U64
+length = function{T}(list: List(T)): U64
   list.length
 end
 
-ensure_capacity = function{T}(list: *List(T)) -> OutOfMemory or Void
+ensure_capacity = function{T}(list: *List(T)): OutOfMemory or Void
   if length(list) < capacity(list) then return end
   result = allocate(list.allocator, T, max(capacity(list) * 2, 32))
   if result is OutOfMemory then return result end
@@ -27,17 +27,17 @@ ensure_capacity = function{T}(list: *List(T)) -> OutOfMemory or Void
   list.data = result
 end
 
-push = function{T}(list: *List(T), element: T) -> OutOfMemory or Void
+push = function{T}(list: *List(T), element: T): OutOfMemory or Void
   if ensure_capacity(list) is OutOfMemory then return OutOfMemory end
   list.data[list.length] = element
   list.length += 1
 end
 
-deinit = function{T}(list: *List(T)) -> Void
+deinit = function{T}(list: *List(T)): Void
   free(list.allocator, list.data)
 end
 
-[] = function{T}(list: *List(T), index: U64) -> *T
+[] = function{T}(list: *List(T), index: U64): *T
   assert index < list.length
   &list.data[index]
 end

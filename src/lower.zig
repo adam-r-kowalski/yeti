@@ -242,16 +242,15 @@ test "call function from import" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     var fs = try initFileSystem(&arena);
-    // NOTE: should imports look like `bar = import("bar.yeti")`
-    _ = try newFile(&fs, "foo",
-        \\import bar
+    _ = try newFile(&fs, "foo.yeti",
+        \\bar = import("bar.yeti")
         \\
-        \\start = function() -> I64
+        \\start = function(): I64
         \\  bar.baz()
         \\end
     );
-    _ = try newFile(&fs, "bar",
-        \\baz = function() -> I64
+    _ = try newFile(&fs, "bar.yeti",
+        \\baz = function(): I64
         \\  10
         \\end
     );

@@ -12,9 +12,9 @@ pub const Type = DistinctEntity("Type");
 pub const Parameters = DistinctEntities("Parameters");
 pub const Body = DistinctEntities("Body");
 pub const Arguments = DistinctEntities("Arguments");
-pub const Unqualified = DistinctEntities("Unqualified");
 pub const Overloads = DistinctEntities("Overloads");
 pub const TopLevel = DistinctEntityMap("TopLevel", Name);
+pub const Path = DistinctEntity("Path");
 
 pub const Kind = enum(u8) {
     symbol,

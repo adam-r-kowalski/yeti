@@ -29,6 +29,7 @@ pub const Kind = enum(u8) {
     symbol,
     int,
     float,
+    string,
     left_paren,
     right_paren,
     colon,
@@ -39,7 +40,6 @@ pub const Kind = enum(u8) {
     import,
     dot,
     function,
-    right_arrow,
     end,
 };
 

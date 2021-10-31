@@ -1,4 +1,4 @@
-start = function() -> U64
+start = function(): U64
   x = 10
   y = 15
   z = when
@@ -8,7 +8,7 @@ start = function() -> U64
   end
 end
 
-while_loop = function() -> Void
+while_loop = function(): Void
   i = 0
   while i < 10
     print(i)
@@ -16,23 +16,34 @@ while_loop = function() -> Void
   end
 end
 
-for_loop = function() -> Void
-  for i in range(10)
+for_loop = function(): Void
+  for i in 0:10
     print(i)
   end
 end
 
-sum_of_even_perfect_squares_under_50 = function() -> U64
+sum_of_even_perfect_squares_under_50_functional = function(): U64
   naturals()
   |> map(function(x) x * x end)
   |> filter(function(x) x % 2 == 0 end)
   |> take_while(function(x) x < 50 end)
-  |> reduce(function(acc, x) acc + x end)
+  |> sum()
 end
 
-VTable = function(Buffer: Type) Type
+sum_of_even_perfect_squares_under_50_imperative = function(): U64
+  sum = 0
+  for x in 1:50
+    x2 = x * x
+    if x2 % 2 == 0 then
+      sum += x2
+    end
+  end
+  sum
+end
+
+VTable = function(Buffer: Type): Type
   struct
-    write: Fn(to: Buffer, bytes: Array(U8)) -> Void
-    read: Fn(from: Buffer, bytes: U64, into: *Array(U8)) -> Void
+    write: Fn(to: Buffer, bytes: Array(U8)): Void
+    read: Fn(from: Buffer, bytes: U64, into: *Array(U8)): Void
   end
 end
