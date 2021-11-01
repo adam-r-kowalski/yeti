@@ -1,9 +1,13 @@
 const ecs = @import("ecs.zig");
 const Entity = ecs.Entity;
 const ECS = ecs.ECS;
-const Literal = @import("components.zig").token.Literal;
+const components = @import("components.zig");
 const Strings = @import("strings.zig").Strings;
 
 pub fn literalOf(entity: Entity) []const u8 {
-    return entity.ecs.get(Strings).get(entity.get(Literal).interned);
+    return entity.ecs.get(Strings).get(entity.get(components.Literal).interned);
+}
+
+pub fn typeOf(entity: Entity) Entity {
+    return entity.get(components.Type).entity;
 }

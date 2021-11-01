@@ -15,25 +15,6 @@ const strings = @import("strings.zig");
 const Strings = strings.Strings;
 const InternedString = strings.InternedString;
 const components = @import("components.zig");
-const TokenKind = components.token.Kind;
-const Literal = components.token.Literal;
-const Span = components.token.Span;
-const Position = components.token.Position;
-const Indent = components.token.Indent;
-const Kind = components.ast.Kind;
-const BinaryOp = components.ast.BinaryOp;
-const Parameters = components.ast.Parameters;
-const Arguments = components.ast.Arguments;
-const Body = components.ast.Body;
-const Name = components.ast.Name;
-const ReturnType = components.ast.ReturnType;
-const Type = components.ir.Type;
-const Value = components.ast.Value;
-const Callable = components.ast.Callable;
-const Imports = components.ast.Imports;
-const TopLevel = components.ast.TopLevel;
-const Overloads = components.ast.Overloads;
-const Path = components.ast.Path;
 const tokenizer = @import("tokenizer.zig");
 const Tokens = tokenizer.Tokens;
 const tokenize = tokenizer.tokenize;
@@ -53,10 +34,13 @@ fn parseExpression(codebase: *ECS, tokens: *Tokens, precedence: u64) error{OutOf
 }
 
 fn prefixParser(token: Entity) !Entity {
-    const kind = token.get(TokenKind);
+    const kind = token.get(components.TokenKind);
     return try switch (kind) {
-        .symbol => token.set(.{Kind.symbol}),
-        .int => token.set(.{Kind.int}),
+        .symbol => token.set(.{components.AstKind.symbol}),
+        .int => token.set(.{
+            components.AstKind.int,
+            components.Type.init(token.ecs.get(components.Builtins).IntLiteral),
+        }),
         else => panic("\nno prefix parser for = {}\n", .{kind}),
     };
 }
@@ -71,13 +55,13 @@ const CALL: u64 = DOT + NEXT_PRECEDENCE;
 const HIGHEST: u64 = CALL;
 
 const InfixParser = union(enum) {
-    binary_op: struct { op: BinaryOp, precedence: u64 },
+    binary_op: struct { op: components.BinaryOp, precedence: u64 },
     define,
     call,
 
     fn init(tokens: *Tokens) ?InfixParser {
         if (tokens.peek()) |token| {
-            const kind = token.get(TokenKind);
+            const kind = token.get(components.TokenKind);
             return switch (kind) {
                 .plus => .{ .binary_op = .{ .op = .add, .precedence = ADD } },
                 .times => .{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
@@ -115,38 +99,38 @@ const InfixParser = union(enum) {
     }
 };
 
-fn parseBinaryOp(codebase: *ECS, tokens: *Tokens, left: Entity, op: BinaryOp, precedence: u64) !Entity {
+fn parseBinaryOp(codebase: *ECS, tokens: *Tokens, left: Entity, op: components.BinaryOp, precedence: u64) !Entity {
     const right = try parseExpression(codebase, tokens, precedence);
-    const arguments = try Arguments.fromSlice(&codebase.arena.allocator, &.{ left, right });
+    const arguments = try components.Arguments.fromSlice(&codebase.arena.allocator, &.{ left, right });
     return try codebase.createEntity(.{
-        Kind.binary_op,
+        components.AstKind.binary_op,
         op,
-        Span.init(left.get(Span).begin, right.get(Span).end),
+        components.Span.init(left.get(components.Span).begin, right.get(components.Span).end),
         arguments,
     });
 }
 
 fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
-    assert(name.get(Kind) == .symbol);
+    assert(name.get(components.AstKind) == .symbol);
     const value = try parseExpression(codebase, tokens, precedence);
     return try codebase.createEntity(.{
-        Kind.define,
-        Name.init(name),
-        Value.init(value),
-        Span.init(name.get(Span).begin, value.get(Span).end),
+        components.AstKind.define,
+        components.Name.init(name),
+        components.Value.init(value),
+        components.Span.init(name.get(components.Span).begin, value.get(components.Span).end),
     });
 }
 
 fn parseCall(codebase: *ECS, tokens: *Tokens, callable: Entity) !Entity {
-    var arguments = Arguments.init(&codebase.arena.allocator);
+    var arguments = components.Arguments.init(&codebase.arena.allocator);
     while (tokens.peek()) |token| {
-        switch (token.get(TokenKind)) {
+        switch (token.get(components.TokenKind)) {
             .right_paren => {
                 return try codebase.createEntity(.{
-                    Kind.call,
-                    Callable.init(callable),
+                    components.AstKind.call,
+                    components.Callable.init(callable),
                     arguments,
-                    Span.init(callable.get(Span).begin, tokens.next().?.get(Span).end),
+                    components.Span.init(callable.get(components.Span).begin, tokens.next().?.get(components.Span).end),
                 });
             },
             .comma => _ = tokens.next(),
@@ -161,13 +145,13 @@ test "parse symbol" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code = "foo";
-    var tokens = try tokenize(&codebase, code);
-    const entity = try parseExpression(&codebase, &tokens, LOWEST);
-    try expectEqual(entity.get(Kind), .symbol);
+    var tokens = try tokenize(codebase, code);
+    const entity = try parseExpression(codebase, &tokens, LOWEST);
+    try expectEqual(entity.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(entity), "foo");
-    try expectEqual(entity.get(Span), Span{
-        .begin = Position{ .column = 0, .row = 0 },
-        .end = Position{ .column = 3, .row = 0 },
+    try expectEqual(entity.get(components.Span), .{
+        .begin = .{ .column = 0, .row = 0 },
+        .end = .{ .column = 3, .row = 0 },
     });
 }
 
@@ -176,28 +160,28 @@ test "parse int" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code = "35";
-    var tokens = try tokenize(&codebase, code);
-    const entity = try parseExpression(&codebase, &tokens, LOWEST);
-    try expectEqual(entity.get(Kind), .int);
+    var tokens = try tokenize(codebase, code);
+    const entity = try parseExpression(codebase, &tokens, LOWEST);
+    try expectEqual(entity.get(components.AstKind), .int);
     try expectEqualStrings(literalOf(entity), "35");
-    try expectEqual(entity.get(Span), Span{
-        .begin = Position{ .column = 0, .row = 0 },
-        .end = Position{ .column = 2, .row = 0 },
+    try expectEqual(entity.get(components.Span), .{
+        .begin = .{ .column = 0, .row = 0 },
+        .end = .{ .column = 2, .row = 0 },
     });
 }
 
-fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
-    var parameters = Parameters.init(&codebase.arena.allocator);
+fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !components.Parameters {
+    var parameters = components.Parameters.init(&codebase.arena.allocator);
     _ = tokens.consume(.left_paren);
     while (tokens.next()) |token| {
-        const kind = token.get(TokenKind);
+        const kind = token.get(components.TokenKind);
         switch (kind) {
             .right_paren => break,
             .comma => continue,
             .symbol => {
                 _ = tokens.consume(.colon);
                 _ = try token.set(.{
-                    Type.init(try parseExpression(codebase, tokens, LOWEST)),
+                    components.TypeAst.init(try parseExpression(codebase, tokens, LOWEST)),
                 });
                 try parameters.append(token);
             },
@@ -207,12 +191,12 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !Parameters {
     return parameters;
 }
 
-fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !Body {
-    var body = Body.init(&codebase.arena.allocator);
+fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !components.Body {
+    var body = components.Body.init(&codebase.arena.allocator);
     while (true) {
         try body.append(try parseExpression(codebase, tokens, LOWEST));
         if (tokens.peek()) |token| {
-            if (token.get(TokenKind) == .end) {
+            if (token.get(components.TokenKind) == .end) {
                 _ = tokens.next();
                 break;
             }
@@ -222,15 +206,15 @@ fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !Body {
 }
 
 fn parseFunction(codebase: *ECS, tokens: *Tokens) !Entity {
-    const begin = tokens.consume(.function).get(Span).begin;
+    const begin = tokens.consume(.function).get(components.Span).begin;
     const parameters = try parseFunctionParameters(codebase, tokens);
     _ = tokens.consume(.colon);
-    const return_type = ReturnType.init(try parseExpression(codebase, tokens, HIGHEST));
+    const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
     const body = try parseFunctionBody(codebase, tokens);
-    const end = body.last().get(Span).end;
-    const span = Span.init(begin, end);
+    const end = body.last().get(components.Span).end;
+    const span = components.Span.init(begin, end);
     return try codebase.createEntity(.{
-        Kind.function,
+        components.AstKind.function,
         parameters,
         return_type,
         body,
@@ -243,21 +227,30 @@ test "parse function with int literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code = "function(): U64 0 end";
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqual(function.get(Kind), .function);
-    try expectEqual(function.get(Span), Span.init(Position.init(0, 0), Position.init(17, 0)));
-    try expectEqual(function.get(Parameters).slice().len, 0);
-    const return_type = function.get(ReturnType).entity;
-    try expectEqual(return_type.get(Kind), .symbol);
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    try expectEqual(function.get(components.AstKind), .function);
+    try expectEqual(function.get(components.Span), .{
+        .begin = .{ .row = 0, .column = 0 },
+        .end = .{ .row = 0, .column = 17 },
+    });
+    try expectEqual(function.get(components.Parameters).slice().len, 0);
+    const return_type = function.get(components.ReturnTypeAst).entity;
+    try expectEqual(return_type.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(return_type), "U64");
-    try expectEqual(return_type.get(Span), Span.init(Position.init(12, 0), Position.init(15, 0)));
-    const body = function.get(Body).slice();
+    try expectEqual(return_type.get(components.Span), .{
+        .begin = .{ .row = 0, .column = 12 },
+        .end = .{ .row = 0, .column = 15 },
+    });
+    const body = function.get(components.Body).slice();
     try expectEqual(body.len, 1);
     const zero = body[0];
-    try expectEqual(zero.get(Kind), .int);
+    try expectEqual(zero.get(components.AstKind), .int);
     try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(zero.get(Span), Span.init(Position.init(16, 0), Position.init(17, 0)));
+    try expectEqual(zero.get(components.Span), .{
+        .begin = .{ .row = 0, .column = 16 },
+        .end = .{ .row = 0, .column = 17 },
+    });
 }
 
 test "parse function with binary entity" {
@@ -265,15 +258,15 @@ test "parse function with binary entity" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code = "function(): U64 5 + x end";
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqual(function.get(Parameters).slice().len, 0);
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "U64");
-    const body = function.get(Body).slice();
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    try expectEqual(function.get(components.Parameters).slice().len, 0);
+    try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
+    const body = function.get(components.Body).slice();
     try expectEqual(body.len, 1);
     const add = body[0];
-    try expectEqual(add.get(BinaryOp), .add);
-    const arguments = add.get(Arguments).slice();
+    try expectEqual(add.get(components.BinaryOp), .add);
+    const arguments = add.get(components.Arguments).slice();
     try expectEqual(arguments.len, 2);
     try expectEqualStrings(literalOf(arguments[0]), "5");
     try expectEqualStrings(literalOf(arguments[1]), "x");
@@ -284,26 +277,26 @@ test "parse function with compound binary entity" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code = "function(): U64 m * x + b end";
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqual(function.get(Parameters).slice().len, 0);
-    const body = function.get(Body).slice();
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    try expectEqual(function.get(components.Parameters).slice().len, 0);
+    const body = function.get(components.Body).slice();
     const add = body[0];
-    try expectEqual(add.get(BinaryOp), .add);
-    const add_arguments = add.get(Arguments).slice();
+    try expectEqual(add.get(components.BinaryOp), .add);
+    const add_arguments = add.get(components.Arguments).slice();
     try expectEqual(add_arguments.len, 2);
     const multiply = add_arguments[0];
-    try expectEqual(multiply.get(BinaryOp), .multiply);
-    const multiply_arguments = multiply.get(Arguments).slice();
+    try expectEqual(multiply.get(components.BinaryOp), .multiply);
+    const multiply_arguments = multiply.get(components.Arguments).slice();
     try expectEqual(multiply_arguments.len, 2);
     const m = multiply_arguments[0];
-    try expectEqual(m.get(Kind), .symbol);
+    try expectEqual(m.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(m), "m");
     const x = multiply_arguments[1];
-    try expectEqual(x.get(Kind), .symbol);
+    try expectEqual(x.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(x), "x");
     const b = add_arguments[1];
-    try expectEqual(b.get(Kind), .symbol);
+    try expectEqual(b.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(b), "b");
 }
 
@@ -312,22 +305,22 @@ test "parse function parameters" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const code = "function(x: U64, y: U64): U64 x + y end";
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    const parameters = function.get(Parameters).slice();
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    const parameters = function.get(components.Parameters).slice();
     try expectEqual(parameters.len, 2);
     const param0 = parameters[0];
     try expectEqualStrings(literalOf(param0), "x");
-    try expectEqualStrings(literalOf(param0.get(Type).entity), "U64");
+    try expectEqualStrings(literalOf(param0.get(components.TypeAst).entity), "U64");
     const param1 = parameters[1];
     try expectEqualStrings(literalOf(param1), "y");
-    try expectEqualStrings(literalOf(param1.get(Type).entity), "U64");
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "U64");
-    const body = function.get(Body).slice();
+    try expectEqualStrings(literalOf(param1.get(components.TypeAst).entity), "U64");
+    try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
+    const body = function.get(components.Body).slice();
     try expectEqual(body.len, 1);
     const add = body[0];
-    try expectEqual(add.get(BinaryOp), .add);
-    const arguments = add.get(Arguments).slice();
+    try expectEqual(add.get(components.BinaryOp), .add);
+    const arguments = add.get(components.Arguments).slice();
     try expectEqualStrings(literalOf(arguments[0]), "x");
     try expectEqualStrings(literalOf(arguments[1]), "y");
 }
@@ -341,21 +334,21 @@ test "parse function with newline" {
         \\  x + y
         \\end
     ;
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    const parameters = function.get(Parameters).slice();
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    const parameters = function.get(components.Parameters).slice();
     try expectEqual(parameters.len, 2);
     const param0 = parameters[0];
     try expectEqualStrings(literalOf(param0), "x");
-    try expectEqualStrings(literalOf(param0.get(Type).entity), "U64");
+    try expectEqualStrings(literalOf(param0.get(components.TypeAst).entity), "U64");
     const param1 = parameters[1];
     try expectEqualStrings(literalOf(param1), "y");
-    try expectEqualStrings(literalOf(param1.get(Type).entity), "U64");
-    const body = function.get(Body).slice();
+    try expectEqualStrings(literalOf(param1.get(components.TypeAst).entity), "U64");
+    const body = function.get(components.Body).slice();
     try expectEqual(body.len, 1);
     const add = body[0];
-    try expectEqual(add.get(BinaryOp), .add);
-    const arguments = add.get(Arguments).slice();
+    try expectEqual(add.get(components.BinaryOp), .add);
+    const arguments = add.get(components.Arguments).slice();
     try expectEqualStrings(literalOf(arguments[0]), "x");
     try expectEqualStrings(literalOf(arguments[1]), "y");
 }
@@ -371,23 +364,23 @@ test "parse constant definition" {
         \\  x + y
         \\end
     ;
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "U64");
-    try expectEqual(function.get(Parameters).slice().len, 0);
-    const body = function.get(Body).slice();
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
+    try expectEqual(function.get(components.Parameters).slice().len, 0);
+    const body = function.get(components.Body).slice();
     try expectEqual(body.len, 3);
     const x = body[0];
-    try expectEqual(x.get(Kind), .define);
-    try expectEqualStrings(literalOf(x.get(Name).entity), "x");
-    try expectEqualStrings(literalOf(x.get(Value).entity), "5");
+    try expectEqual(x.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+    try expectEqualStrings(literalOf(x.get(components.Value).entity), "5");
     const y = body[1];
-    try expectEqual(y.get(Kind), .define);
-    try expectEqualStrings(literalOf(y.get(Name).entity), "y");
-    try expectEqualStrings(literalOf(y.get(Value).entity), "15");
+    try expectEqual(y.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
+    try expectEqualStrings(literalOf(y.get(components.Value).entity), "15");
     const add = body[2];
-    try expectEqual(add.get(BinaryOp), .add);
-    const arguments = add.get(Arguments).slice();
+    try expectEqual(add.get(components.BinaryOp), .add);
+    const arguments = add.get(components.Arguments).slice();
     try expectEqual(arguments.len, 2);
     try expectEqualStrings(literalOf(arguments[0]), "x");
     try expectEqualStrings(literalOf(arguments[1]), "y");
@@ -404,40 +397,40 @@ test "parse constant definition with binary op" {
         \\  x2 + y2
         \\end
     ;
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "U64");
-    const parameters = function.get(Parameters).slice();
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
+    const parameters = function.get(components.Parameters).slice();
     try expectEqual(parameters.len, 2);
     const param0 = parameters[0];
     try expectEqualStrings(literalOf(param0), "x");
-    try expectEqualStrings(literalOf(param0.get(Type).entity), "U64");
+    try expectEqualStrings(literalOf(param0.get(components.TypeAst).entity), "U64");
     const param1 = parameters[1];
     try expectEqualStrings(literalOf(param1), "y");
-    try expectEqualStrings(literalOf(param1.get(Type).entity), "U64");
-    const body = function.get(Body).slice();
+    try expectEqualStrings(literalOf(param1.get(components.TypeAst).entity), "U64");
+    const body = function.get(components.Body).slice();
     try expectEqual(body.len, 3);
     {
         const x2 = body[0];
-        try expectEqualStrings(literalOf(x2.get(Name).entity), "x2");
-        const multiply = x2.get(Value).entity;
-        try expectEqual(multiply.get(BinaryOp), .multiply);
-        const arguments = multiply.get(Arguments).slice();
+        try expectEqualStrings(literalOf(x2.get(components.Name).entity), "x2");
+        const multiply = x2.get(components.Value).entity;
+        try expectEqual(multiply.get(components.BinaryOp), .multiply);
+        const arguments = multiply.get(components.Arguments).slice();
         try expectEqualStrings(literalOf(arguments[0]), "x");
         try expectEqualStrings(literalOf(arguments[1]), "x");
     }
     {
         const y2 = body[1];
-        try expectEqualStrings(literalOf(y2.get(Name).entity), "y2");
-        const multiply = y2.get(Value).entity;
-        try expectEqual(multiply.get(BinaryOp), .multiply);
-        const arguments = multiply.get(Arguments).slice();
+        try expectEqualStrings(literalOf(y2.get(components.Name).entity), "y2");
+        const multiply = y2.get(components.Value).entity;
+        try expectEqual(multiply.get(components.BinaryOp), .multiply);
+        const arguments = multiply.get(components.Arguments).slice();
         try expectEqualStrings(literalOf(arguments[0]), "y");
         try expectEqualStrings(literalOf(arguments[1]), "y");
     }
     const add = body[2];
-    try expectEqual(add.get(BinaryOp), .add);
-    const arguments = add.get(Arguments).slice();
+    try expectEqual(add.get(components.BinaryOp), .add);
+    const arguments = add.get(components.Arguments).slice();
     try expectEqualStrings(literalOf(arguments[0]), "x2");
     try expectEqualStrings(literalOf(arguments[1]), "y2");
 }
@@ -451,35 +444,35 @@ test "parse function call" {
         \\  square(x) + square(y)
         \\end
     ;
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "U64");
-    const parameters = function.get(Parameters).slice();
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
+    const parameters = function.get(components.Parameters).slice();
     try expectEqual(parameters.len, 2);
     const param0 = parameters[0];
     try expectEqualStrings(literalOf(param0), "x");
-    try expectEqualStrings(literalOf(param0.get(Type).entity), "U64");
+    try expectEqualStrings(literalOf(param0.get(components.TypeAst).entity), "U64");
     const param1 = parameters[1];
     try expectEqualStrings(literalOf(param1), "y");
-    try expectEqualStrings(literalOf(param1.get(Type).entity), "U64");
-    const body = function.get(Body).slice();
+    try expectEqualStrings(literalOf(param1.get(components.TypeAst).entity), "U64");
+    const body = function.get(components.Body).slice();
     try expectEqual(body.len, 1);
     const add = body[0];
-    try expectEqual(add.get(BinaryOp), .add);
-    const add_arguments = add.get(Arguments).slice();
+    try expectEqual(add.get(components.BinaryOp), .add);
+    const add_arguments = add.get(components.Arguments).slice();
     {
         const call = add_arguments[0];
-        try expectEqual(call.get(Kind), .call);
-        try expectEqualStrings(literalOf(call.get(Callable).entity), "square");
-        const arguments = call.get(Arguments).slice();
+        try expectEqual(call.get(components.AstKind), .call);
+        try expectEqualStrings(literalOf(call.get(components.Callable).entity), "square");
+        const arguments = call.get(components.Arguments).slice();
         try expectEqual(arguments.len, 1);
         try expectEqualStrings(literalOf(arguments[0]), "x");
     }
     {
         const call = add_arguments[1];
-        try expectEqual(call.get(Kind), .call);
-        try expectEqualStrings(literalOf(call.get(Callable).entity), "square");
-        const arguments = call.get(Arguments).slice();
+        try expectEqual(call.get(components.AstKind), .call);
+        try expectEqualStrings(literalOf(call.get(components.Callable).entity), "square");
+        const arguments = call.get(components.Arguments).slice();
         try expectEqual(arguments.len, 1);
         try expectEqualStrings(literalOf(arguments[0]), "y");
     }
@@ -494,32 +487,32 @@ test "parse function call with multiple arguments" {
         \\  sum_of_squares(10, 56 * 3)
         \\end
     ;
-    var tokens = try tokenize(&codebase, code);
-    const function = try parseFunction(&codebase, &tokens);
-    try expectEqualStrings(literalOf(function.get(ReturnType).entity), "U64");
-    try expectEqual(function.get(Parameters).slice().len, 0);
-    const body = function.get(Body).slice();
+    var tokens = try tokenize(codebase, code);
+    const function = try parseFunction(codebase, &tokens);
+    try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
+    try expectEqual(function.get(components.Parameters).slice().len, 0);
+    const body = function.get(components.Body).slice();
     try expectEqual(body.len, 1);
     const call = body[0];
-    try expectEqualStrings(literalOf(call.get(Callable).entity), "sum_of_squares");
-    const call_arguments = call.get(Arguments).slice();
+    try expectEqualStrings(literalOf(call.get(components.Callable).entity), "sum_of_squares");
+    const call_arguments = call.get(components.Arguments).slice();
     try expectEqual(call_arguments.len, 2);
     try expectEqualStrings(literalOf(call_arguments[0]), "10");
     const multiply = call_arguments[1];
-    try expectEqual(multiply.get(BinaryOp), .multiply);
-    const arguments = multiply.get(Arguments).slice();
+    try expectEqual(multiply.get(components.BinaryOp), .multiply);
+    const arguments = multiply.get(components.Arguments).slice();
     try expectEqualStrings(literalOf(arguments[0]), "56");
     try expectEqualStrings(literalOf(arguments[1]), "3");
 }
 
 fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
-    const begin = tokens.consume(.import).get(Span).begin;
+    const begin = tokens.consume(.import).get(components.Span).begin;
     _ = tokens.consume(.left_paren);
-    const path = Path.init(tokens.consume(.string));
-    const end = tokens.consume(.right_paren).get(Span).end;
-    const span = Span.init(begin, end);
+    const path = components.Path.init(tokens.consume(.string));
+    const end = tokens.consume(.right_paren).get(components.Span).end;
+    const span = components.Span.init(begin, end);
     return try codebase.createEntity(.{
-        Kind.import,
+        components.AstKind.import,
         path,
         span,
     });
@@ -532,28 +525,28 @@ test "parse import module" {
     const code =
         \\import("foo.yeti")
     ;
-    var tokens = try tokenize(&codebase, code);
-    const import = try parseImport(&codebase, &tokens);
-    try expectEqualStrings(literalOf(import.get(Path).entity), "foo.yeti");
+    var tokens = try tokenize(codebase, code);
+    const import = try parseImport(codebase, &tokens);
+    try expectEqualStrings(literalOf(import.get(components.Path).entity), "foo.yeti");
 }
 
 pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
-    var top_level = TopLevel.init(&codebase.arena.allocator, codebase.getPtr(Strings));
+    var top_level = components.TopLevel.init(&codebase.arena.allocator, codebase.getPtr(Strings));
     while (tokens.next()) |token| {
-        const name = Name.init(token);
+        const name = components.Name.init(token);
         _ = tokens.consume(.equal);
-        const kind = tokens.peek().?.get(TokenKind);
+        const kind = tokens.peek().?.get(components.TokenKind);
         switch (kind) {
             .function => {
                 const function = try parseFunction(codebase, tokens);
                 _ = try function.set(.{name});
                 if (top_level.hasName(name)) |overload_set| {
-                    try overload_set.getPtr(Overloads).append(function);
+                    try overload_set.getPtr(components.Overloads).append(function);
                 } else {
-                    var overloads = Overloads.init(&codebase.arena.allocator);
+                    var overloads = components.Overloads.init(&codebase.arena.allocator);
                     try overloads.append(function);
                     const overload_set = try codebase.createEntity(.{
-                        Kind.overload_set,
+                        components.AstKind.overload_set,
                         overloads,
                     });
                     try top_level.putName(name, overload_set);
@@ -567,7 +560,10 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
             else => panic("\ncannot parse top level expression {}\n", .{kind}),
         }
     }
-    return try codebase.createEntity(.{top_level});
+    return try codebase.createEntity(.{
+        top_level,
+        components.Type.init(codebase.get(components.Builtins).Module),
+    });
 }
 
 test "parse two functions" {
@@ -583,19 +579,19 @@ test "parse two functions" {
         \\  sum_of_squares(10, 56 * 3)
         \\end
     ;
-    var tokens = try tokenize(&codebase, code);
-    const ast = try parse(&codebase, &tokens);
+    var tokens = try tokenize(codebase, code);
+    const ast = try parse(codebase, &tokens);
     {
-        const sum_of_squares = ast.get(TopLevel).findString("sum_of_squares");
-        const overloads = sum_of_squares.get(Overloads).slice();
+        const sum_of_squares = ast.get(components.TopLevel).findString("sum_of_squares");
+        const overloads = sum_of_squares.get(components.Overloads).slice();
         try expectEqual(overloads.len, 1);
-        try expectEqual(overloads[0].get(Parameters).slice().len, 2);
+        try expectEqual(overloads[0].get(components.Parameters).slice().len, 2);
     }
     {
-        const start = ast.get(TopLevel).findString("start");
-        const overloads = start.get(Overloads).slice();
+        const start = ast.get(components.TopLevel).findString("start");
+        const overloads = start.get(components.Overloads).slice();
         try expectEqual(overloads.len, 1);
-        try expectEqual(overloads[0].get(Parameters).slice().len, 0);
+        try expectEqual(overloads[0].get(components.Parameters).slice().len, 0);
     }
 }
 
@@ -608,28 +604,28 @@ test "parse overload" {
         \\
         \\id = function(x: F64): F64 x end
     ;
-    var tokens = try tokenize(&codebase, code);
-    const ast = try parse(&codebase, &tokens);
-    const id = ast.get(TopLevel).findString("id");
-    const overloads = id.get(Overloads).slice();
+    var tokens = try tokenize(codebase, code);
+    const ast = try parse(codebase, &tokens);
+    const id = ast.get(components.TopLevel).findString("id");
+    const overloads = id.get(components.Overloads).slice();
     try expectEqual(overloads.len, 2);
     {
         const id_u64 = overloads[0];
-        const parameters = id_u64.get(Parameters).slice();
+        const parameters = id_u64.get(components.Parameters).slice();
         try expectEqual(parameters.len, 1);
         const x = parameters[0];
         try expectEqualStrings(literalOf(x), "x");
-        try expectEqualStrings(literalOf(x.get(Type).entity), "U64");
-        try expectEqualStrings(literalOf(id_u64.get(ReturnType).entity), "U64");
+        try expectEqualStrings(literalOf(x.get(components.TypeAst).entity), "U64");
+        try expectEqualStrings(literalOf(id_u64.get(components.ReturnTypeAst).entity), "U64");
     }
     {
         const id_f64 = overloads[1];
-        const parameters = id_f64.get(Parameters).slice();
+        const parameters = id_f64.get(components.Parameters).slice();
         try expectEqual(parameters.len, 1);
         const x = parameters[0];
         try expectEqualStrings(literalOf(x), "x");
-        try expectEqualStrings(literalOf(x.get(Type).entity), "F64");
-        try expectEqualStrings(literalOf(id_f64.get(ReturnType).entity), "F64");
+        try expectEqualStrings(literalOf(x.get(components.TypeAst).entity), "F64");
+        try expectEqualStrings(literalOf(id_f64.get(components.ReturnTypeAst).entity), "F64");
     }
 }
 
@@ -644,29 +640,29 @@ test "parse import and function" {
         \\  math.sum_of_squares(10, 56 * 3)
         \\end
     ;
-    var tokens = try tokenize(&codebase, code);
-    const ast = try parse(&codebase, &tokens);
-    const top_level = ast.get(TopLevel);
+    var tokens = try tokenize(codebase, code);
+    const ast = try parse(codebase, &tokens);
+    const top_level = ast.get(components.TopLevel);
     const math = top_level.findString("math");
-    try expectEqual(math.get(Kind), .import);
-    try expectEqualStrings(literalOf(math.get(Path).entity), "math.yeti");
+    try expectEqual(math.get(components.AstKind), .import);
+    try expectEqualStrings(literalOf(math.get(components.Path).entity), "math.yeti");
     const start = top_level.findString("start");
-    const overloads = start.get(Overloads).slice();
+    const overloads = start.get(components.Overloads).slice();
     try expectEqual(overloads.len, 1);
-    const body = overloads[0].get(Body).slice();
+    const body = overloads[0].get(components.Body).slice();
     try expectEqual(body.len, 1);
     const dot = body[0];
-    try expectEqual(dot.get(Kind), .binary_op);
-    const dot_arguments = dot.get(Arguments).slice();
+    try expectEqual(dot.get(components.AstKind), .binary_op);
+    const dot_arguments = dot.get(components.Arguments).slice();
     try expectEqualStrings(literalOf(dot_arguments[0]), "math");
     const sum_of_squares = dot_arguments[1];
-    const callable = sum_of_squares.get(Callable).entity;
+    const callable = sum_of_squares.get(components.Callable).entity;
     try expectEqualStrings(literalOf(callable), "sum_of_squares");
-    const sum_of_squares_arguments = sum_of_squares.get(Arguments).slice();
+    const sum_of_squares_arguments = sum_of_squares.get(components.Arguments).slice();
     try expectEqualStrings(literalOf(sum_of_squares_arguments[0]), "10");
     const multiply = sum_of_squares_arguments[1];
-    try expectEqual(multiply.get(BinaryOp), .multiply);
-    const arguments = multiply.get(Arguments).slice();
+    try expectEqual(multiply.get(components.BinaryOp), .multiply);
+    const arguments = multiply.get(components.Arguments).slice();
     try expectEqualStrings(literalOf(arguments[0]), "56");
     try expectEqualStrings(literalOf(arguments[1]), "3");
 }
