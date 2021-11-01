@@ -160,15 +160,18 @@ pub const ReturnTypeAst = DistinctEntity("Return Type Ast");
 pub const ReturnType = DistinctEntity("Return Type");
 pub const Value = DistinctEntity("Value");
 pub const Callable = DistinctEntity("Callable");
-pub const TypeAst = DistinctEntity("TypeAst");
+pub const TypeAst = DistinctEntity("Type Ast");
 pub const Type = DistinctEntity("Type");
 pub const Parameters = DistinctEntities("Parameters");
 pub const Body = DistinctEntities("Body");
 pub const Arguments = DistinctEntities("Arguments");
 pub const Overloads = DistinctEntities("Overloads");
-pub const TopLevel = DistinctEntityMap("TopLevel");
+pub const TopLevel = DistinctEntityMap("Top Level");
 pub const Path = DistinctEntity("Path");
 pub const Scope = DistinctEntityMap("Scope");
+pub const BasicBlocks = DistinctEntities("Basic Blocks");
+pub const Instructions = DistinctEntities("Instructions");
+pub const Result = DistinctEntity("Result");
 
 pub const AstKind = enum(u8) {
     symbol,
@@ -185,6 +188,10 @@ pub const BinaryOp = enum(u8) {
     add,
     multiply,
     dot,
+};
+
+pub const InstructionKind = enum(u8) {
+    call,
 };
 
 pub const Builtins = struct {

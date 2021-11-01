@@ -36,6 +36,7 @@ const Context = struct {
     fs: ECS,
     ast: Entity,
     function: Entity,
+    basic_block: Entity,
 };
 
 // NOTE:should this take in the active scopes for the current function?
@@ -78,22 +79,40 @@ fn lowerDot(context: Context, entity: Entity) !Entity {
     const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
     assert(overloads.len == 1);
     const function = overloads[0];
-    const new_context = Context{
-        .allocator = context.allocator,
-        .codebase = context.codebase,
-        .fs = context.fs,
-        .ast = ast,
-        .function = function,
-    };
-    assert(new_context.function.get(components.Parameters).entities.len == 0);
-    try lowerFunction(new_context);
-    const function_arguments = call.get(components.Arguments).slice();
-    for (function_arguments) |argument| {
-        _ = try lowerExpression(context, argument);
+    {
+        var basic_blocks = components.BasicBlocks.init(context.allocator);
+        const basic_block = try context.codebase.createEntity(.{
+            components.Instructions.init(context.allocator),
+        });
+        _ = try basic_blocks.append(basic_block);
+        _ = try function.set(.{basic_blocks});
+        const new_context = Context{
+            .allocator = context.allocator,
+            .codebase = context.codebase,
+            .fs = context.fs,
+            .ast = ast,
+            .function = function,
+            .basic_block = basic_block,
+        };
+        assert(new_context.function.get(components.Parameters).entities.len == 0);
+        try lowerFunction(new_context);
     }
-    // TODO: add a new expression to basic block which calls the function with the ast arguments
+    const call_arguments = call.get(components.Arguments).slice();
+    var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
+    for (call_arguments) |argument| {
+        function_arguments.appendAssumeCapacity(try lowerExpression(context, argument));
+    }
     const return_type = function.get(components.ReturnType).entity;
-    return try context.codebase.createEntity(.{components.Type.init(return_type)});
+    const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
+    const instructions = context.basic_block.getPtr(components.Instructions);
+    const instruction = try context.codebase.createEntity(.{
+        components.InstructionKind.call,
+        components.Callable.init(function),
+        function_arguments,
+        components.Result.init(result),
+    });
+    try instructions.append(instruction);
+    return result;
 }
 
 fn lowerBinaryOp(context: Context, entity: Entity) !Entity {
@@ -148,12 +167,21 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     const top_level = ast.get(components.TopLevel);
     const overloads = top_level.findString(function_name).get(components.Overloads).slice();
     assert(overloads.len == 1);
+    const allocator = &codebase.arena.allocator;
+    var basic_blocks = components.BasicBlocks.init(allocator);
+    const basic_block = try codebase.createEntity(.{
+        components.Instructions.init(allocator),
+    });
+    _ = try basic_blocks.append(basic_block);
+    const function = overloads[0];
+    _ = try function.set(.{basic_blocks});
     const context = Context{
-        .allocator = &codebase.arena.allocator,
+        .allocator = allocator,
         .codebase = codebase,
         .fs = fs,
         .ast = ast,
-        .function = overloads[0],
+        .function = function,
+        .basic_block = basic_block,
     };
     try lowerFunction(context);
     return ast;
@@ -180,9 +208,27 @@ test "call function from import" {
     const builtins = codebase.get(components.Builtins);
     const top_level = ir.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
     try expectEqual(start.get(components.Parameters).len(), 0);
     try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
-    const body = start.get(components.Body).slice();
-    try expectEqual(body.len, 1);
-    // TODO: the body should a function call whose callable component is baz from the bar module
+    const baz = blk: {
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.Instructions).slice();
+        try expectEqual(basic_block.len, 1);
+        const instruction = basic_block[0];
+        try expectEqual(instruction.get(components.InstructionKind), .call);
+        try expectEqual(typeOf(instruction.get(components.Result).entity), builtins.I64);
+        try expectEqual(instruction.get(components.Arguments).len(), 0);
+        break :blk instruction.get(components.Callable).entity;
+    };
+    try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
+    try expectEqual(baz.get(components.Parameters).len(), 0);
+    try expectEqual(baz.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = baz.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.Instructions).slice();
+    try expectEqual(basic_block.len, 0);
+    // const instruction = basic_block[0];
+    // try expectEqual(instruction.get(components.InstructionKind), .call);
 }
