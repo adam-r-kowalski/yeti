@@ -192,6 +192,8 @@ pub const BinaryOp = enum(u8) {
 
 pub const InstructionKind = enum(u8) {
     call,
+    int_const,
+    ret,
 };
 
 pub const Builtins = struct {

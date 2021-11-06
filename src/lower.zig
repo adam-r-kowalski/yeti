@@ -65,6 +65,16 @@ fn lowerSymbol(context: Context, entity: Entity) !Entity {
     panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
 }
 
+fn lowerInt(context: Context, entity: Entity) !Entity {
+    const instructions = context.basic_block.getPtr(components.Instructions);
+    const instruction = try context.codebase.createEntity(.{
+        components.InstructionKind.int_const,
+        components.Result.init(entity),
+    });
+    try instructions.append(instruction);
+    return entity;
+}
+
 fn lowerDot(context: Context, entity: Entity) !Entity {
     const dot_arguments = entity.get(components.Arguments).slice();
     const ast = try lowerExpression(context, dot_arguments[0]);
@@ -127,7 +137,7 @@ fn lowerExpression(context: Context, entity: Entity) error{OutOfMemory}!Entity {
     const kind = entity.get(components.AstKind);
     return switch (kind) {
         .symbol => try lowerSymbol(context, entity),
-        .int => entity,
+        .int => try lowerInt(context, entity),
         .binary_op => try lowerBinaryOp(context, entity),
         else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
     };
@@ -148,9 +158,16 @@ fn lowerFunctionReturnType(context: Context) !void {
 
 fn lowerFunctionBody(context: Context) !void {
     const body = context.function.get(components.Body).slice();
+    var return_entity: Entity = undefined;
     for (body) |expression| {
-        _ = try lowerExpression(context, expression);
+        return_entity = try lowerExpression(context, expression);
     }
+    const instructions = context.basic_block.getPtr(components.Instructions);
+    const instruction = try context.codebase.createEntity(.{
+        components.InstructionKind.ret,
+        components.Result.init(return_entity),
+    });
+    try instructions.append(instruction);
 }
 
 fn lowerFunction(context: Context) !void {
@@ -215,12 +232,16 @@ test "call function from import" {
         const basic_blocks = start.get(components.BasicBlocks).slice();
         try expectEqual(basic_blocks.len, 1);
         const basic_block = basic_blocks[0].get(components.Instructions).slice();
-        try expectEqual(basic_block.len, 1);
-        const instruction = basic_block[0];
-        try expectEqual(instruction.get(components.InstructionKind), .call);
-        try expectEqual(typeOf(instruction.get(components.Result).entity), builtins.I64);
-        try expectEqual(instruction.get(components.Arguments).len(), 0);
-        break :blk instruction.get(components.Callable).entity;
+        try expectEqual(basic_block.len, 2);
+        const call = basic_block[0];
+        try expectEqual(call.get(components.InstructionKind), .call);
+        const bar_baz = call.get(components.Result).entity;
+        try expectEqual(typeOf(bar_baz), builtins.I64);
+        try expectEqual(call.get(components.Arguments).len(), 0);
+        const ret = basic_block[1];
+        try expectEqual(ret.get(components.InstructionKind), .ret);
+        try expectEqual(ret.get(components.Result).entity, bar_baz);
+        break :blk call.get(components.Callable).entity;
     };
     try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
     try expectEqual(baz.get(components.Parameters).len(), 0);
@@ -228,7 +249,13 @@ test "call function from import" {
     const basic_blocks = baz.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.Instructions).slice();
-    try expectEqual(basic_block.len, 0);
-    // const instruction = basic_block[0];
-    // try expectEqual(instruction.get(components.InstructionKind), .call);
+    try expectEqual(basic_block.len, 2);
+    const int_const = basic_block[0];
+    try expectEqual(int_const.get(components.InstructionKind), .int_const);
+    const ten = int_const.get(components.Result).entity;
+    try expectEqualStrings(literalOf(ten), "10");
+    try expectEqual(typeOf(ten), builtins.IntLiteral);
+    const ret = basic_block[1];
+    try expectEqual(ret.get(components.InstructionKind), .ret);
+    try expectEqual(ret.get(components.Result).entity, ten);
 }
