@@ -151,12 +151,13 @@ fn lowerFunctionParameters(context: Context) !void {
     }
 }
 
-fn lowerFunctionReturnType(context: Context) !void {
+fn lowerFunctionReturnType(context: Context) !Entity {
     const return_type = try lowerExpression(context, context.function.get(components.ReturnTypeAst).entity);
     _ = try context.function.set(.{components.ReturnType.init(return_type)});
+    return return_type;
 }
 
-fn lowerFunctionBody(context: Context) !void {
+fn lowerFunctionBody(context: Context) !Entity {
     const body = context.function.get(components.Body).slice();
     var return_entity: Entity = undefined;
     for (body) |expression| {
@@ -168,12 +169,24 @@ fn lowerFunctionBody(context: Context) !void {
         components.Result.init(return_entity),
     });
     try instructions.append(instruction);
+    return return_entity;
 }
 
 fn lowerFunction(context: Context) !void {
     try lowerFunctionParameters(context);
-    try lowerFunctionReturnType(context);
-    try lowerFunctionBody(context);
+    const return_type = try lowerFunctionReturnType(context);
+    const return_entity = try lowerFunctionBody(context);
+    const return_entity_type = typeOf(return_entity);
+    if (eql(return_entity_type, return_type)) return;
+    const builtins = context.codebase.get(components.Builtins);
+    if (eql(return_entity_type, builtins.IntLiteral) and eql(return_type, builtins.I64)) {
+        _ = try return_entity.set(.{components.Type.init(builtins.I64)});
+        return;
+    }
+    panic("\n\nTYPE ERROR: declared return type {s} actual return type {s}\n\n", .{
+        literalOf(return_type),
+        literalOf(return_entity_type),
+    });
 }
 
 pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []const u8) !Entity {
@@ -254,7 +267,7 @@ test "call function from import" {
     try expectEqual(int_const.get(components.InstructionKind), .int_const);
     const ten = int_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(ten), "10");
-    try expectEqual(typeOf(ten), builtins.IntLiteral);
+    try expectEqual(typeOf(ten), builtins.I64);
     const ret = basic_block[1];
     try expectEqual(ret.get(components.InstructionKind), .ret);
     try expectEqual(ret.get(components.Result).entity, ten);

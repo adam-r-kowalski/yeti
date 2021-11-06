@@ -28,7 +28,7 @@ fn Component(comptime T: type) type {
         }
 
         fn set(self: *Self, entity: Entity, value: T) !void {
-            try self.lookup.putNoClobber(entity.uuid, self.data.len);
+            try self.lookup.put(entity.uuid, self.data.len);
             try self.data.append(value);
         }
 
@@ -146,6 +146,8 @@ test "entity get and set component" {
     const entity = try ecs.createEntity(.{});
     _ = try entity.set(.{Name{ .value = "Joe" }});
     try expectEqual(entity.get(Name), Name{ .value = "Joe" });
+    _ = try entity.set(.{Name{ .value = "Bob" }});
+    try expectEqual(entity.get(Name), Name{ .value = "Bob" });
 }
 
 test "entity get and set components" {
