@@ -9,9 +9,7 @@ const assert = std.debug.assert;
 
 const init_codebase = @import("init_codebase.zig");
 const initCodebase = init_codebase.initCodebase;
-const file_system = @import("file_system.zig");
-const initFileSystem = file_system.initFileSystem;
-const newFile = file_system.newFile;
+const FileSystem = @import("file_system.zig").FileSystem;
 const lower = @import("lower.zig").lower;
 const codegen = @import("codegen.zig").codegen;
 const ecs = @import("ecs.zig");
@@ -73,8 +71,8 @@ test "wasm string int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try initFileSystem(&arena);
-    _ = try newFile(&fs, "foo.yeti",
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
         \\start = function(): I64
         \\  5
         \\end
@@ -96,8 +94,8 @@ test "wasm string call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try initFileSystem(&arena);
-    _ = try newFile(&fs, "foo.yeti",
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
         \\start = function(): I64
         \\  baz()
         \\end
@@ -116,6 +114,39 @@ test "wasm string call local function" {
         \\    (call $foo/baz))
         \\
         \\  (func $foo/baz (result i64)
+        \\    (i64.const 10))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "wasm string call function from import" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\bar = import("bar.yeti")
+        \\
+        \\start = function(): I64
+        \\  bar.baz()
+        \\end
+    );
+    _ = try fs.newFile("bar.yeti",
+        \\baz = function(): I64
+        \\  10
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(codebase, ir);
+    const wasm_string = try wasmString(codebase, wasm);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (call $bar/baz))
+        \\
+        \\  (func $bar/baz (result i64)
         \\    (i64.const 10))
         \\
         \\(export "_start" (func $foo/start)))

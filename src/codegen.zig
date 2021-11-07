@@ -9,9 +9,7 @@ const assert = std.debug.assert;
 
 const init_codebase = @import("init_codebase.zig");
 const initCodebase = init_codebase.initCodebase;
-const file_system = @import("file_system.zig");
-const initFileSystem = file_system.initFileSystem;
-const newFile = file_system.newFile;
+const FileSystem = @import("file_system.zig").FileSystem;
 const lower = @import("lower.zig").lower;
 const ecs = @import("ecs.zig");
 const Entity = ecs.Entity;
@@ -101,8 +99,8 @@ test "codegen int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try initFileSystem(&arena);
-    _ = try newFile(&fs, "foo.yeti",
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
         \\start = function(): I64
         \\  5
         \\end
@@ -122,8 +120,8 @@ test "codegen call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try initFileSystem(&arena);
-    _ = try newFile(&fs, "foo.yeti",
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
         \\start = function(): I64
         \\  baz()
         \\end
@@ -137,6 +135,40 @@ test "codegen call local function" {
     const top_level = wasm.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 1);
+    const call = start_instructions[0];
+    try expectEqual(call.get(components.WasmInstructionKind), .call);
+    const baz = call.get(components.Callable).entity;
+    const baz_instructions = baz.get(components.WasmInstructions).slice();
+    try expectEqual(baz_instructions.len, 1);
+    const i64_const = baz_instructions[0];
+    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+    try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+}
+
+test "codegen call function from import" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\bar = import("bar.yeti")
+        \\
+        \\start = function(): I64
+        \\  bar.baz()
+        \\end
+    );
+    _ = try fs.newFile("bar.yeti",
+        \\baz = function(): I64
+        \\  10
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(codebase, ir);
+    const top_level = wasm.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 1);
     try expectEqual(start_instructions.len, 1);
     const call = start_instructions[0];
     try expectEqual(call.get(components.WasmInstructionKind), .call);

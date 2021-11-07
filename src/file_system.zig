@@ -44,44 +44,48 @@ const Lookup = struct {
     }
 };
 
-pub fn initFileSystem(arena: *Arena) !ECS {
-    var ecs = ECS.init(arena);
-    try ecs.set(.{
-        Files.init(arena),
-        Lookup.init(arena),
-    });
-    return ecs;
-}
+pub const FileSystem = struct {
+    ecs: ECS,
 
-pub fn newFile(self: *ECS, name: []const u8, contents: []const u8) !Entity {
-    const file = try self.createEntity(.{
-        File.init(name),
-        Contents.init(contents),
-    });
-    try self.getPtr(Files).entities.append(file);
-    try self.getPtr(Lookup).map.putNoClobber(name, file);
-    return file;
-}
+    pub fn init(arena: *Arena) !FileSystem {
+        var ecs = ECS.init(arena);
+        try ecs.set(.{
+            Files.init(arena),
+            Lookup.init(arena),
+        });
+        return FileSystem{ .ecs = ecs };
+    }
 
-pub fn read(self: ECS, name: []const u8) []const u8 {
-    const file = self.get(Lookup).map.get(name).?;
-    return file.get(Contents).bytes;
-}
+    pub fn newFile(self: *FileSystem, name: []const u8, contents: []const u8) !Entity {
+        const file = try self.ecs.createEntity(.{
+            File.init(name),
+            Contents.init(contents),
+        });
+        try self.ecs.getPtr(Files).entities.append(file);
+        try self.ecs.getPtr(Lookup).map.putNoClobber(name, file);
+        return file;
+    }
+
+    pub fn read(self: FileSystem, name: []const u8) []const u8 {
+        const file = self.ecs.get(Lookup).map.get(name).?;
+        return file.get(Contents).bytes;
+    }
+};
 
 test "filesystem create and lookup file" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    var fs = try initFileSystem(&arena);
-    const foo = try newFile(&fs, "foo.yeti",
+    var fs = try FileSystem.init(&arena);
+    const foo = try fs.newFile("foo.yeti",
         \\a = function(): U64 10 end
         \\
         \\b = function(): U64 a() end
     );
-    _ = try newFile(&fs, "bar.yeti",
+    _ = try fs.newFile("bar.yeti",
         \\c = function(): U64 d() end
         \\
         \\d = function(): U64 5 end
     );
-    const contents = read(fs, "foo.yeti");
+    const contents = fs.read("foo.yeti");
     try expectEqualStrings(foo.get(Contents).bytes, contents);
 }

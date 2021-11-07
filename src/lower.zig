@@ -20,27 +20,25 @@ const Strings = strings.Strings;
 const InternedString = strings.InternedString;
 const tokenize = @import("tokenizer.zig").tokenize;
 const parse = @import("parser.zig").parse;
-const file_system = @import("file_system.zig");
-const FileSystem = file_system.FileSystem;
-const initFileSystem = file_system.initFileSystem;
-const read = file_system.read;
-const newFile = file_system.newFile;
+const FileSystem = @import("file_system.zig").FileSystem;
 const components = @import("components.zig");
 const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
 const typeOf = test_utils.typeOf;
 
-const Context = struct {
-    allocator: *Allocator,
-    codebase: *ECS,
-    fs: ECS,
-    ast: Entity,
-    function: Entity,
-    basic_block: Entity,
-};
+fn Context(comptime FS: type) type {
+    return struct {
+        allocator: *Allocator,
+        codebase: *ECS,
+        fs: FS,
+        ast: Entity,
+        function: Entity,
+        basic_block: Entity,
+    };
+}
 
 // NOTE:should this take in the active scopes for the current function?
-fn lowerSymbol(context: Context, entity: Entity) !Entity {
+fn lowerSymbol(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     // TODO:lookup symbol from local variables of current function
     const literal = entity.get(components.Literal);
     const global_scope = context.codebase.get(components.Scope);
@@ -54,7 +52,7 @@ fn lowerSymbol(context: Context, entity: Entity) !Entity {
         switch (kind) {
             .import => {
                 const module_name = literalOf(top_level.get(components.Path).entity);
-                const contents = read(context.fs, module_name);
+                const contents = context.fs.read(module_name);
                 var tokens = try tokenize(context.codebase, contents);
                 // TODO:cache the ast into ir module component
                 const ast = try parse(context.codebase, &tokens);
@@ -68,7 +66,7 @@ fn lowerSymbol(context: Context, entity: Entity) !Entity {
     panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
 }
 
-fn lowerInt(context: Context, entity: Entity) !Entity {
+fn lowerInt(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     const instructions = context.basic_block.getPtr(components.IrInstructions);
     const instruction = try context.codebase.createEntity(.{
         components.IrInstructionKind.int_const,
@@ -78,9 +76,9 @@ fn lowerInt(context: Context, entity: Entity) !Entity {
     return entity;
 }
 
-fn lowerDot(context: Context, entity: Entity) !Entity {
+fn lowerDot(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     const dot_arguments = entity.get(components.Arguments).slice();
-    const ast = try lowerExpression(context, dot_arguments[0]);
+    const ast = try lowerExpression(FS, context, dot_arguments[0]);
     assert(eql(typeOf(ast), context.codebase.get(components.Builtins).Module));
     const call = dot_arguments[1];
     assert(call.get(components.AstKind) == .call);
@@ -99,7 +97,7 @@ fn lowerDot(context: Context, entity: Entity) !Entity {
         });
         _ = try basic_blocks.append(basic_block);
         _ = try function.set(.{basic_blocks});
-        const new_context = Context{
+        const new_context = Context(FS){
             .allocator = context.allocator,
             .codebase = context.codebase,
             .fs = context.fs,
@@ -108,12 +106,12 @@ fn lowerDot(context: Context, entity: Entity) !Entity {
             .basic_block = basic_block,
         };
         assert(new_context.function.get(components.Parameters).entities.len == 0);
-        try lowerFunction(new_context);
+        try lowerFunction(FS, new_context);
     }
     const call_arguments = call.get(components.Arguments).slice();
     var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
     for (call_arguments) |argument| {
-        function_arguments.appendAssumeCapacity(try lowerExpression(context, argument));
+        function_arguments.appendAssumeCapacity(try lowerExpression(FS, context, argument));
     }
     const return_type = function.get(components.ReturnType).entity;
     const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
@@ -128,15 +126,15 @@ fn lowerDot(context: Context, entity: Entity) !Entity {
     return result;
 }
 
-fn lowerBinaryOp(context: Context, entity: Entity) !Entity {
+fn lowerBinaryOp(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     const binary_op = entity.get(components.BinaryOp);
     return switch (binary_op) {
-        .dot => lowerDot(context, entity),
+        .dot => lowerDot(FS, context, entity),
         else => panic("\nlowerBinaryOp unsupported binary op {}\n", .{binary_op}),
     };
 }
 
-fn lowerCall(context: Context, call: Entity) !Entity {
+fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
     const callable = call.get(components.Callable).entity;
     const top_level = context.ast.get(components.TopLevel);
     const literal = callable.get(components.Literal);
@@ -150,7 +148,7 @@ fn lowerCall(context: Context, call: Entity) !Entity {
         });
         _ = try basic_blocks.append(basic_block);
         _ = try function.set(.{basic_blocks});
-        const new_context = Context{
+        const new_context = Context(FS){
             .allocator = context.allocator,
             .codebase = context.codebase,
             .fs = context.fs,
@@ -159,12 +157,12 @@ fn lowerCall(context: Context, call: Entity) !Entity {
             .basic_block = basic_block,
         };
         assert(new_context.function.get(components.Parameters).entities.len == 0);
-        try lowerFunction(new_context);
+        try lowerFunction(FS, new_context);
     }
     const call_arguments = call.get(components.Arguments).slice();
     var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
     for (call_arguments) |argument| {
-        function_arguments.appendAssumeCapacity(try lowerExpression(context, argument));
+        function_arguments.appendAssumeCapacity(try lowerExpression(FS, context, argument));
     }
     const return_type = function.get(components.ReturnType).entity;
     const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
@@ -179,36 +177,36 @@ fn lowerCall(context: Context, call: Entity) !Entity {
     return result;
 }
 
-fn lowerExpression(context: Context, entity: Entity) error{OutOfMemory}!Entity {
+fn lowerExpression(comptime FS: type, context: Context(FS), entity: Entity) error{OutOfMemory}!Entity {
     const kind = entity.get(components.AstKind);
     return switch (kind) {
-        .symbol => try lowerSymbol(context, entity),
-        .int => try lowerInt(context, entity),
-        .binary_op => try lowerBinaryOp(context, entity),
-        .call => try lowerCall(context, entity),
+        .symbol => try lowerSymbol(FS, context, entity),
+        .int => try lowerInt(FS, context, entity),
+        .binary_op => try lowerBinaryOp(FS, context, entity),
+        .call => try lowerCall(FS, context, entity),
         else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
     };
 }
 
-fn lowerFunctionParameters(context: Context) !void {
+fn lowerFunctionParameters(comptime FS: type, context: Context(FS)) !void {
     const parameters = context.function.get(components.Parameters).slice();
     for (parameters) |parameter| {
-        const parameter_type = try lowerExpression(context, parameter.get(components.TypeAst).entity);
+        const parameter_type = try lowerExpression(FS, context, parameter.get(components.TypeAst).entity);
         _ = try parameter.set(.{components.Type.init(parameter_type)});
     }
 }
 
-fn lowerFunctionReturnType(context: Context) !Entity {
-    const return_type = try lowerExpression(context, context.function.get(components.ReturnTypeAst).entity);
+fn lowerFunctionReturnType(comptime FS: type, context: Context(FS)) !Entity {
+    const return_type = try lowerExpression(FS, context, context.function.get(components.ReturnTypeAst).entity);
     _ = try context.function.set(.{components.ReturnType.init(return_type)});
     return return_type;
 }
 
-fn lowerFunctionBody(context: Context) !Entity {
+fn lowerFunctionBody(comptime FS: type, context: Context(FS)) !Entity {
     const body = context.function.get(components.Body).slice();
     var return_entity: Entity = undefined;
     for (body) |expression| {
-        return_entity = try lowerExpression(context, expression);
+        return_entity = try lowerExpression(FS, context, expression);
     }
     const instructions = context.basic_block.getPtr(components.IrInstructions);
     const instruction = try context.codebase.createEntity(.{
@@ -219,12 +217,12 @@ fn lowerFunctionBody(context: Context) !Entity {
     return return_entity;
 }
 
-fn lowerFunction(context: Context) !void {
+fn lowerFunction(comptime FS: type, context: Context(FS)) !void {
     _ = try context.function.set(.{components.Module.init(context.ast)});
     _ = try context.codebase.getPtr(components.Functions).append(context.function);
-    try lowerFunctionParameters(context);
-    const return_type = try lowerFunctionReturnType(context);
-    const return_entity = try lowerFunctionBody(context);
+    try lowerFunctionParameters(FS, context);
+    const return_type = try lowerFunctionReturnType(FS, context);
+    const return_entity = try lowerFunctionBody(FS, context);
     const return_entity_type = typeOf(return_entity);
     if (eql(return_entity_type, return_type)) return;
     const builtins = context.codebase.get(components.Builtins);
@@ -238,10 +236,11 @@ fn lowerFunction(context: Context) !void {
     });
 }
 
-pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []const u8) !Entity {
+pub fn lower(codebase: *ECS, fs: anytype, module_name: []const u8, function_name: []const u8) !Entity {
+    const FS = @TypeOf(fs);
     try initBuiltins(codebase);
     _ = try codebase.set(.{components.Functions.init(&codebase.arena.allocator)});
-    const contents = read(fs, module_name);
+    const contents = fs.read(module_name);
     var tokens = try tokenize(codebase, contents);
     const ast = try parse(codebase, &tokens);
     const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
@@ -257,7 +256,7 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     _ = try basic_blocks.append(basic_block);
     const function = overloads[0];
     _ = try function.set(.{basic_blocks});
-    const context = Context{
+    const context = Context(FS){
         .allocator = allocator,
         .codebase = codebase,
         .fs = fs,
@@ -265,7 +264,7 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
         .function = function,
         .basic_block = basic_block,
     };
-    try lowerFunction(context);
+    try lowerFunction(FS, context);
     return ast;
 }
 
@@ -273,8 +272,8 @@ test "lower int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try initFileSystem(&arena);
-    _ = try newFile(&fs, "foo.yeti",
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
         \\start = function(): I64
         \\  5
         \\end
@@ -305,8 +304,8 @@ test "lower call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try initFileSystem(&arena);
-    _ = try newFile(&fs, "foo.yeti",
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
         \\start = function(): I64
         \\  baz()
         \\end
@@ -360,15 +359,15 @@ test "call function from import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try initFileSystem(&arena);
-    _ = try newFile(&fs, "foo.yeti",
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
         \\bar = import("bar.yeti")
         \\
         \\start = function(): I64
         \\  bar.baz()
         \\end
     );
-    _ = try newFile(&fs, "bar.yeti",
+    _ = try fs.newFile("bar.yeti",
         \\baz = function(): I64
         \\  10
         \\end
