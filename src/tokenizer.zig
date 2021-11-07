@@ -40,6 +40,7 @@ const Source = struct {
         var i: u64 = 0;
         while (i < self.code.len) : (i += 1) {
             switch (self.code[i]) {
+                '\r' => continue,
                 ' ' => self.position.column += 1,
                 '\n' => {
                     self.position.column = 0;
@@ -124,6 +125,7 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
             '>',
             ',',
             '\n',
+            '\r',
             '.',
             => break,
             else => continue,
