@@ -19,19 +19,18 @@ const ECS = ecs.ECS;
 const components = @import("components.zig");
 const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
-const List = @import("list.zig").List;
 
 const Context = struct {
     codebase: *ECS,
     wasm_instructions: *components.WasmInstructions,
     allocator: *Allocator,
+    builtins: components.Builtins,
 };
 
 fn codegenIntConst(context: Context, ir_instruction: Entity) !Entity {
-    const builtins = context.codebase.get(components.Builtins);
     const int_const = ir_instruction.get(components.Result).entity;
     const type_of = int_const.get(components.Type).entity;
-    if (eql(type_of, builtins.I64)) {
+    if (eql(type_of, context.builtins.I64)) {
         const wasm_instruction = try context.codebase.createEntity(.{
             components.WasmInstructionKind.i64_const,
             components.Result.init(int_const),
@@ -41,6 +40,27 @@ fn codegenIntConst(context: Context, ir_instruction: Entity) !Entity {
     } else {
         panic("\ncompiler bug in codegen int_const\n", .{});
     }
+}
+
+fn codegenCall(context: Context, ir_instruction: Entity) !Entity {
+    for (ir_instruction.get(components.Arguments).slice()) |argument| {
+        const type_ = argument.get(components.Type).entity;
+        if (eql(type_, context.builtins.I64)) {
+            const wasm_instruction = try context.codebase.createEntity(.{
+                components.WasmInstructionKind.i64_const,
+                components.Result.init(argument),
+            });
+            _ = try context.wasm_instructions.append(wasm_instruction);
+        } else {
+            panic("codegen call unsupported argument type", .{});
+        }
+    }
+    const wasm_instruction = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.call,
+        ir_instruction.get(components.Callable),
+    });
+    _ = try context.wasm_instructions.append(wasm_instruction);
+    return ir_instruction.get(components.Result).entity;
 }
 
 fn codegenRet(ir_instruction: Entity, on_stack: Entity) !void {
@@ -56,6 +76,7 @@ pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
             .codebase = codebase,
             .wasm_instructions = &wasm_instructions,
             .allocator = allocator,
+            .builtins = codebase.get(components.Builtins),
         };
         const basic_blocks = function.get(components.BasicBlocks).slice();
         try expectEqual(basic_blocks.len, 1);
@@ -66,8 +87,9 @@ pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
             const kind = ir_instruction.get(components.IrInstructionKind);
             switch (kind) {
                 .int_const => on_stack = try codegenIntConst(context, ir_instruction),
+                .call => on_stack = try codegenCall(context, ir_instruction),
                 .ret => try codegenRet(ir_instruction, on_stack),
-                else => panic("\nunsupported instruction kind {}\n", .{kind}),
+                // else => panic("\nunsupported instruction kind {}\n", .{kind}),
             }
         }
         _ = try function.set(.{wasm_instructions});
@@ -75,38 +97,7 @@ pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
     return ir;
 }
 
-pub fn wasmString(codebase: *ECS, wasm: Entity) ![]u8 {
-    var string = List(u8, .{}).init(&codebase.arena.allocator);
-    try string.appendSlice("(module");
-    for (codebase.get(components.Functions).slice()) |function| {
-        try string.appendSlice("\n\n  (func $");
-        const module_name = literalOf(function.get(components.Module).entity);
-        try string.appendSlice(module_name);
-        try string.append('/');
-        const function_name = literalOf(function.get(components.Name).entity);
-        try string.appendSlice(function_name);
-        try string.appendSlice(" (result ");
-        const return_type = literalOf(function.get(components.ReturnType).entity);
-        try string.appendSlice(return_type);
-        try string.append(')');
-        for (function.get(components.WasmInstructions).slice()) |wasm_instruction| {
-            switch (wasm_instruction.get(components.WasmInstructionKind)) {
-                .i64_const => {
-                    try string.appendSlice("\n    (i64.const ");
-                    try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
-                    try string.append(')');
-                },
-            }
-        }
-        try string.append(')');
-    }
-    try string.appendSlice("\n\n(export \"_start\" (func $");
-    try string.appendSlice(literalOf(wasm));
-    try string.appendSlice("/start)))");
-    return string.mutSlice();
-}
-
-test "return int literal" {
+test "codegen int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -125,15 +116,34 @@ test "return int literal" {
     const i64_const = wasm_instructions[0];
     try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
     try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "5");
-    const wasm_string = try wasmString(codebase, wasm);
-    // TODO: the (result I64) should be (result i64)
-    // TODO: map yeti types to wasm types
-    try expectEqualStrings(wasm_string,
-        \\(module
+}
+
+test "codegen call local function" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try initFileSystem(&arena);
+    _ = try newFile(&fs, "foo.yeti",
+        \\start = function(): I64
+        \\  baz()
+        \\end
         \\
-        \\  (func $foo/start (result I64)
-        \\    (i64.const 5))
-        \\
-        \\(export "_start" (func $foo/start)))
+        \\baz = function(): I64
+        \\  10
+        \\end
     );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(codebase, ir);
+    const top_level = wasm.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 1);
+    const call = start_instructions[0];
+    try expectEqual(call.get(components.WasmInstructionKind), .call);
+    const baz = call.get(components.Callable).entity;
+    const baz_instructions = baz.get(components.WasmInstructions).slice();
+    try expectEqual(baz_instructions.len, 1);
+    const i64_const = baz_instructions[0];
+    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+    try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
 }

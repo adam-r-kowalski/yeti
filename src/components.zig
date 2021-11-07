@@ -201,6 +201,7 @@ pub const IrInstructionKind = enum(u8) {
 
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
+    call,
 };
 
 pub const Builtins = struct {

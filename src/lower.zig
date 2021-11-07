@@ -269,7 +269,7 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     return ast;
 }
 
-test "return int literal" {
+test "lower int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -301,7 +301,7 @@ test "return int literal" {
     try expectEqual(ret.get(components.Result).entity, five);
 }
 
-test "call local function" {
+test "lower call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);

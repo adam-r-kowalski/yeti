@@ -10,6 +10,7 @@ pub const parse = @import("parser.zig").parse;
 pub const Strings = @import("strings.zig").Strings;
 pub const tokenize = @import("tokenizer.zig").tokenize;
 pub const typeid = @import("typeid.zig").typeid;
+pub const wasmString = @import("wasm_string.zig").wasmString;
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
