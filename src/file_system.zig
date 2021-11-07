@@ -66,7 +66,7 @@ pub const FileSystem = struct {
         return file;
     }
 
-    pub fn read(self: FileSystem, name: []const u8) []const u8 {
+    pub fn read(self: FileSystem, name: []const u8) error{ OutOfMemory, CantOpenFile }![]const u8 {
         const file = self.ecs.get(Lookup).map.get(name).?;
         return file.get(Contents).bytes;
     }
@@ -86,6 +86,6 @@ test "filesystem create and lookup file" {
         \\
         \\d = function(): U64 5 end
     );
-    const contents = fs.read("foo.yeti");
+    const contents = try fs.read("foo.yeti");
     try expectEqualStrings(foo.get(Contents).bytes, contents);
 }

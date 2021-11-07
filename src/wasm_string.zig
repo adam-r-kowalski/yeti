@@ -7,8 +7,7 @@ const eql = std.meta.eql;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 
-const init_codebase = @import("init_codebase.zig");
-const initCodebase = init_codebase.initCodebase;
+const initCodebase = @import("init_codebase.zig").initCodebase;
 const FileSystem = @import("file_system.zig").FileSystem;
 const lower = @import("lower.zig").lower;
 const codegen = @import("codegen.zig").codegen;

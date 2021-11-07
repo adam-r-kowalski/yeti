@@ -52,7 +52,7 @@ fn lowerSymbol(comptime FS: type, context: Context(FS), entity: Entity) !Entity 
         switch (kind) {
             .import => {
                 const module_name = literalOf(top_level.get(components.Path).entity);
-                const contents = context.fs.read(module_name);
+                const contents = try context.fs.read(module_name);
                 var tokens = try tokenize(context.codebase, contents);
                 // TODO:cache the ast into ir module component
                 const ast = try parse(context.codebase, &tokens);
@@ -177,7 +177,7 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
     return result;
 }
 
-fn lowerExpression(comptime FS: type, context: Context(FS), entity: Entity) error{OutOfMemory}!Entity {
+fn lowerExpression(comptime FS: type, context: Context(FS), entity: Entity) error{ OutOfMemory, CantOpenFile }!Entity {
     const kind = entity.get(components.AstKind);
     return switch (kind) {
         .symbol => try lowerSymbol(FS, context, entity),
@@ -240,7 +240,7 @@ pub fn lower(codebase: *ECS, fs: anytype, module_name: []const u8, function_name
     const FS = @TypeOf(fs);
     try initBuiltins(codebase);
     _ = try codebase.set(.{components.Functions.init(&codebase.arena.allocator)});
-    const contents = fs.read(module_name);
+    const contents = try fs.read(module_name);
     var tokens = try tokenize(codebase, contents);
     const ast = try parse(codebase, &tokens);
     const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
