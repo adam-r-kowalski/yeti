@@ -3,6 +3,7 @@ const Allocator = std.mem.Allocator;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualSlices = std.testing.expectEqualSlices;
+const expectEqualStrings = std.testing.expectEqualStrings;
 const panic = std.debug.panic;
 const assert = std.debug.assert;
 
@@ -66,6 +67,28 @@ pub fn List(comptime T: type, comptime config: Config) type {
             assert(self.len < self.items.len);
             self.items[self.len] = value;
             self.len += 1;
+        }
+
+        pub fn appendSlice(self: *Self, value: []const T) !void {
+            const needed_length = self.len + value.len;
+            if (self.items.len < needed_length) {
+                var capacity = std.math.max(
+                    self.len * config.grown_factor,
+                    config.initial_capacity,
+                );
+                while (capacity < needed_length) {
+                    capacity *= config.grown_factor;
+                }
+                const items = try self.allocator.alloc(T, capacity);
+                std.mem.copy(T, items, self.items);
+                self.allocator.free(self.items);
+                self.items = items;
+            }
+            var i: u64 = 0;
+            while (i < value.len) : (i += 1) {
+                self.items[self.len + i] = value[i];
+            }
+            self.len += value.len;
         }
 
         pub fn deinit(self: *Self) void {
@@ -146,4 +169,20 @@ test "list fill double initial_capacity" {
     while (i < fill) : (i += 1) {
         try expectEqual(items[i], i);
     }
+}
+
+test "list appendSlice" {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer expect(!gpa.deinit()) catch panic("MEMORY LEAK!!!", .{});
+    const allocator = &gpa.allocator;
+    var list = List(u8, .{ .initial_capacity = 2 }).init(allocator);
+    defer list.deinit();
+    try list.appendSlice("hello");
+    try expectEqual(list.len, 5);
+    try expectEqual(list.items.len, 8);
+    try expectEqualStrings(list.slice(), "hello");
+    try list.appendSlice(" world");
+    try expectEqual(list.len, 11);
+    try expectEqual(list.items.len, 20);
+    try expectEqualStrings(list.slice(), "hello world");
 }

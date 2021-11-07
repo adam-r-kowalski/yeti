@@ -170,10 +170,11 @@ pub const TopLevel = DistinctEntityMap("Top Level");
 pub const Path = DistinctEntity("Path");
 pub const Scope = DistinctEntityMap("Scope");
 pub const BasicBlocks = DistinctEntities("Basic Blocks");
-pub const Instructions = DistinctEntities("Instructions");
+pub const IrInstructions = DistinctEntities("Ir Instructions");
 pub const Result = DistinctEntity("Result");
 pub const Module = DistinctEntity("Module");
 pub const Functions = DistinctEntities("Functions");
+pub const WasmInstructions = DistinctEntities("Wasm Instructions");
 
 pub const AstKind = enum(u8) {
     symbol,
@@ -192,10 +193,14 @@ pub const BinaryOp = enum(u8) {
     dot,
 };
 
-pub const InstructionKind = enum(u8) {
+pub const IrInstructionKind = enum(u8) {
     call,
     int_const,
     ret,
+};
+
+pub const WasmInstructionKind = enum(u8) {
+    i64_const,
 };
 
 pub const Builtins = struct {
