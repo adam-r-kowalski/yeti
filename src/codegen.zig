@@ -11,7 +11,10 @@ const Entity = ecs.Entity;
 const ECS = ecs.ECS;
 const components = @import("components.zig");
 
-fn codegen(_: *ECS, ir: Entity) !Entity {
+fn codegen(codebase: *ECS, ir: Entity) !Entity {
+    for (codebase.get(components.Functions).slice()) |function| {
+        std.debug.warn("\nfunction uuid {}\n", .{function.uuid});
+    }
     return ir;
 }
 

@@ -173,6 +173,7 @@ pub const BasicBlocks = DistinctEntities("Basic Blocks");
 pub const Instructions = DistinctEntities("Instructions");
 pub const Result = DistinctEntity("Result");
 pub const Module = DistinctEntity("Module");
+pub const Functions = DistinctEntities("Functions");
 
 pub const AstKind = enum(u8) {
     symbol,

@@ -221,6 +221,7 @@ fn lowerFunctionBody(context: Context) !Entity {
 
 fn lowerFunction(context: Context) !void {
     _ = try context.function.set(.{components.Module.init(context.ast)});
+    _ = try context.codebase.getPtr(components.Functions).append(context.function);
     try lowerFunctionParameters(context);
     const return_type = try lowerFunctionReturnType(context);
     const return_entity = try lowerFunctionBody(context);
@@ -239,6 +240,7 @@ fn lowerFunction(context: Context) !void {
 
 pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []const u8) !Entity {
     try initBuiltins(codebase);
+    _ = try codebase.set(.{components.Functions.init(&codebase.arena.allocator)});
     const contents = read(fs, module_name);
     var tokens = try tokenize(codebase, contents);
     const ast = try parse(codebase, &tokens);
