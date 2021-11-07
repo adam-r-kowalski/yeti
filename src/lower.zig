@@ -57,7 +57,10 @@ fn lowerSymbol(context: Context, entity: Entity) !Entity {
                 const contents = read(context.fs, module_name);
                 var tokens = try tokenize(context.codebase, contents);
                 // TODO:cache the ast into ir module component
-                return try parse(context.codebase, &tokens);
+                const ast = try parse(context.codebase, &tokens);
+                const interned = try context.codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
+                _ = try ast.set(.{components.Literal.init(interned)});
+                return ast;
             },
             else => panic("\nlowerSumbol unspported top level kind {}\n", .{kind}),
         }
@@ -217,6 +220,7 @@ fn lowerFunctionBody(context: Context) !Entity {
 }
 
 fn lowerFunction(context: Context) !void {
+    _ = try context.function.set(.{components.Module.init(context.ast)});
     try lowerFunctionParameters(context);
     const return_type = try lowerFunctionReturnType(context);
     const return_entity = try lowerFunctionBody(context);
@@ -238,6 +242,8 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     const contents = read(fs, module_name);
     var tokens = try tokenize(codebase, contents);
     const ast = try parse(codebase, &tokens);
+    const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
+    _ = try ast.set(.{components.Literal.init(interned)});
     const top_level = ast.get(components.TopLevel);
     const overloads = top_level.findString(function_name).get(components.Overloads).slice();
     assert(overloads.len == 1);
@@ -275,6 +281,7 @@ test "return int literal" {
     const builtins = codebase.get(components.Builtins);
     const top_level = ir.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
     try expectEqual(start.get(components.Parameters).len(), 0);
     try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
@@ -310,6 +317,7 @@ test "call local function" {
     const builtins = codebase.get(components.Builtins);
     const top_level = ir.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
     try expectEqual(start.get(components.Parameters).len(), 0);
     try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
@@ -328,6 +336,7 @@ test "call local function" {
         try expectEqual(ret.get(components.Result).entity, result);
         break :blk call.get(components.Callable).entity;
     };
+    try expectEqualStrings(literalOf(baz.get(components.Module).entity), "foo");
     try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
     try expectEqual(baz.get(components.Parameters).len(), 0);
     try expectEqual(baz.get(components.ReturnType).entity, builtins.I64);
@@ -366,6 +375,7 @@ test "call function from import" {
     const builtins = codebase.get(components.Builtins);
     const top_level = ir.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
     try expectEqual(start.get(components.Parameters).len(), 0);
     try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
@@ -384,6 +394,7 @@ test "call function from import" {
         try expectEqual(ret.get(components.Result).entity, bar_baz);
         break :blk call.get(components.Callable).entity;
     };
+    try expectEqualStrings(literalOf(baz.get(components.Module).entity), "bar");
     try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
     try expectEqual(baz.get(components.Parameters).len(), 0);
     try expectEqual(baz.get(components.ReturnType).entity, builtins.I64);

@@ -172,6 +172,7 @@ pub const Scope = DistinctEntityMap("Scope");
 pub const BasicBlocks = DistinctEntities("Basic Blocks");
 pub const Instructions = DistinctEntities("Instructions");
 pub const Result = DistinctEntity("Result");
+pub const Module = DistinctEntity("Module");
 
 pub const AstKind = enum(u8) {
     symbol,
