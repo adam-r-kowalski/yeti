@@ -133,12 +133,56 @@ fn lowerBinaryOp(context: Context, entity: Entity) !Entity {
     };
 }
 
+fn lowerCall(context: Context, call: Entity) !Entity {
+    const callable = call.get(components.Callable).entity;
+    const top_level = context.ast.get(components.TopLevel);
+    const literal = callable.get(components.Literal);
+    const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
+    assert(overloads.len == 1);
+    const function = overloads[0];
+    {
+        var basic_blocks = components.BasicBlocks.init(context.allocator);
+        const basic_block = try context.codebase.createEntity(.{
+            components.Instructions.init(context.allocator),
+        });
+        _ = try basic_blocks.append(basic_block);
+        _ = try function.set(.{basic_blocks});
+        const new_context = Context{
+            .allocator = context.allocator,
+            .codebase = context.codebase,
+            .fs = context.fs,
+            .ast = context.ast,
+            .function = function,
+            .basic_block = basic_block,
+        };
+        assert(new_context.function.get(components.Parameters).entities.len == 0);
+        try lowerFunction(new_context);
+    }
+    const call_arguments = call.get(components.Arguments).slice();
+    var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
+    for (call_arguments) |argument| {
+        function_arguments.appendAssumeCapacity(try lowerExpression(context, argument));
+    }
+    const return_type = function.get(components.ReturnType).entity;
+    const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
+    const instructions = context.basic_block.getPtr(components.Instructions);
+    const instruction = try context.codebase.createEntity(.{
+        components.InstructionKind.call,
+        components.Callable.init(function),
+        function_arguments,
+        components.Result.init(result),
+    });
+    try instructions.append(instruction);
+    return result;
+}
+
 fn lowerExpression(context: Context, entity: Entity) error{OutOfMemory}!Entity {
     const kind = entity.get(components.AstKind);
     return switch (kind) {
         .symbol => try lowerSymbol(context, entity),
         .int => try lowerInt(context, entity),
         .binary_op => try lowerBinaryOp(context, entity),
+        .call => try lowerCall(context, entity),
         else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
     };
 }
@@ -215,6 +259,90 @@ pub fn lower(codebase: *ECS, fs: ECS, module_name: []const u8, function_name: []
     };
     try lowerFunction(context);
     return ast;
+}
+
+test "return int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try initFileSystem(&arena);
+    _ = try newFile(&fs, "foo.yeti",
+        \\start = function(): I64
+        \\  5
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = start.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.Instructions).slice();
+    try expectEqual(basic_block.len, 2);
+    const int_const = basic_block[0];
+    try expectEqual(int_const.get(components.InstructionKind), .int_const);
+    const five = int_const.get(components.Result).entity;
+    try expectEqualStrings(literalOf(five), "5");
+    try expectEqual(typeOf(five), builtins.I64);
+    const ret = basic_block[1];
+    try expectEqual(ret.get(components.InstructionKind), .ret);
+    try expectEqual(ret.get(components.Result).entity, five);
+}
+
+test "call local function" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try initFileSystem(&arena);
+    _ = try newFile(&fs, "foo.yeti",
+        \\start = function(): I64
+        \\  baz()
+        \\end
+        \\
+        \\baz = function(): I64
+        \\  10
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const baz = blk: {
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.Instructions).slice();
+        try expectEqual(basic_block.len, 2);
+        const call = basic_block[0];
+        try expectEqual(call.get(components.InstructionKind), .call);
+        const result = call.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtins.I64);
+        try expectEqual(call.get(components.Arguments).len(), 0);
+        const ret = basic_block[1];
+        try expectEqual(ret.get(components.InstructionKind), .ret);
+        try expectEqual(ret.get(components.Result).entity, result);
+        break :blk call.get(components.Callable).entity;
+    };
+    try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
+    try expectEqual(baz.get(components.Parameters).len(), 0);
+    try expectEqual(baz.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = baz.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.Instructions).slice();
+    try expectEqual(basic_block.len, 2);
+    const int_const = basic_block[0];
+    try expectEqual(int_const.get(components.InstructionKind), .int_const);
+    const ten = int_const.get(components.Result).entity;
+    try expectEqualStrings(literalOf(ten), "10");
+    try expectEqual(typeOf(ten), builtins.I64);
+    const ret = basic_block[1];
+    try expectEqual(ret.get(components.InstructionKind), .ret);
+    try expectEqual(ret.get(components.Result).entity, ten);
 }
 
 test "call function from import" {
