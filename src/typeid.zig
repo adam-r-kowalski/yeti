@@ -3,7 +3,7 @@ const expect = std.testing.expect;
 
 pub fn typeid(comptime _: type) usize {
     const S = struct {
-        const N: usize = 0;
+        var N: usize = 0;
     };
     return @ptrToInt(&S.N);
 }
