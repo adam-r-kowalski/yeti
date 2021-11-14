@@ -56,6 +56,7 @@ const HIGHEST: u64 = CALL;
 
 const InfixParser = union(enum) {
     binary_op: struct { op: components.BinaryOp, precedence: u64 },
+    define_type_infer,
     define,
     call,
 
@@ -66,7 +67,8 @@ const InfixParser = union(enum) {
                 .plus => .{ .binary_op = .{ .op = .add, .precedence = ADD } },
                 .times => .{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
                 .dot => .{ .binary_op = .{ .op = .dot, .precedence = DOT } },
-                .equal => .define,
+                .equal => .define_type_infer,
+                .colon => .define,
                 .left_paren => .call,
                 else => null,
             };
@@ -78,6 +80,7 @@ const InfixParser = union(enum) {
     fn precedence(self: InfixParser) u64 {
         return switch (self) {
             .binary_op => |binary_op| binary_op.precedence,
+            .define_type_infer => DEFINE,
             .define => DEFINE,
             .call => CALL,
         };
@@ -93,6 +96,7 @@ const InfixParser = union(enum) {
                 binary_op.op,
                 parser_precedence,
             ),
+            .define_type_infer => parseDefineTypeInfer(codebase, tokens, left, parser_precedence),
             .define => parseDefine(codebase, tokens, left, parser_precedence),
             .call => parseCall(codebase, tokens, left),
         };
@@ -110,12 +114,26 @@ fn parseBinaryOp(codebase: *ECS, tokens: *Tokens, left: Entity, op: components.B
     });
 }
 
-fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
+fn parseDefineTypeInfer(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
     assert(name.get(components.AstKind) == .symbol);
     const value = try parseExpression(codebase, tokens, precedence);
     return try codebase.createEntity(.{
         components.AstKind.define,
         components.Name.init(name),
+        components.Value.init(value),
+        components.Span.init(name.get(components.Span).begin, value.get(components.Span).end),
+    });
+}
+
+fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
+    assert(name.get(components.AstKind) == .symbol);
+    const type_ast = try parseExpression(codebase, tokens, DEFINE + NEXT_PRECEDENCE);
+    _ = tokens.consume(components.TokenKind.equal);
+    const value = try parseExpression(codebase, tokens, precedence);
+    return try codebase.createEntity(.{
+        components.AstKind.define,
+        components.Name.init(name),
+        components.TypeAst.init(type_ast),
         components.Value.init(value),
         components.Span.init(name.get(components.Span).begin, value.get(components.Span).end),
     });
@@ -665,4 +683,59 @@ test "parse import and function" {
     const arguments = multiply.get(components.Arguments).slice();
     try expectEqualStrings(literalOf(arguments[0]), "56");
     try expectEqualStrings(literalOf(arguments[1]), "3");
+}
+
+test "parse assignment" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\start = function(): U64
+        \\  x = 10
+        \\  x
+        \\end
+    ;
+    var tokens = try tokenize(codebase, code);
+    const ast = try parse(codebase, &tokens);
+    const top_level = ast.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+    const x = body[1];
+    try expectEqual(x.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(x), "x");
+}
+
+test "parse assignment with explicit type" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const code =
+        \\start = function(): U64
+        \\  x: U64 = 10
+        \\  x
+        \\end
+    ;
+    var tokens = try tokenize(codebase, code);
+    const ast = try parse(codebase, &tokens);
+    const top_level = ast.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+    try expectEqualStrings(literalOf(define.get(components.TypeAst).entity), "U64");
+    const x = body[1];
+    try expectEqual(x.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(x), "x");
 }

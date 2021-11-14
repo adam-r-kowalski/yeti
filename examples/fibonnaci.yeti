@@ -1,0 +1,18 @@
+fibonnaci_iterative = function(n: U64): U64
+  previous = 0
+  current = 1
+  while n > 0
+    next = previous + current
+    previous = current
+    current = next
+    n -= 1
+  end
+  current
+end
+
+fibonnaci_recursion = function(n: U64): U64
+  go = function(n, current, previous)
+    if n == 0 then current else go(n - 1, current + previous, current) end
+  end
+  go(n, 1, 0)
+end
