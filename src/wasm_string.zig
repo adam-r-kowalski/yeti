@@ -151,3 +151,27 @@ test "wasm string call function from import" {
         \\(export "_start" (func $foo/start)))
     );
 }
+
+test "wasm string assignment" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x = 10
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(codebase, ir);
+    const wasm_string = try wasmString(codebase, wasm);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (i64.const 10))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}

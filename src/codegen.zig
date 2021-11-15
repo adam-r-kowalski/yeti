@@ -179,3 +179,26 @@ test "codegen call function from import" {
     try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
     try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
 }
+
+test "codegen assignment" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x = 10
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(codebase, ir);
+    const top_level = wasm.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 1);
+    try expectEqual(start_instructions.len, 1);
+    const i64_const = start_instructions[0];
+    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+    try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+}
