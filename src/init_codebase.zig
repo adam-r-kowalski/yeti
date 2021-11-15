@@ -45,6 +45,7 @@ pub fn initBuiltins(codebase: *ECS) !void {
     const IntLiteral = try builtinType(codebase, &scope, "IntLiteral", Type);
     const FloatLiteral = try builtinType(codebase, &scope, "FloatLiteral", Type);
     const StringLiteral = try builtinType(codebase, &scope, "StringLiteral", Type);
+    const Void = try builtinType(codebase, &scope, "Void", Type);
     const builtins = components.Builtins{
         .Type = Type,
         .Module = Module,
@@ -54,6 +55,7 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .IntLiteral = IntLiteral,
         .FloatLiteral = FloatLiteral,
         .StringLiteral = StringLiteral,
+        .Void = Void,
     };
     try codebase.set(.{ builtins, scope });
 }

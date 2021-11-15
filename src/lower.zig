@@ -39,8 +39,11 @@ fn Context(comptime FS: type) type {
 
 // NOTE:should this take in the active scopes for the current function?
 fn lowerSymbol(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
-    // TODO:lookup symbol from local variables of current function
     const literal = entity.get(components.Literal);
+    const scope = context.basic_block.get(components.Scope);
+    if (scope.hasLiteral(literal)) |local| {
+        return local;
+    }
     const global_scope = context.codebase.get(components.Scope);
     if (global_scope.hasLiteral(literal)) |global| {
         return global;
@@ -94,6 +97,7 @@ fn lowerDot(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
         var basic_blocks = components.BasicBlocks.init(context.allocator);
         const basic_block = try context.codebase.createEntity(.{
             components.IrInstructions.init(context.allocator),
+            components.Scope.init(context.allocator, context.codebase.getPtr(Strings)),
         });
         _ = try basic_blocks.append(basic_block);
         _ = try function.set(.{basic_blocks});
@@ -145,6 +149,7 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
         var basic_blocks = components.BasicBlocks.init(context.allocator);
         const basic_block = try context.codebase.createEntity(.{
             components.IrInstructions.init(context.allocator),
+            components.Scope.init(context.allocator, context.codebase.getPtr(Strings)),
         });
         _ = try basic_blocks.append(basic_block);
         _ = try function.set(.{basic_blocks});
@@ -177,8 +182,11 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
     return result;
 }
 
-fn lowerDefine(comptime FS: type, _: Context(FS), call: Entity) !Entity {
-    return call;
+fn lowerDefine(comptime FS: type, context: Context(FS), define: Entity) !Entity {
+    const scope = context.basic_block.getPtr(components.Scope);
+    const value = try lowerExpression(FS, context, define.get(components.Value).entity);
+    try scope.putName(define.get(components.Name), value);
+    return context.codebase.get(components.Builtins).Void;
 }
 
 fn lowerExpression(comptime FS: type, context: Context(FS), entity: Entity) error{ OutOfMemory, CantOpenFile }!Entity {
@@ -257,6 +265,7 @@ pub fn lower(codebase: *ECS, fs: anytype, module_name: []const u8, function_name
     var basic_blocks = components.BasicBlocks.init(allocator);
     const basic_block = try codebase.createEntity(.{
         components.IrInstructions.init(allocator),
+        components.Scope.init(allocator, codebase.getPtr(Strings)),
     });
     _ = try basic_blocks.append(basic_block);
     const function = overloads[0];
@@ -439,14 +448,14 @@ test "lower assignment" {
     try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
     const basic_blocks = start.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
-    // const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    // try expectEqual(basic_block.len, 2);
-    // const call = basic_block[0];
-    // try expectEqual(call.get(components.IrInstructionKind), .call);
-    // const bar_baz = call.get(components.Result).entity;
-    // try expectEqual(typeOf(bar_baz), builtins.I64);
-    // try expectEqual(call.get(components.Arguments).len(), 0);
-    // const ret = basic_block[1];
-    // try expectEqual(ret.get(components.IrInstructionKind), .ret);
-    // try expectEqual(ret.get(components.Result).entity, bar_baz);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 2);
+    const int_const = basic_block[0];
+    try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+    const x = int_const.get(components.Result).entity;
+    try expectEqual(typeOf(x), builtins.I64);
+    try expectEqualStrings(literalOf(x), "10");
+    const ret = basic_block[1];
+    try expectEqual(ret.get(components.IrInstructionKind), .ret);
+    try expectEqual(ret.get(components.Result).entity, x);
 }

@@ -213,4 +213,5 @@ pub const Builtins = struct {
     IntLiteral: Entity,
     FloatLiteral: Entity,
     StringLiteral: Entity,
+    Void: Entity,
 };
