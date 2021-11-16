@@ -36,6 +36,13 @@ fn Component(comptime T: type) type {
             return self.data.slice()[self.lookup.get(entity.uuid).?];
         }
 
+        fn has(self: Self, entity: Entity) ?T {
+            if (self.lookup.get(entity.uuid)) |index| {
+                return self.data.slice()[index];
+            }
+            return null;
+        }
+
         fn getPtr(self: *Self, entity: Entity) *T {
             return &self.data.mutSlice()[self.lookup.get(entity.uuid).?];
         }
@@ -119,6 +126,13 @@ pub const Entity = struct {
     pub fn get(self: Entity, comptime T: type) T {
         const component = self.ecs.components.get(typeid(T)).?;
         return @intToPtr(*Component(T), component).get(self);
+    }
+
+    pub fn has(self: Entity, comptime T: type) ?T {
+        if (self.ecs.components.get(typeid(T))) |component| {
+            return @intToPtr(*Component(T), component).has(self);
+        }
+        return null;
     }
 
     pub fn getPtr(self: Entity, comptime T: type) *T {
