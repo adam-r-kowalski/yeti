@@ -459,3 +459,47 @@ test "lower assignment" {
     try expectEqual(ret.get(components.IrInstructionKind), .ret);
     try expectEqual(ret.get(components.Result).entity, x);
 }
+
+test "lower two assignments" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x = 10
+        \\  y = 42
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = start.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 3);
+    const x = blk: {
+        const int_const = basic_block[0];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const result = int_const.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtins.I64);
+        try expectEqualStrings(literalOf(result), "10");
+        break :blk result;
+    };
+    {
+        const int_const = basic_block[1];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const result = int_const.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtins.IntLiteral);
+        try expectEqualStrings(literalOf(result), "42");
+    }
+    const ret = basic_block[2];
+    try expectEqual(ret.get(components.IrInstructionKind), .ret);
+    try expectEqual(ret.get(components.Result).entity, x);
+}
