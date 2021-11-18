@@ -19,14 +19,11 @@ const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
 const List = @import("list.zig").List;
 
-const Stack = List(Entity, .{});
-
 const Context = struct {
     codebase: *ECS,
     wasm_instructions: *components.WasmInstructions,
     allocator: *Allocator,
     builtins: components.Builtins,
-    stack: *Stack,
 };
 
 fn codegenIntConst(context: Context, ir_instruction: Entity) !void {
@@ -38,7 +35,6 @@ fn codegenIntConst(context: Context, ir_instruction: Entity) !void {
             components.Result.init(int_const),
         });
         _ = try context.wasm_instructions.append(wasm_instruction);
-        try context.stack.append(int_const);
         return;
     }
     if (eql(type_of, context.builtins.IntLiteral)) {
@@ -65,32 +61,17 @@ fn codegenCall(context: Context, ir_instruction: Entity) !void {
         ir_instruction.get(components.Callable),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
-    try context.stack.append(ir_instruction.get(components.Result).entity);
-}
-
-fn codegenRet(context: Context, ir_instruction: Entity) !void {
-    const result = ir_instruction.get(components.Result);
-    if (context.stack.len > 0 and eql(context.stack.last(), result.entity)) {
-        return;
-    }
-    // const wasm_instruction = try context.codebase.createEntity(.{
-    //     components.WasmInstructionKind.get_local,
-    //     result,
-    // });
-    // _ = try context.wasm_instructions.append(wasm_instruction);
 }
 
 pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
     const allocator = &codebase.arena.allocator;
     for (codebase.get(components.Functions).slice()) |function| {
         var wasm_instructions = components.WasmInstructions.init(allocator);
-        var stack = Stack.init(allocator);
         const context = Context{
             .codebase = codebase,
             .wasm_instructions = &wasm_instructions,
             .allocator = allocator,
             .builtins = codebase.get(components.Builtins),
-            .stack = &stack,
         };
         const basic_blocks = function.get(components.BasicBlocks).slice();
         try expectEqual(basic_blocks.len, 1);
@@ -100,7 +81,7 @@ pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
             switch (kind) {
                 .int_const => try codegenIntConst(context, ir_instruction),
                 .call => try codegenCall(context, ir_instruction),
-                .ret => try codegenRet(context, ir_instruction),
+                // TODO: handle `get_local` `set_local`
             }
         }
         _ = try function.set(.{wasm_instructions});
