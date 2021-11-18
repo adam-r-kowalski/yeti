@@ -251,12 +251,6 @@ fn lowerFunctionBody(comptime FS: type, context: Context(FS)) !Entity {
     for (body) |expression| {
         return_entity = try lowerExpression(FS, context, expression);
     }
-    const instructions = context.basic_block.getPtr(components.IrInstructions);
-    const instruction = try context.codebase.createEntity(.{
-        components.IrInstructionKind.ret,
-        components.Result.init(return_entity),
-    });
-    try instructions.append(instruction);
     return return_entity;
 }
 
@@ -333,15 +327,12 @@ test "lower int literal" {
     const basic_blocks = start.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 2);
+    try expectEqual(basic_block.len, 1);
     const int_const = basic_block[0];
     try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
     const five = int_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(five), "5");
     try expectEqual(typeOf(five), builtins.I64);
-    const ret = basic_block[1];
-    try expectEqual(ret.get(components.IrInstructionKind), .ret);
-    try expectEqual(ret.get(components.Result).entity, five);
 }
 
 test "lower call local function" {
@@ -370,15 +361,12 @@ test "lower call local function" {
         const basic_blocks = start.get(components.BasicBlocks).slice();
         try expectEqual(basic_blocks.len, 1);
         const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-        try expectEqual(basic_block.len, 2);
+        try expectEqual(basic_block.len, 1);
         const call = basic_block[0];
         try expectEqual(call.get(components.IrInstructionKind), .call);
         const result = call.get(components.Result).entity;
         try expectEqual(typeOf(result), builtins.I64);
         try expectEqual(call.get(components.Arguments).len(), 0);
-        const ret = basic_block[1];
-        try expectEqual(ret.get(components.IrInstructionKind), .ret);
-        try expectEqual(ret.get(components.Result).entity, result);
         break :blk call.get(components.Callable).entity;
     };
     try expectEqualStrings(literalOf(baz.get(components.Module).entity), "foo");
@@ -388,15 +376,12 @@ test "lower call local function" {
     const basic_blocks = baz.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 2);
+    try expectEqual(basic_block.len, 1);
     const int_const = basic_block[0];
     try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
     const ten = int_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(ten), "10");
     try expectEqual(typeOf(ten), builtins.I64);
-    const ret = basic_block[1];
-    try expectEqual(ret.get(components.IrInstructionKind), .ret);
-    try expectEqual(ret.get(components.Result).entity, ten);
 }
 
 test "call function from import" {
@@ -428,15 +413,12 @@ test "call function from import" {
         const basic_blocks = start.get(components.BasicBlocks).slice();
         try expectEqual(basic_blocks.len, 1);
         const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-        try expectEqual(basic_block.len, 2);
+        try expectEqual(basic_block.len, 1);
         const call = basic_block[0];
         try expectEqual(call.get(components.IrInstructionKind), .call);
         const bar_baz = call.get(components.Result).entity;
         try expectEqual(typeOf(bar_baz), builtins.I64);
         try expectEqual(call.get(components.Arguments).len(), 0);
-        const ret = basic_block[1];
-        try expectEqual(ret.get(components.IrInstructionKind), .ret);
-        try expectEqual(ret.get(components.Result).entity, bar_baz);
         break :blk call.get(components.Callable).entity;
     };
     try expectEqualStrings(literalOf(baz.get(components.Module).entity), "bar");
@@ -446,15 +428,12 @@ test "call function from import" {
     const basic_blocks = baz.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 2);
+    try expectEqual(basic_block.len, 1);
     const int_const = basic_block[0];
     try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
     const ten = int_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(ten), "10");
     try expectEqual(typeOf(ten), builtins.I64);
-    const ret = basic_block[1];
-    try expectEqual(ret.get(components.IrInstructionKind), .ret);
-    try expectEqual(ret.get(components.Result).entity, ten);
 }
 
 test "lower assignment" {
@@ -479,7 +458,7 @@ test "lower assignment" {
     const basic_blocks = start.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 4);
+    try expectEqual(basic_block.len, 3);
     const int_const = basic_block[0];
     try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
     const ten = int_const.get(components.Result).entity;
@@ -494,9 +473,6 @@ test "lower assignment" {
     const get_local = basic_block[2];
     try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
     try expectEqual(ten, get_local.get(components.Result).entity);
-    const ret = basic_block[3];
-    try expectEqual(ret.get(components.IrInstructionKind), .ret);
-    try expectEqual(ret.get(components.Result).entity, x);
 }
 
 test "lower two assignments" {
@@ -522,7 +498,7 @@ test "lower two assignments" {
     const basic_blocks = start.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 6);
+    try expectEqual(basic_block.len, 5);
     const x = blk: {
         const int_const = basic_block[0];
         try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
@@ -547,9 +523,6 @@ test "lower two assignments" {
     const get_local = basic_block[4];
     try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
     try expectEqual(get_local.get(components.Result).entity, x);
-    const ret = basic_block[5];
-    try expectEqual(ret.get(components.IrInstructionKind), .ret);
-    try expectEqual(ret.get(components.Result).entity, x);
 }
 
 test "lower two assignments with explicit type" {
@@ -575,7 +548,7 @@ test "lower two assignments with explicit type" {
     const basic_blocks = start.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 6);
+    try expectEqual(basic_block.len, 5);
     {
         const int_const = basic_block[0];
         try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
@@ -600,9 +573,6 @@ test "lower two assignments with explicit type" {
     const get_local = basic_block[4];
     try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
     try expectEqual(get_local.get(components.Result).entity, y);
-    const ret = basic_block[5];
-    try expectEqual(ret.get(components.IrInstructionKind), .ret);
-    try expectEqual(ret.get(components.Result).entity, y);
 }
 
 test "lower function with argument" {
@@ -632,20 +602,23 @@ test "lower function with argument" {
         const basic_blocks = start.get(components.BasicBlocks).slice();
         try expectEqual(basic_blocks.len, 1);
         const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-        try expectEqual(basic_block.len, 3);
+        try expectEqual(basic_block.len, 4);
         const int_const = basic_block[0];
         try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
         const x = int_const.get(components.Result).entity;
         try expectEqualStrings(literalOf(x), "10");
         try expectEqual(typeOf(x), builtins.I64);
-        const call = basic_block[1];
+        const set_local = basic_block[1];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, x);
+        const get_local = basic_block[2];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+        const call = basic_block[3];
         try expectEqual(call.get(components.IrInstructionKind), .call);
         const result = call.get(components.Result).entity;
         try expectEqual(typeOf(result), builtins.I64);
         try expectEqualSlices(Entity, call.get(components.Arguments).slice(), &.{x});
-        const ret = basic_block[2];
-        try expectEqual(ret.get(components.IrInstructionKind), .ret);
-        try expectEqual(ret.get(components.Result).entity, result);
         break :blk call.get(components.Callable).entity;
     };
     try expectEqualStrings(literalOf(id.get(components.Module).entity), "foo");
@@ -660,7 +633,7 @@ test "lower function with argument" {
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
     try expectEqual(basic_block.len, 1);
-    const ret = basic_block[0];
-    try expectEqual(ret.get(components.IrInstructionKind), .ret);
-    try expectEqual(ret.get(components.Result).entity, x);
+    const get_local = basic_block[0];
+    try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+    try expectEqual(get_local.get(components.Result).entity, x);
 }
