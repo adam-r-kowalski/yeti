@@ -42,6 +42,12 @@ fn lowerSymbol(comptime FS: type, context: Context(FS), entity: Entity) !Entity 
     const literal = entity.get(components.Literal);
     const local_scope = context.basic_block.get(components.Scope);
     if (local_scope.hasLiteral(literal)) |local| {
+        const instructions = context.basic_block.getPtr(components.IrInstructions);
+        const instruction = try context.codebase.createEntity(.{
+            components.IrInstructionKind.get_local,
+            components.Result.init(local),
+        });
+        try instructions.append(instruction);
         return local;
     }
     const global_scope = context.codebase.get(components.Scope);
@@ -189,15 +195,25 @@ fn lowerDefine(comptime FS: type, context: Context(FS), define: Entity) !Entity 
         const explicit_type = try lowerExpression(FS, context, type_ast.entity);
         const actual_type = value.get(components.Type).entity;
         const builtins = context.codebase.get(components.Builtins);
-        if (!eql(explicit_type, actual_type)) {
-            if (eql(actual_type, builtins.IntLiteral)) {
-                if (eql(explicit_type, builtins.I64) or eql(explicit_type, builtins.U64)) {
-                    _ = try value.set(.{components.Type.init(explicit_type)});
-                }
+        if (eql(actual_type, builtins.IntLiteral)) {
+            if (eql(explicit_type, builtins.I64) or eql(explicit_type, builtins.U64)) {
+                _ = try value.set(.{components.Type.init(explicit_type)});
+            } else {
+                panic("lower define found invalid explicit type for int literal", .{});
             }
+        } else {
+            assert(eql(explicit_type, actual_type));
         }
     }
-    try scope.putName(define.get(components.Name), value);
+    const instructions = context.basic_block.getPtr(components.IrInstructions);
+    const instruction = try context.codebase.createEntity(.{
+        components.IrInstructionKind.set_local,
+        components.Result.init(value),
+    });
+    try instructions.append(instruction);
+    const name = define.get(components.Name);
+    _ = try value.set(.{name});
+    try scope.putName(name, value);
     return context.codebase.get(components.Builtins).Void;
 }
 
@@ -463,13 +479,22 @@ test "lower assignment" {
     const basic_blocks = start.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 2);
+    try expectEqual(basic_block.len, 4);
     const int_const = basic_block[0];
     try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
-    const x = int_const.get(components.Result).entity;
+    const ten = int_const.get(components.Result).entity;
+    try expectEqual(typeOf(ten), builtins.I64);
+    try expectEqualStrings(literalOf(ten), "10");
+    const set_local = basic_block[1];
+    try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+    const x = set_local.get(components.Result).entity;
+    try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+    try expectEqual(ten, x);
     try expectEqual(typeOf(x), builtins.I64);
-    try expectEqualStrings(literalOf(x), "10");
-    const ret = basic_block[1];
+    const get_local = basic_block[2];
+    try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+    try expectEqual(ten, get_local.get(components.Result).entity);
+    const ret = basic_block[3];
     try expectEqual(ret.get(components.IrInstructionKind), .ret);
     try expectEqual(ret.get(components.Result).entity, x);
 }
@@ -497,23 +522,32 @@ test "lower two assignments" {
     const basic_blocks = start.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 3);
+    try expectEqual(basic_block.len, 6);
     const x = blk: {
         const int_const = basic_block[0];
         try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
         const result = int_const.get(components.Result).entity;
         try expectEqual(typeOf(result), builtins.I64);
         try expectEqualStrings(literalOf(result), "10");
+        const set_local = basic_block[1];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
         break :blk result;
     };
     {
-        const int_const = basic_block[1];
+        const int_const = basic_block[2];
         try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
         const result = int_const.get(components.Result).entity;
         try expectEqual(typeOf(result), builtins.IntLiteral);
         try expectEqualStrings(literalOf(result), "42");
+        const set_local = basic_block[3];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
     }
-    const ret = basic_block[2];
+    const get_local = basic_block[4];
+    try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+    try expectEqual(get_local.get(components.Result).entity, x);
+    const ret = basic_block[5];
     try expectEqual(ret.get(components.IrInstructionKind), .ret);
     try expectEqual(ret.get(components.Result).entity, x);
 }
@@ -541,23 +575,32 @@ test "lower two assignments with explicit type" {
     const basic_blocks = start.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
-    try expectEqual(basic_block.len, 3);
+    try expectEqual(basic_block.len, 6);
     {
         const int_const = basic_block[0];
         try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
         const result = int_const.get(components.Result).entity;
         try expectEqual(typeOf(result), builtins.U64);
         try expectEqualStrings(literalOf(result), "10");
+        const set_local = basic_block[1];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
     }
     const y = blk: {
-        const int_const = basic_block[1];
+        const int_const = basic_block[2];
         try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
         const result = int_const.get(components.Result).entity;
         try expectEqual(typeOf(result), builtins.I64);
         try expectEqualStrings(literalOf(result), "42");
+        const set_local = basic_block[3];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
         break :blk result;
     };
-    const ret = basic_block[2];
+    const get_local = basic_block[4];
+    try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+    try expectEqual(get_local.get(components.Result).entity, y);
+    const ret = basic_block[5];
     try expectEqual(ret.get(components.IrInstructionKind), .ret);
     try expectEqual(ret.get(components.Result).entity, y);
 }

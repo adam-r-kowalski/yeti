@@ -200,12 +200,16 @@ pub const BinaryOp = enum(u8) {
 pub const IrInstructionKind = enum(u8) {
     call,
     int_const,
+    get_local,
+    set_local,
     ret,
 };
 
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
     call,
+    // get_local,
+    // set_local,
 };
 
 pub const Builtins = struct {

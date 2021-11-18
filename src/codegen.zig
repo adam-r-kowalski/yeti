@@ -69,9 +69,15 @@ fn codegenCall(context: Context, ir_instruction: Entity) !void {
 }
 
 fn codegenRet(context: Context, ir_instruction: Entity) !void {
-    const result = ir_instruction.get(components.Result).entity;
-    assert(context.stack.len == 1);
-    assert(eql(context.stack.items[0], result));
+    const result = ir_instruction.get(components.Result);
+    if (context.stack.len > 0 and eql(context.stack.last(), result.entity)) {
+        return;
+    }
+    // const wasm_instruction = try context.codebase.createEntity(.{
+    //     components.WasmInstructionKind.get_local,
+    //     result,
+    // });
+    // _ = try context.wasm_instructions.append(wasm_instruction);
 }
 
 pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
@@ -231,3 +237,55 @@ test "codegen two assignments" {
     try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
     try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
 }
+
+// test "codegen assignment explicit type" {
+//     var arena = Arena.init(std.heap.page_allocator);
+//     defer arena.deinit();
+//     var codebase = try initCodebase(&arena);
+//     var fs = try FileSystem.init(&arena);
+//     _ = try fs.newFile("foo.yeti",
+//         \\start = function(): I64
+//         \\  x: I64 = 10
+//         \\  x
+//         \\end
+//     );
+//     const ir = try lower(codebase, fs, "foo.yeti", "start");
+//     const wasm = try codegen(codebase, ir);
+//     const top_level = wasm.get(components.TopLevel);
+//     const start = top_level.findString("start").get(components.Overloads).slice()[0];
+//     const start_instructions = start.get(components.WasmInstructions).slice();
+//     try expectEqual(start_instructions.len, 3);
+//     const i64_const = start_instructions[0];
+//     try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+//     try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+//     const set_local = start_instructions[1];
+//     try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+// }
+
+// test "codegen function with argument" {
+//     var arena = Arena.init(std.heap.page_allocator);
+//     defer arena.deinit();
+//     var codebase = try initCodebase(&arena);
+//     var fs = try FileSystem.init(&arena);
+//     _ = try fs.newFile("foo.yeti",
+//         \\start = function(): I64
+//         \\  x: I64 = 10
+//         \\  id(x)
+//         \\end
+//         \\
+//         \\id = function(x: I64): I64
+//         \\  x
+//         \\end
+//     );
+//     const ir = try lower(codebase, fs, "foo.yeti", "start");
+//     const wasm = try codegen(codebase, ir);
+//     const top_level = wasm.get(components.TopLevel);
+//     const start = top_level.findString("start").get(components.Overloads).slice()[0];
+//     const start_instructions = start.get(components.WasmInstructions).slice();
+//     try expectEqual(start_instructions.len, 3);
+//     const i64_const = start_instructions[0];
+//     try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+//     try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+//     try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+//     try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+// }
