@@ -96,6 +96,10 @@ pub fn DistinctEntityMap(comptime unique_id: []const u8) type {
             return self.map.get(literal.interned);
         }
 
+        pub fn putLiteral(self: *Self, literal: Literal, entity: Entity) !void {
+            try self.map.putNoClobber(literal.interned, entity);
+        }
+
         pub fn findName(self: Self, name: Name) Entity {
             return self.hasName(name).?;
         }

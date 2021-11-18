@@ -7,6 +7,7 @@ const panic = std.debug.panic;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
+const expectEqualSlices = std.testing.expectEqualSlices;
 
 const init_codebase = @import("init_codebase.zig");
 const initCodebase = init_codebase.initCodebase;
@@ -37,11 +38,10 @@ fn Context(comptime FS: type) type {
     };
 }
 
-// NOTE:should this take in the active scopes for the current function?
 fn lowerSymbol(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     const literal = entity.get(components.Literal);
-    const scope = context.basic_block.get(components.Scope);
-    if (scope.hasLiteral(literal)) |local| {
+    const local_scope = context.basic_block.get(components.Scope);
+    if (local_scope.hasLiteral(literal)) |local| {
         return local;
     }
     const global_scope = context.codebase.get(components.Scope);
@@ -161,7 +161,7 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
             .function = function,
             .basic_block = basic_block,
         };
-        assert(new_context.function.get(components.Parameters).entities.len == 0);
+        // assert(new_context.function.get(components.Parameters).entities.len == 0);
         try lowerFunction(FS, new_context);
     }
     const call_arguments = call.get(components.Arguments).slice();
@@ -214,10 +214,12 @@ fn lowerExpression(comptime FS: type, context: Context(FS), entity: Entity) erro
 }
 
 fn lowerFunctionParameters(comptime FS: type, context: Context(FS)) !void {
+    const scope = context.basic_block.getPtr(components.Scope);
     const parameters = context.function.get(components.Parameters).slice();
     for (parameters) |parameter| {
         const parameter_type = try lowerExpression(FS, context, parameter.get(components.TypeAst).entity);
         _ = try parameter.set(.{components.Type.init(parameter_type)});
+        try scope.putLiteral(parameter.get(components.Literal), parameter);
     }
 }
 
@@ -558,4 +560,64 @@ test "lower two assignments with explicit type" {
     const ret = basic_block[2];
     try expectEqual(ret.get(components.IrInstructionKind), .ret);
     try expectEqual(ret.get(components.Result).entity, y);
+}
+
+test "lower function with argument" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x: I64 = 10
+        \\  id(x)
+        \\end
+        \\
+        \\id = function(x: I64): I64
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const id = blk: {
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 3);
+        const int_const = basic_block[0];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const x = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(x), "10");
+        try expectEqual(typeOf(x), builtins.I64);
+        const call = basic_block[1];
+        try expectEqual(call.get(components.IrInstructionKind), .call);
+        const result = call.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtins.I64);
+        try expectEqualSlices(Entity, call.get(components.Arguments).slice(), &.{x});
+        const ret = basic_block[2];
+        try expectEqual(ret.get(components.IrInstructionKind), .ret);
+        try expectEqual(ret.get(components.Result).entity, result);
+        break :blk call.get(components.Callable).entity;
+    };
+    try expectEqualStrings(literalOf(id.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
+    const parameters = id.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const x = parameters[0];
+    try expectEqualStrings(literalOf(x), "x");
+    try expectEqual(x.get(components.Type).entity, builtins.I64);
+    try expectEqual(id.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = id.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 1);
+    const ret = basic_block[0];
+    try expectEqual(ret.get(components.IrInstructionKind), .ret);
+    try expectEqual(ret.get(components.Result).entity, x);
 }
