@@ -120,6 +120,7 @@ pub fn DistinctEntitySet(comptime unique_id: []const u8) type {
 
     return struct {
         const Map = std.AutoHashMap(Entity, void);
+        pub const Iterator = Map.KeyIterator;
 
         const Self = @This();
 
@@ -130,7 +131,11 @@ pub fn DistinctEntitySet(comptime unique_id: []const u8) type {
         }
 
         pub fn put(self: *Self, entity: Entity) !void {
-            try self.map.putNoClobber(entity, void);
+            try self.map.put(entity, {});
+        }
+
+        pub fn iterate(self: Self) Iterator {
+            return self.map.keyIterator();
         }
     };
 }
@@ -199,6 +204,7 @@ pub const Result = DistinctEntity("Result");
 pub const Module = DistinctEntity("Module");
 pub const Functions = DistinctEntities("Functions");
 pub const WasmInstructions = DistinctEntities("Wasm Instructions");
+pub const Locals = DistinctEntitySet("Locals");
 
 pub const AstKind = enum(u8) {
     symbol,

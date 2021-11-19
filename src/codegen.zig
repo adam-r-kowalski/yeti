@@ -22,6 +22,7 @@ const List = @import("list.zig").List;
 const Context = struct {
     codebase: *ECS,
     wasm_instructions: *components.WasmInstructions,
+    locals: *components.Locals,
     allocator: *Allocator,
     builtins: components.Builtins,
 };
@@ -60,6 +61,7 @@ fn codegenGetLocal(context: Context, ir_instruction: Entity) !void {
             components.Result.init(local),
         });
         _ = try context.wasm_instructions.append(wasm_instruction);
+        try context.locals.put(local);
         return;
     }
     panic("\ncodegen get local type not supported {s}\n", .{literalOf(type_of)});
@@ -74,6 +76,7 @@ fn codegenSetLocal(context: Context, ir_instruction: Entity) !void {
             components.Result.init(local),
         });
         _ = try context.wasm_instructions.append(wasm_instruction);
+        try context.locals.put(local);
         return;
     }
     if (eql(type_of, context.builtins.IntLiteral)) {
@@ -85,10 +88,12 @@ fn codegenSetLocal(context: Context, ir_instruction: Entity) !void {
 pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
     const allocator = &codebase.arena.allocator;
     for (codebase.get(components.Functions).slice()) |function| {
+        var locals = components.Locals.init(allocator);
         var wasm_instructions = components.WasmInstructions.init(allocator);
         const context = Context{
             .codebase = codebase,
             .wasm_instructions = &wasm_instructions,
+            .locals = &locals,
             .allocator = allocator,
             .builtins = codebase.get(components.Builtins),
         };
@@ -104,7 +109,7 @@ pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
                 .set_local => try codegenSetLocal(context, ir_instruction),
             }
         }
-        _ = try function.set(.{wasm_instructions});
+        _ = try function.set(.{ wasm_instructions, locals });
     }
     return ir;
 }
