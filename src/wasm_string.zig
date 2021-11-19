@@ -45,6 +45,8 @@ pub fn wasmString(codebase: *ECS, wasm: Entity) ![]u8 {
         while (locals.next()) |local| {
             try string.appendSlice("\n    (local $");
             try string.appendSlice(literalOf(local.get(components.Name).entity));
+            try string.append(' ');
+            try wasmStringType(codebase, &string, local.get(components.Type).entity);
             try string.append(')');
         }
         for (function.get(components.WasmInstructions).slice()) |wasm_instruction| {
@@ -188,7 +190,7 @@ test "wasm string assignment" {
         \\(module
         \\
         \\  (func $foo/start (result i64)
-        \\    (local $x)
+        \\    (local $x i64)
         \\    (i64.const 10)
         \\    (set_local $x)
         \\    (get_local $x))
