@@ -56,6 +56,18 @@ pub fn wasmString(codebase: *ECS, wasm: Entity) ![]u8 {
                     try string.appendSlice(literalOf(callable.get(components.Name).entity));
                     try string.append(')');
                 },
+                .get_local => {
+                    try string.appendSlice("\n    (get_local $");
+                    const result = wasm_instruction.get(components.Result).entity;
+                    try string.appendSlice(literalOf(result.get(components.Name).entity));
+                    try string.append(')');
+                },
+                .set_local => {
+                    try string.appendSlice("\n    (set_local $");
+                    const result = wasm_instruction.get(components.Result).entity;
+                    try string.appendSlice(literalOf(result.get(components.Name).entity));
+                    try string.append(')');
+                },
             }
         }
         try string.append(')');
@@ -170,7 +182,9 @@ test "wasm string assignment" {
         \\(module
         \\
         \\  (func $foo/start (result i64)
-        \\    (i64.const 10))
+        \\    (i64.const 10)
+        \\    (set_local $x)
+        \\    (get_local $x))
         \\
         \\(export "_start" (func $foo/start)))
     );

@@ -115,6 +115,26 @@ pub fn DistinctEntityMap(comptime unique_id: []const u8) type {
     };
 }
 
+pub fn DistinctEntitySet(comptime unique_id: []const u8) type {
+    assert(unique_id.len > 0);
+
+    return struct {
+        const Map = std.AutoHashMap(Entity, void);
+
+        const Self = @This();
+
+        map: Map,
+
+        pub fn init(allocator: *Allocator) Self {
+            return Self{ .map = Map.init(allocator) };
+        }
+
+        pub fn put(self: *Self, entity: Entity) !void {
+            try self.map.putNoClobber(entity, void);
+        }
+    };
+}
+
 pub const Position = struct {
     column: u64,
     row: u64,
@@ -207,8 +227,8 @@ pub const IrInstructionKind = enum(u8) {
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
     call,
-    // get_local,
-    // set_local,
+    get_local,
+    set_local,
 };
 
 pub const Builtins = struct {

@@ -234,7 +234,10 @@ fn lowerFunctionParameters(comptime FS: type, context: Context(FS)) !void {
     const parameters = context.function.get(components.Parameters).slice();
     for (parameters) |parameter| {
         const parameter_type = try lowerExpression(FS, context, parameter.get(components.TypeAst).entity);
-        _ = try parameter.set(.{components.Type.init(parameter_type)});
+        _ = try parameter.set(.{
+            components.Type.init(parameter_type),
+            components.Name.init(parameter),
+        });
         try scope.putLiteral(parameter.get(components.Literal), parameter);
     }
 }
@@ -614,6 +617,7 @@ test "lower function with argument" {
         const get_local = basic_block[2];
         try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
         try expectEqual(get_local.get(components.Result).entity, x);
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
         const call = basic_block[3];
         try expectEqual(call.get(components.IrInstructionKind), .call);
         const result = call.get(components.Result).entity;
@@ -626,7 +630,7 @@ test "lower function with argument" {
     const parameters = id.get(components.Parameters).slice();
     try expectEqual(parameters.len, 1);
     const x = parameters[0];
-    try expectEqualStrings(literalOf(x), "x");
+    try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
     try expectEqual(x.get(components.Type).entity, builtins.I64);
     try expectEqual(id.get(components.ReturnType).entity, builtins.I64);
     const basic_blocks = id.get(components.BasicBlocks).slice();
