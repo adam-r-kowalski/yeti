@@ -115,7 +115,6 @@ fn lowerDot(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
             .function = function,
             .basic_block = basic_block,
         };
-        assert(new_context.function.get(components.Parameters).entities.len == 0);
         try lowerFunction(FS, new_context);
     }
     const call_arguments = call.get(components.Arguments).slice();
@@ -167,7 +166,6 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
             .function = function,
             .basic_block = basic_block,
         };
-        // assert(new_context.function.get(components.Parameters).entities.len == 0);
         try lowerFunction(FS, new_context);
     }
     const call_arguments = call.get(components.Arguments).slice();

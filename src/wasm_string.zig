@@ -18,11 +18,14 @@ const components = @import("components.zig");
 const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
 const List = @import("list.zig").List;
+const strings_module = @import("strings.zig");
+const Strings = strings_module.Strings;
+const InternedString = strings_module.InternedString;
 
 const WasmString = List(u8, .{ .initial_capacity = 1000 });
 
-fn wasmStringType(codebase: *ECS, string: *WasmString, type_: Entity) !void {
-    const builtins = codebase.get(components.Builtins);
+fn wasmStringType(string: *WasmString, type_: Entity) !void {
+    const builtins = type_.ecs.get(components.Builtins);
     if (eql(type_, builtins.I64)) {
         try string.appendSlice("i64");
     } else {
@@ -30,55 +33,103 @@ fn wasmStringType(codebase: *ECS, string: *WasmString, type_: Entity) !void {
     }
 }
 
-pub fn wasmString(codebase: *ECS, wasm: Entity) ![]u8 {
+fn wasmStringFunctionName(string: *WasmString, function: Entity) !void {
+    try string.appendSlice("\n\n  (func $");
+    try string.appendSlice(literalOf(function.get(components.Module).entity));
+    try string.append('/');
+    try string.appendSlice(literalOf(function.get(components.Name).entity));
+}
+
+fn wasmStringFunctionParameters(string: *WasmString, function: Entity) !void {
+    for (function.get(components.Parameters).slice()) |parameter| {
+        try string.appendSlice(" (param $");
+        try string.appendSlice(literalOf(parameter.get(components.Name).entity));
+        try string.append(' ');
+        try wasmStringType(string, parameter.get(components.Type).entity);
+        try string.append(')');
+    }
+}
+
+fn wasmStringFunctionReturnType(string: *WasmString, function: Entity) !void {
+    try string.appendSlice(" (result ");
+    try wasmStringType(string, function.get(components.ReturnType).entity);
+    try string.append(')');
+}
+
+fn wasmStringFunctionLocals(string: *WasmString, function: Entity) !void {
+    const parameters = function.get(components.Parameters).slice();
+    const parameter_names = try function.ecs.arena.allocator.alloc(InternedString, parameters.len);
+    for (parameters) |parameter, i| {
+        parameter_names[i] = parameter.get(components.Name).entity.get(components.Literal).interned;
+    }
+    const strings = function.ecs.get(Strings);
+    var locals = function.get(components.Locals).iterate();
+    while (locals.next()) |local| {
+        const local_name = local.get(components.Name).entity.get(components.Literal).interned;
+        var found = false;
+        for (parameter_names) |parameter_name| {
+            if (eql(parameter_name, local_name)) {
+                found = true;
+            }
+        }
+        if (found) {
+            continue;
+        }
+        try string.appendSlice("\n    (local $");
+        try string.appendSlice(strings.get(local_name));
+        try string.append(' ');
+        try wasmStringType(string, local.get(components.Type).entity);
+        try string.append(')');
+    }
+}
+
+fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
+    switch (wasm_instruction.get(components.WasmInstructionKind)) {
+        .i64_const => {
+            try string.appendSlice("\n    (i64.const ");
+            try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
+            try string.append(')');
+        },
+        .call => {
+            try string.appendSlice("\n    (call $");
+            const callable = wasm_instruction.get(components.Callable).entity;
+            try string.appendSlice(literalOf(callable.get(components.Module).entity));
+            try string.append('/');
+            try string.appendSlice(literalOf(callable.get(components.Name).entity));
+            try string.append(')');
+        },
+        .get_local => {
+            try string.appendSlice("\n    (get_local $");
+            const result = wasm_instruction.get(components.Result).entity;
+            try string.appendSlice(literalOf(result.get(components.Name).entity));
+            try string.append(')');
+        },
+        .set_local => {
+            try string.appendSlice("\n    (set_local $");
+            const result = wasm_instruction.get(components.Result).entity;
+            try string.appendSlice(literalOf(result.get(components.Name).entity));
+            try string.append(')');
+        },
+    }
+}
+
+fn wasmStringFunction(string: *WasmString, function: Entity) !void {
+    try wasmStringFunctionName(string, function);
+    try wasmStringFunctionParameters(string, function);
+    try wasmStringFunctionReturnType(string, function);
+    try wasmStringFunctionLocals(string, function);
+    for (function.get(components.WasmInstructions).slice()) |wasm_instruction| {
+        try wasmStringInstruction(string, wasm_instruction);
+    }
+    try string.append(')');
+}
+
+pub fn wasmString(wasm: Entity) ![]u8 {
+    const codebase = wasm.ecs;
     var string = WasmString.init(&codebase.arena.allocator);
     try string.appendSlice("(module");
     for (codebase.get(components.Functions).slice()) |function| {
-        try string.appendSlice("\n\n  (func $");
-        try string.appendSlice(literalOf(function.get(components.Module).entity));
-        try string.append('/');
-        try string.appendSlice(literalOf(function.get(components.Name).entity));
-        try string.appendSlice(" (result ");
-        try wasmStringType(codebase, &string, function.get(components.ReturnType).entity);
-        try string.append(')');
-        var locals = function.get(components.Locals).iterate();
-        while (locals.next()) |local| {
-            try string.appendSlice("\n    (local $");
-            try string.appendSlice(literalOf(local.get(components.Name).entity));
-            try string.append(' ');
-            try wasmStringType(codebase, &string, local.get(components.Type).entity);
-            try string.append(')');
-        }
-        for (function.get(components.WasmInstructions).slice()) |wasm_instruction| {
-            switch (wasm_instruction.get(components.WasmInstructionKind)) {
-                .i64_const => {
-                    try string.appendSlice("\n    (i64.const ");
-                    try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
-                    try string.append(')');
-                },
-                .call => {
-                    try string.appendSlice("\n    (call $");
-                    const callable = wasm_instruction.get(components.Callable).entity;
-                    try string.appendSlice(literalOf(callable.get(components.Module).entity));
-                    try string.append('/');
-                    try string.appendSlice(literalOf(callable.get(components.Name).entity));
-                    try string.append(')');
-                },
-                .get_local => {
-                    try string.appendSlice("\n    (get_local $");
-                    const result = wasm_instruction.get(components.Result).entity;
-                    try string.appendSlice(literalOf(result.get(components.Name).entity));
-                    try string.append(')');
-                },
-                .set_local => {
-                    try string.appendSlice("\n    (set_local $");
-                    const result = wasm_instruction.get(components.Result).entity;
-                    try string.appendSlice(literalOf(result.get(components.Name).entity));
-                    try string.append(')');
-                },
-            }
-        }
-        try string.append(')');
+        try wasmStringFunction(&string, function);
     }
     try string.appendSlice("\n\n(export \"_start\" (func $");
     try string.appendSlice(literalOf(wasm));
@@ -97,8 +148,8 @@ test "wasm string int literal" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
-    const wasm_string = try wasmString(codebase, wasm);
+    const wasm = try codegen(ir);
+    const wasm_string = try wasmString(wasm);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -124,8 +175,8 @@ test "wasm string call local function" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
-    const wasm_string = try wasmString(codebase, wasm);
+    const wasm = try codegen(ir);
+    const wasm_string = try wasmString(wasm);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -157,8 +208,8 @@ test "wasm string call function from import" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
-    const wasm_string = try wasmString(codebase, wasm);
+    const wasm = try codegen(ir);
+    const wasm_string = try wasmString(wasm);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -184,8 +235,8 @@ test "wasm string assignment" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
-    const wasm_string = try wasmString(codebase, wasm);
+    const wasm = try codegen(ir);
+    const wasm_string = try wasmString(wasm);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -193,6 +244,41 @@ test "wasm string assignment" {
         \\    (local $x i64)
         \\    (i64.const 10)
         \\    (set_local $x)
+        \\    (get_local $x))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "wasm string function with argument" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x: I64 = 10
+        \\  id(x)
+        \\end
+        \\
+        \\id = function(x: I64): I64
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(ir);
+    const wasm_string = try wasmString(wasm);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (local $x i64)
+        \\    (i64.const 10)
+        \\    (set_local $x)
+        \\    (get_local $x)
+        \\    (call $foo/id))
+        \\
+        \\  (func $foo/id (param $x i64) (result i64)
         \\    (get_local $x))
         \\
         \\(export "_start" (func $foo/start)))

@@ -85,9 +85,11 @@ fn codegenSetLocal(context: Context, ir_instruction: Entity) !void {
     panic("\ncodegen set local type not supported {s}\n", .{literalOf(type_of)});
 }
 
-pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
+pub fn codegen(ir: Entity) !Entity {
+    const codebase = ir.ecs;
     const allocator = &codebase.arena.allocator;
-    for (codebase.get(components.Functions).slice()) |function| {
+    const builtins = codebase.get(components.Builtins);
+    for (ir.ecs.get(components.Functions).slice()) |function| {
         var locals = components.Locals.init(allocator);
         var wasm_instructions = components.WasmInstructions.init(allocator);
         const context = Context{
@@ -95,7 +97,7 @@ pub fn codegen(codebase: *ECS, ir: Entity) !Entity {
             .wasm_instructions = &wasm_instructions,
             .locals = &locals,
             .allocator = allocator,
-            .builtins = codebase.get(components.Builtins),
+            .builtins = builtins,
         };
         const basic_blocks = function.get(components.BasicBlocks).slice();
         try expectEqual(basic_blocks.len, 1);
@@ -125,7 +127,7 @@ test "codegen int literal" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
+    const wasm = try codegen(ir);
     const top_level = wasm.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const wasm_instructions = start.get(components.WasmInstructions).slice();
@@ -150,7 +152,7 @@ test "codegen call local function" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
+    const wasm = try codegen(ir);
     const top_level = wasm.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
@@ -183,7 +185,7 @@ test "codegen call function from import" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
+    const wasm = try codegen(ir);
     const top_level = wasm.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
@@ -211,7 +213,7 @@ test "codegen assignment" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
+    const wasm = try codegen(ir);
     const top_level = wasm.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
@@ -240,7 +242,7 @@ test "codegen two assignments" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
+    const wasm = try codegen(ir);
     const top_level = wasm.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
@@ -269,7 +271,7 @@ test "codegen assignment explicit type" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
+    const wasm = try codegen(ir);
     const top_level = wasm.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
@@ -302,7 +304,7 @@ test "codegen function with argument" {
         \\end
     );
     const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(codebase, ir);
+    const wasm = try codegen(ir);
     const top_level = wasm.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
