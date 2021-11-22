@@ -28,6 +28,8 @@ fn wasmStringType(string: *WasmString, type_: Entity) !void {
     const builtins = type_.ecs.get(components.Builtins);
     if (eql(type_, builtins.I64)) {
         try string.appendSlice("i64");
+    } else if (eql(type_, builtins.U64)) {
+        try string.appendSlice("u64");
     } else {
         panic("\nwasm string unsupported type {s}\n", .{literalOf(type_)});
     }
@@ -87,6 +89,11 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
     switch (wasm_instruction.get(components.WasmInstructionKind)) {
         .i64_const => {
             try string.appendSlice("\n    (i64.const ");
+            try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
+            try string.append(')');
+        },
+        .u64_const => {
+            try string.appendSlice("\n    (u64.const ");
             try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
             try string.append(')');
         },
@@ -345,6 +352,41 @@ test "wasm string function with int literal argument" {
         \\    (call $foo/id))
         \\
         \\  (func $foo/id (param $x i64) (result i64)
+        \\    (get_local $x))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "codegen function with U64 argument" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): U64
+        \\  x: U64 = 10
+        \\  id(x)
+        \\end
+        \\
+        \\id = function(x: U64): U64
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(ir);
+    const wasm_string = try wasmString(wasm);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result u64)
+        \\    (local $x u64)
+        \\    (u64.const 10)
+        \\    (set_local $x)
+        \\    (get_local $x)
+        \\    (call $foo/id))
+        \\
+        \\  (func $foo/id (param $x u64) (result u64)
         \\    (get_local $x))
         \\
         \\(export "_start" (func $foo/start)))
