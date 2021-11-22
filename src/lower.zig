@@ -119,8 +119,12 @@ fn lowerDot(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     }
     const call_arguments = call.get(components.Arguments).slice();
     var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
-    for (call_arguments) |argument| {
-        function_arguments.appendAssumeCapacity(try lowerExpression(FS, context, argument));
+    const function_parameters = function.get(components.Parameters).slice();
+    for (call_arguments) |argument, i| {
+        const lowered_argument = try lowerExpression(FS, context, argument);
+        const expected_type = function_parameters[i].get(components.Type).entity;
+        try implicitTypeConversion(lowered_argument, expected_type);
+        function_arguments.appendAssumeCapacity(lowered_argument);
     }
     const return_type = function.get(components.ReturnType).entity;
     const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
@@ -704,6 +708,73 @@ test "lower function with argument implicit conversion" {
     try expectEqual(x.get(components.Type).entity, builtins.I64);
     try expectEqual(id.get(components.ReturnType).entity, builtins.I64);
     const basic_blocks = id.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 1);
+    const get_local = basic_block[0];
+    try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+    try expectEqual(get_local.get(components.Result).entity, x);
+}
+
+test "lower function call from import with implicit conversion" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\bar = import("bar.yeti")
+        \\
+        \\start = function(): I64
+        \\  x = 10
+        \\  bar.baz(x)
+        \\end
+    );
+    _ = try fs.newFile("bar.yeti",
+        \\baz = function(x: I64): I64
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const baz = blk: {
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 4);
+        const int_const = basic_block[0];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const x = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(x), "10");
+        try expectEqual(typeOf(x), builtins.I64);
+        const set_local = basic_block[1];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, x);
+        const get_local = basic_block[2];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+        const call = basic_block[3];
+        try expectEqual(call.get(components.IrInstructionKind), .call);
+        const result = call.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtins.I64);
+        try expectEqualSlices(Entity, call.get(components.Arguments).slice(), &.{x});
+        break :blk call.get(components.Callable).entity;
+    };
+    try expectEqualStrings(literalOf(baz.get(components.Module).entity), "bar");
+    try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
+    const parameters = baz.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const x = parameters[0];
+    try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+    try expectEqual(x.get(components.Type).entity, builtins.I64);
+    try expectEqual(baz.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = baz.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
     const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
     try expectEqual(basic_block.len, 1);
