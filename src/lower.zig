@@ -170,8 +170,12 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
     }
     const call_arguments = call.get(components.Arguments).slice();
     var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
-    for (call_arguments) |argument| {
-        function_arguments.appendAssumeCapacity(try lowerExpression(FS, context, argument));
+    const function_parameters = function.get(components.Parameters).slice();
+    for (call_arguments) |argument, i| {
+        const lowered_argument = try lowerExpression(FS, context, argument);
+        const expected_type = function_parameters[i].get(components.Type).entity;
+        try implicitTypeConversion(lowered_argument, expected_type);
+        function_arguments.appendAssumeCapacity(lowered_argument);
     }
     const return_type = function.get(components.ReturnType).entity;
     const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
@@ -186,22 +190,26 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
     return result;
 }
 
+fn implicitTypeConversion(value: Entity, expected_type: Entity) !void {
+    const actual_type = value.get(components.Type).entity;
+    const builtins = value.ecs.get(components.Builtins);
+    if (eql(actual_type, builtins.IntLiteral)) {
+        if (eql(expected_type, builtins.I64) or eql(expected_type, builtins.U64)) {
+            _ = try value.set(.{components.Type.init(expected_type)});
+        } else {
+            panic("lower define found invalid explicit type for int literal", .{});
+        }
+    } else {
+        assert(eql(expected_type, actual_type));
+    }
+}
+
 fn lowerDefine(comptime FS: type, context: Context(FS), define: Entity) !Entity {
     const scope = context.basic_block.getPtr(components.Scope);
     const value = try lowerExpression(FS, context, define.get(components.Value).entity);
     if (define.has(components.TypeAst)) |type_ast| {
         const explicit_type = try lowerExpression(FS, context, type_ast.entity);
-        const actual_type = value.get(components.Type).entity;
-        const builtins = context.codebase.get(components.Builtins);
-        if (eql(actual_type, builtins.IntLiteral)) {
-            if (eql(explicit_type, builtins.I64) or eql(explicit_type, builtins.U64)) {
-                _ = try value.set(.{components.Type.init(explicit_type)});
-            } else {
-                panic("lower define found invalid explicit type for int literal", .{});
-            }
-        } else {
-            assert(eql(explicit_type, actual_type));
-        }
+        try implicitTypeConversion(value, explicit_type);
     }
     const instructions = context.basic_block.getPtr(components.IrInstructions);
     const instruction = try context.codebase.createEntity(.{
@@ -584,6 +592,70 @@ test "lower function with argument" {
     _ = try fs.newFile("foo.yeti",
         \\start = function(): I64
         \\  x: I64 = 10
+        \\  id(x)
+        \\end
+        \\
+        \\id = function(x: I64): I64
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const id = blk: {
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 4);
+        const int_const = basic_block[0];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const x = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(x), "10");
+        try expectEqual(typeOf(x), builtins.I64);
+        const set_local = basic_block[1];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, x);
+        const get_local = basic_block[2];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+        const call = basic_block[3];
+        try expectEqual(call.get(components.IrInstructionKind), .call);
+        const result = call.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtins.I64);
+        try expectEqualSlices(Entity, call.get(components.Arguments).slice(), &.{x});
+        break :blk call.get(components.Callable).entity;
+    };
+    try expectEqualStrings(literalOf(id.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
+    const parameters = id.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const x = parameters[0];
+    try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+    try expectEqual(x.get(components.Type).entity, builtins.I64);
+    try expectEqual(id.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = id.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 1);
+    const get_local = basic_block[0];
+    try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+    try expectEqual(get_local.get(components.Result).entity, x);
+}
+
+test "lower function with argument implicit conversion" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x = 10
         \\  id(x)
         \\end
         \\

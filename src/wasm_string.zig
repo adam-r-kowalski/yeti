@@ -284,3 +284,69 @@ test "wasm string function with argument" {
         \\(export "_start" (func $foo/start)))
     );
 }
+
+test "wasm string function with argument implicit type" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x = 10
+        \\  id(x)
+        \\end
+        \\
+        \\id = function(x: I64): I64
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(ir);
+    const wasm_string = try wasmString(wasm);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (local $x i64)
+        \\    (i64.const 10)
+        \\    (set_local $x)
+        \\    (get_local $x)
+        \\    (call $foo/id))
+        \\
+        \\  (func $foo/id (param $x i64) (result i64)
+        \\    (get_local $x))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "wasm string function with int literal argument" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  id(10)
+        \\end
+        \\
+        \\id = function(x: I64): I64
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const wasm = try codegen(ir);
+    const wasm_string = try wasmString(wasm);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (i64.const 10)
+        \\    (call $foo/id))
+        \\
+        \\  (func $foo/id (param $x i64) (result i64)
+        \\    (get_local $x))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
