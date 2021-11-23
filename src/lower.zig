@@ -91,52 +91,15 @@ fn lowerDot(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     assert(eql(typeOf(ast), context.codebase.get(components.Builtins).Module));
     const call = dot_arguments[1];
     assert(call.get(components.AstKind) == .call);
-    const callable = call.get(components.Callable).entity;
-    assert(callable.get(components.AstKind) == .symbol);
-    // TODO: check if this function has already been lowered for these parameter types
-    const top_level = ast.get(components.TopLevel);
-    const literal = callable.get(components.Literal);
-    const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
-    assert(overloads.len == 1);
-    const function = overloads[0];
-    {
-        var basic_blocks = components.BasicBlocks.init(context.allocator);
-        const basic_block = try context.codebase.createEntity(.{
-            components.IrInstructions.init(context.allocator),
-            components.Scope.init(context.allocator, context.codebase.getPtr(Strings)),
-        });
-        _ = try basic_blocks.append(basic_block);
-        _ = try function.set(.{basic_blocks});
-        const new_context = Context(FS){
-            .allocator = context.allocator,
-            .codebase = context.codebase,
-            .fs = context.fs,
-            .ast = ast,
-            .function = function,
-            .basic_block = basic_block,
-        };
-        try lowerFunction(FS, new_context);
-    }
-    const call_arguments = call.get(components.Arguments).slice();
-    var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
-    const function_parameters = function.get(components.Parameters).slice();
-    for (call_arguments) |argument, i| {
-        const lowered_argument = try lowerExpression(FS, context, argument);
-        const expected_type = function_parameters[i].get(components.Type).entity;
-        try implicitTypeConversion(lowered_argument, expected_type);
-        function_arguments.appendAssumeCapacity(lowered_argument);
-    }
-    const return_type = function.get(components.ReturnType).entity;
-    const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
-    const instructions = context.basic_block.getPtr(components.IrInstructions);
-    const instruction = try context.codebase.createEntity(.{
-        components.IrInstructionKind.call,
-        components.Callable.init(function),
-        function_arguments,
-        components.Result.init(result),
-    });
-    try instructions.append(instruction);
-    return result;
+    const new_context = Context(FS){
+        .allocator = context.allocator,
+        .codebase = context.codebase,
+        .fs = context.fs,
+        .ast = ast,
+        .function = context.function,
+        .basic_block = context.basic_block,
+    };
+    return try lowerCall(FS, new_context, call);
 }
 
 fn lowerBinaryOp(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
