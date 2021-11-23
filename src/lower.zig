@@ -147,39 +147,85 @@ fn lowerBinaryOp(comptime FS: type, context: Context(FS), entity: Entity) !Entit
     };
 }
 
-fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
-    const callable = call.get(components.Callable).entity;
+const Match = enum {
+    none,
+    implict_conversion,
+    exact,
+};
+
+fn bestOverload(comptime FS: type, context: Context(FS), callable: Entity, arguments: []const Entity) !Entity {
     const top_level = context.ast.get(components.TopLevel);
     const literal = callable.get(components.Literal);
-    const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
-    assert(overloads.len == 1);
-    const function = overloads[0];
-    {
+    var best_overload: Entity = undefined;
+    var best_match = Match.none;
+    const builtins = context.codebase.get(components.Builtins);
+    for (top_level.findLiteral(literal).get(components.Overloads).slice()) |overload| {
         var basic_blocks = components.BasicBlocks.init(context.allocator);
         const basic_block = try context.codebase.createEntity(.{
             components.IrInstructions.init(context.allocator),
             components.Scope.init(context.allocator, context.codebase.getPtr(Strings)),
         });
         _ = try basic_blocks.append(basic_block);
-        _ = try function.set(.{basic_blocks});
+        _ = try overload.set(.{basic_blocks});
+        const new_context = Context(FS){
+            .allocator = context.allocator,
+            .codebase = context.codebase,
+            .fs = context.fs,
+            .ast = context.ast,
+            .function = overload,
+            .basic_block = basic_block,
+        };
+        try lowerFunctionParameters(FS, new_context);
+        const parameters = overload.get(components.Parameters).slice();
+        if (parameters.len != arguments.len) continue;
+        var match = Match.exact;
+        for (parameters) |parameter, i| {
+            const parameter_type = parameter.get(components.Type).entity;
+            const argument_type = arguments[i].get(components.Type).entity;
+            if (eql(parameter_type, argument_type)) continue;
+            if (eql(argument_type, builtins.IntLiteral)) {
+                if (eql(parameter_type, builtins.I64) or eql(parameter_type, builtins.U64)) {
+                    if (best_match == .none) {
+                        best_match = .implict_conversion;
+                    }
+                }
+            } else {
+                match = .none;
+                break;
+            }
+        }
+        if (@enumToInt(match) < @enumToInt(best_match)) continue;
+        if (match != .none and match == best_match) panic("ambiguous overload set overload match {} best match {}", .{ match, best_match });
+        best_match = match;
+        best_overload = overload;
+    }
+    assert(best_match != .none);
+    return best_overload;
+}
+
+fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
+    const callable = call.get(components.Callable).entity;
+    const call_arguments = call.get(components.Arguments).slice();
+    var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
+    for (call_arguments) |argument| {
+        function_arguments.appendAssumeCapacity(try lowerExpression(FS, context, argument));
+    }
+    const function = try bestOverload(FS, context, callable, function_arguments.slice());
+    {
         const new_context = Context(FS){
             .allocator = context.allocator,
             .codebase = context.codebase,
             .fs = context.fs,
             .ast = context.ast,
             .function = function,
-            .basic_block = basic_block,
+            .basic_block = function.get(components.BasicBlocks).slice()[0],
         };
         try lowerFunction(FS, new_context);
     }
-    const call_arguments = call.get(components.Arguments).slice();
-    var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
     const function_parameters = function.get(components.Parameters).slice();
-    for (call_arguments) |argument, i| {
-        const lowered_argument = try lowerExpression(FS, context, argument);
+    for (function_arguments.slice()) |argument, i| {
         const expected_type = function_parameters[i].get(components.Type).entity;
-        try implicitTypeConversion(lowered_argument, expected_type);
-        function_arguments.appendAssumeCapacity(lowered_argument);
+        try implicitTypeConversion(argument, expected_type);
     }
     const return_type = function.get(components.ReturnType).entity;
     const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
@@ -240,6 +286,7 @@ fn lowerExpression(comptime FS: type, context: Context(FS), entity: Entity) erro
 }
 
 fn lowerFunctionParameters(comptime FS: type, context: Context(FS)) !void {
+    if (context.function.has(components.LoweredParameters) != null) return;
     const scope = context.basic_block.getPtr(components.Scope);
     const parameters = context.function.get(components.Parameters).slice();
     for (parameters) |parameter| {
@@ -250,6 +297,7 @@ fn lowerFunctionParameters(comptime FS: type, context: Context(FS)) !void {
         });
         try scope.putLiteral(parameter.get(components.Literal), parameter);
     }
+    _ = try context.function.set(.{components.LoweredParameters{ .value = true }});
 }
 
 fn lowerFunctionReturnType(comptime FS: type, context: Context(FS)) !Entity {
@@ -928,4 +976,144 @@ test "lower function with U64 return" {
     const result = int_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(result), "42");
     try expectEqual(typeOf(result), builtins.U64);
+}
+
+test "lower function overload using I64" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x: I64 = 0
+        \\  f(x)
+        \\end
+        \\
+        \\f = function(x: I64): I64
+        \\  42
+        \\end
+        \\
+        \\f = function(x: U64): I64
+        \\  24
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const f = blk: {
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 4);
+        const int_const = basic_block[0];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const x = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(x), "0");
+        try expectEqual(typeOf(x), builtins.I64);
+        const set_local = basic_block[1];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, x);
+        const get_local = basic_block[2];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+        const call = basic_block[3];
+        try expectEqual(call.get(components.IrInstructionKind), .call);
+        const result = call.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtins.I64);
+        try expectEqualSlices(Entity, call.get(components.Arguments).slice(), &.{x});
+        break :blk call.get(components.Callable).entity;
+    };
+    try expectEqualStrings(literalOf(f.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(f.get(components.Name).entity), "f");
+    const parameters = f.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const x = parameters[0];
+    try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+    try expectEqual(x.get(components.Type).entity, builtins.I64);
+    try expectEqual(f.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = f.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 1);
+    const int_const = basic_block[0];
+    try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+    const result = int_const.get(components.Result).entity;
+    try expectEqualStrings(literalOf(result), "42");
+    try expectEqual(typeOf(result), builtins.I64);
+}
+
+test "lower function overload using U64" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x: U64 = 0
+        \\  f(x)
+        \\end
+        \\
+        \\f = function(x: I64): I64
+        \\  42
+        \\end
+        \\
+        \\f = function(x: U64): I64
+        \\  24
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const f = blk: {
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 4);
+        const int_const = basic_block[0];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const x = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(x), "0");
+        try expectEqual(typeOf(x), builtins.U64);
+        const set_local = basic_block[1];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, x);
+        const get_local = basic_block[2];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+        const call = basic_block[3];
+        try expectEqual(call.get(components.IrInstructionKind), .call);
+        const result = call.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtins.I64);
+        try expectEqualSlices(Entity, call.get(components.Arguments).slice(), &.{x});
+        break :blk call.get(components.Callable).entity;
+    };
+    try expectEqualStrings(literalOf(f.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(f.get(components.Name).entity), "f");
+    const parameters = f.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const x = parameters[0];
+    try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+    try expectEqual(x.get(components.Type).entity, builtins.U64);
+    try expectEqual(f.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = f.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 1);
+    const int_const = basic_block[0];
+    try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+    const result = int_const.get(components.Result).entity;
+    try expectEqualStrings(literalOf(result), "24");
+    try expectEqual(typeOf(result), builtins.I64);
 }

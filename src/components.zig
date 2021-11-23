@@ -223,6 +223,10 @@ pub const BinaryOp = enum(u8) {
     dot,
 };
 
+pub const LoweredParameters = struct {
+    value: bool,
+};
+
 pub const IrInstructionKind = enum(u8) {
     call,
     int_const,
