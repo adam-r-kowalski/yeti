@@ -29,7 +29,7 @@ fn wasmStringType(string: *WasmString, type_: Entity) !void {
     if (eql(type_, builtins.I64)) {
         try string.appendSlice("i64");
     } else if (eql(type_, builtins.U64)) {
-        try string.appendSlice("u64");
+        try string.appendSlice("i64");
     } else {
         panic("\nwasm string unsupported type {s}\n", .{literalOf(type_)});
     }
@@ -89,11 +89,6 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
     switch (wasm_instruction.get(components.WasmInstructionKind)) {
         .i64_const => {
             try string.appendSlice("\n    (i64.const ");
-            try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
-            try string.append(')');
-        },
-        .u64_const => {
-            try string.appendSlice("\n    (u64.const ");
             try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
             try string.append(')');
         },
@@ -379,14 +374,14 @@ test "codegen function with U64 argument" {
     try expectEqualStrings(wasm_string,
         \\(module
         \\
-        \\  (func $foo/start (result u64)
-        \\    (local $x u64)
-        \\    (u64.const 10)
+        \\  (func $foo/start (result i64)
+        \\    (local $x i64)
+        \\    (i64.const 10)
         \\    (set_local $x)
         \\    (get_local $x)
         \\    (call $foo/id))
         \\
-        \\  (func $foo/id (param $x u64) (result u64)
+        \\  (func $foo/id (param $x i64) (result i64)
         \\    (get_local $x))
         \\
         \\(export "_start" (func $foo/start)))

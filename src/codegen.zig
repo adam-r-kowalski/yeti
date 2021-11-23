@@ -33,10 +33,8 @@ fn codegenIntConst(context: Context, ir_instruction: Entity) !void {
     if (eql(type_of, context.builtins.IntLiteral)) {
         return;
     }
-    const kind = if (eql(type_of, context.builtins.I64))
+    const kind = if (eql(type_of, context.builtins.I64) or eql(type_of, context.builtins.U64))
         components.WasmInstructionKind.i64_const
-    else if (eql(type_of, context.builtins.U64))
-        components.WasmInstructionKind.u64_const
     else
         panic("\ncompiler bug in codegen int_const\n", .{});
     const wasm_instruction = try context.codebase.createEntity(.{
@@ -353,9 +351,9 @@ test "codegen function with U64 argument" {
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 4);
-    const u64_const = start_instructions[0];
-    try expectEqual(u64_const.get(components.WasmInstructionKind), .u64_const);
-    const x = u64_const.get(components.Result).entity;
+    const i64_const = start_instructions[0];
+    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+    const x = i64_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(x), "10");
     const set_local = start_instructions[1];
     try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);

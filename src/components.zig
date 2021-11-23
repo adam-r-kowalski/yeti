@@ -232,7 +232,6 @@ pub const IrInstructionKind = enum(u8) {
 
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
-    u64_const,
     call,
     get_local,
     set_local,
