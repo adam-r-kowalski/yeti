@@ -560,7 +560,8 @@ test "parse import module" {
     try expectEqualStrings(literalOf(import.get(components.Path).entity), "foo.yeti");
 }
 
-pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
+pub fn parse(module: Entity, tokens: *Tokens) !void {
+    const codebase = module.ecs;
     var top_level = components.TopLevel.init(&codebase.arena.allocator, codebase.getPtr(Strings));
     while (tokens.next()) |token| {
         const name = components.Name.init(token);
@@ -590,7 +591,7 @@ pub fn parse(codebase: *ECS, tokens: *Tokens) !Entity {
             else => panic("\ncannot parse top level expression {}\n", .{kind}),
         }
     }
-    return try codebase.createEntity(.{
+    _ = try module.set(.{
         top_level,
         components.Type.init(codebase.get(components.Builtins).Module),
     });
@@ -611,15 +612,15 @@ test "parse two functions" {
         \\end
     ;
     var tokens = try tokenize(module, code);
-    const ast = try parse(codebase, &tokens);
+    try parse(module, &tokens);
     {
-        const sum_of_squares = ast.get(components.TopLevel).findString("sum_of_squares");
+        const sum_of_squares = module.get(components.TopLevel).findString("sum_of_squares");
         const overloads = sum_of_squares.get(components.Overloads).slice();
         try expectEqual(overloads.len, 1);
         try expectEqual(overloads[0].get(components.Parameters).slice().len, 2);
     }
     {
-        const start = ast.get(components.TopLevel).findString("start");
+        const start = module.get(components.TopLevel).findString("start");
         const overloads = start.get(components.Overloads).slice();
         try expectEqual(overloads.len, 1);
         try expectEqual(overloads[0].get(components.Parameters).slice().len, 0);
@@ -637,8 +638,8 @@ test "parse overload" {
         \\id = function(x: F64): F64 x end
     ;
     var tokens = try tokenize(module, code);
-    const ast = try parse(codebase, &tokens);
-    const id = ast.get(components.TopLevel).findString("id");
+    try parse(module, &tokens);
+    const id = module.get(components.TopLevel).findString("id");
     const overloads = id.get(components.Overloads).slice();
     try expectEqual(overloads.len, 2);
     {
@@ -674,8 +675,8 @@ test "parse import and function" {
         \\end
     ;
     var tokens = try tokenize(module, code);
-    const ast = try parse(codebase, &tokens);
-    const top_level = ast.get(components.TopLevel);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
     const math = top_level.findString("math");
     try expectEqual(math.get(components.AstKind), .import);
     try expectEqualStrings(literalOf(math.get(components.Path).entity), "math.yeti");
@@ -712,8 +713,8 @@ test "parse assignment" {
         \\end
     ;
     var tokens = try tokenize(module, code);
-    const ast = try parse(codebase, &tokens);
-    const top_level = ast.get(components.TopLevel);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start");
     const overloads = start.get(components.Overloads).slice();
     try expectEqual(overloads.len, 1);
@@ -740,8 +741,8 @@ test "parse assignment with explicit type" {
         \\end
     ;
     var tokens = try tokenize(module, code);
-    const ast = try parse(codebase, &tokens);
-    const top_level = ast.get(components.TopLevel);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start");
     const overloads = start.get(components.Overloads).slice();
     try expectEqual(overloads.len, 1);

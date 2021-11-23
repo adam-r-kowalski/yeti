@@ -85,11 +85,11 @@ fn codegenSetLocal(context: Context, ir_instruction: Entity) !void {
     panic("\ncodegen set local type not supported {s}\n", .{literalOf(type_of)});
 }
 
-pub fn codegen(ir: Entity) !Entity {
-    const codebase = ir.ecs;
+pub fn codegen(module: Entity) !void {
+    const codebase = module.ecs;
     const allocator = &codebase.arena.allocator;
     const builtins = codebase.get(components.Builtins);
-    for (ir.ecs.get(components.Functions).slice()) |function| {
+    for (module.ecs.get(components.Functions).slice()) |function| {
         var locals = components.Locals.init(allocator);
         var wasm_instructions = components.WasmInstructions.init(allocator);
         const context = Context{
@@ -113,7 +113,6 @@ pub fn codegen(ir: Entity) !Entity {
         }
         _ = try function.set(.{ wasm_instructions, locals });
     }
-    return ir;
 }
 
 test "codegen int literal" {
@@ -126,9 +125,9 @@ test "codegen int literal" {
         \\  5
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const top_level = wasm.get(components.TopLevel);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const wasm_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(wasm_instructions.len, 1);
@@ -151,9 +150,9 @@ test "codegen call local function" {
         \\  10
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const top_level = wasm.get(components.TopLevel);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 1);
@@ -184,9 +183,9 @@ test "codegen call function from import" {
         \\  10
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const top_level = wasm.get(components.TopLevel);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 1);
@@ -212,9 +211,9 @@ test "codegen assignment" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const top_level = wasm.get(components.TopLevel);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 3);
@@ -241,9 +240,9 @@ test "codegen two assignments" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const top_level = wasm.get(components.TopLevel);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 3);
@@ -270,9 +269,9 @@ test "codegen assignment explicit type" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const top_level = wasm.get(components.TopLevel);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 3);
@@ -303,9 +302,9 @@ test "codegen function with argument" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const top_level = wasm.get(components.TopLevel);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 4);
@@ -345,9 +344,9 @@ test "codegen function with U64 argument" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const top_level = wasm.get(components.TopLevel);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 4);

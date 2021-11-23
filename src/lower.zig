@@ -32,7 +32,7 @@ fn Context(comptime FS: type) type {
         allocator: *Allocator,
         codebase: *ECS,
         fs: FS,
-        ast: Entity,
+        module: Entity,
         function: Entity,
         basic_block: Entity,
     };
@@ -54,21 +54,20 @@ fn lowerSymbol(comptime FS: type, context: Context(FS), entity: Entity) !Entity 
     if (global_scope.hasLiteral(literal)) |global| {
         return global;
     }
-    // TODO:lookup symbol from cached ir module component
-    const top_level_scope = context.ast.get(components.TopLevel);
+    const top_level_scope = context.module.get(components.TopLevel);
     if (top_level_scope.hasLiteral(literal)) |top_level| {
         const kind = top_level.get(components.AstKind);
         switch (kind) {
             .import => {
+                // TODO: Don't reparse the module every time. Cache them based on path
                 const module_name = literalOf(top_level.get(components.Path).entity);
                 const contents = try context.fs.read(module_name);
                 const module = try context.codebase.createEntity(.{});
                 var tokens = try tokenize(module, contents);
-                // TODO:cache the ast into ir module component
-                const ast = try parse(context.codebase, &tokens);
+                try parse(module, &tokens);
                 const interned = try context.codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
-                _ = try ast.set(.{components.Literal.init(interned)});
-                return ast;
+                _ = try module.set(.{components.Literal.init(interned)});
+                return module;
             },
             else => panic("\nlowerSumbol unspported top level kind {}\n", .{kind}),
         }
@@ -88,15 +87,15 @@ fn lowerInt(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
 
 fn lowerDot(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     const dot_arguments = entity.get(components.Arguments).slice();
-    const ast = try lowerExpression(FS, context, dot_arguments[0]);
-    assert(eql(typeOf(ast), context.codebase.get(components.Builtins).Module));
+    const module = try lowerExpression(FS, context, dot_arguments[0]);
+    assert(eql(typeOf(module), context.codebase.get(components.Builtins).Module));
     const call = dot_arguments[1];
     assert(call.get(components.AstKind) == .call);
     const new_context = Context(FS){
         .allocator = context.allocator,
         .codebase = context.codebase,
         .fs = context.fs,
-        .ast = ast,
+        .module = module,
         .function = context.function,
         .basic_block = context.basic_block,
     };
@@ -118,7 +117,7 @@ const Match = enum {
 };
 
 fn bestOverload(comptime FS: type, context: Context(FS), callable: Entity, arguments: []const Entity) !Entity {
-    const top_level = context.ast.get(components.TopLevel);
+    const top_level = context.module.get(components.TopLevel);
     const literal = callable.get(components.Literal);
     var best_overload: Entity = undefined;
     var best_match = Match.none;
@@ -135,7 +134,7 @@ fn bestOverload(comptime FS: type, context: Context(FS), callable: Entity, argum
             .allocator = context.allocator,
             .codebase = context.codebase,
             .fs = context.fs,
-            .ast = context.ast,
+            .module = context.module,
             .function = overload,
             .basic_block = basic_block,
         };
@@ -180,7 +179,7 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
             .allocator = context.allocator,
             .codebase = context.codebase,
             .fs = context.fs,
-            .ast = context.ast,
+            .module = context.module,
             .function = function,
             .basic_block = function.get(components.BasicBlocks).slice()[0],
         };
@@ -280,7 +279,7 @@ fn lowerFunctionBody(comptime FS: type, context: Context(FS)) !Entity {
 }
 
 fn lowerFunction(comptime FS: type, context: Context(FS)) !void {
-    _ = try context.function.set(.{components.Module.init(context.ast)});
+    _ = try context.function.set(.{components.Module.init(context.module)});
     _ = try context.codebase.getPtr(components.Functions).append(context.function);
     try lowerFunctionParameters(FS, context);
     const return_type = try lowerFunctionReturnType(FS, context);
@@ -295,10 +294,10 @@ pub fn lower(codebase: *ECS, fs: anytype, module_name: []const u8, function_name
     const contents = try fs.read(module_name);
     const module = try codebase.createEntity(.{});
     var tokens = try tokenize(module, contents);
-    const ast = try parse(codebase, &tokens);
+    try parse(module, &tokens);
     const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
-    _ = try ast.set(.{components.Literal.init(interned)});
-    const top_level = ast.get(components.TopLevel);
+    _ = try module.set(.{components.Literal.init(interned)});
+    const top_level = module.get(components.TopLevel);
     const overloads = top_level.findString(function_name).get(components.Overloads).slice();
     assert(overloads.len == 1);
     const allocator = &codebase.arena.allocator;
@@ -314,12 +313,12 @@ pub fn lower(codebase: *ECS, fs: anytype, module_name: []const u8, function_name
         .allocator = allocator,
         .codebase = codebase,
         .fs = fs,
-        .ast = ast,
+        .module = module,
         .function = function,
         .basic_block = basic_block,
     };
     try lowerFunction(FS, context);
-    return ast;
+    return module;
 }
 
 test "lower int literal" {

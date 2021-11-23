@@ -6,17 +6,19 @@ const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const expectEqualStrings = std.testing.expectEqualStrings;
 const expectEqualSlices = std.testing.expectEqualSlices;
-const TypeInfo = std.builtin.TypeInfo;
 
 const List = @import("list.zig").List;
 const typeid = @import("typeid.zig").typeid;
 
 fn Component(comptime T: type) type {
-    const Data = List(T, .{ .initial_capacity = 1024 });
+    const initial_capacity = 1024;
+    const Data = List(T, .{ .initial_capacity = initial_capacity });
+    const Inverse = List(u64, .{ .initial_capacity = initial_capacity });
 
     return struct {
         lookup: std.AutoHashMap(u64, u64),
         data: Data,
+        inverse: Inverse,
 
         const Self = @This();
 
@@ -24,12 +26,19 @@ fn Component(comptime T: type) type {
             return Self{
                 .lookup = std.AutoHashMap(u64, u64).init(&arena.allocator),
                 .data = Data.init(&arena.allocator),
+                .inverse = Inverse.init(&arena.allocator),
             };
         }
 
         fn set(self: *Self, entity: Entity, value: T) !void {
-            try self.lookup.put(entity.uuid, self.data.len);
-            try self.data.append(value);
+            const result = try self.lookup.getOrPut(entity.uuid);
+            if (result.found_existing) {
+                self.data.items[result.value_ptr.*] = value;
+            } else {
+                result.value_ptr.* = self.data.len;
+                try self.data.append(value);
+                try self.inverse.append(entity.uuid);
+            }
         }
 
         fn get(self: Self, entity: Entity) T {
@@ -45,6 +54,101 @@ fn Component(comptime T: type) type {
 
         fn getPtr(self: *Self, entity: Entity) *T {
             return &self.data.mutSlice()[self.lookup.get(entity.uuid).?];
+        }
+    };
+}
+
+const TypeInfo = std.builtin.TypeInfo;
+const StructField = TypeInfo.StructField;
+
+fn IteratorComponents(components: anytype) type {
+    const components_type_info = @typeInfo(@TypeOf(components)).Struct;
+    const components_fields = components_type_info.fields;
+    comptime var data_fields: [components_fields.len]StructField = undefined;
+    inline for (components_type_info.fields) |field, i| {
+        const T = @field(components, field.name);
+        data_fields[i] = .{
+            .name = @typeName(T),
+            .field_type = *Component(T),
+            .default_value = null,
+            .is_comptime = false,
+            .alignment = 8,
+        };
+    }
+    return @Type(.{ .Struct = .{
+        .layout = .Auto,
+        .fields = &data_fields,
+        .decls = &.{},
+        .is_tuple = false,
+    } });
+}
+
+test "construct type" {
+    const components = .{ Name, Age };
+    const Components = IteratorComponents(components);
+    const type_info = @typeInfo(Components).Struct;
+    try expectEqual(type_info.layout, .Auto);
+    const fields = type_info.fields;
+    try expectEqual(fields.len, 2);
+    const names = fields[0];
+    try expectEqualStrings(names.name, "Name");
+    try expectEqual(names.field_type, *Component(Name));
+    try expectEqual(names.default_value, null);
+    try expectEqual(names.is_comptime, false);
+    try expectEqual(names.alignment, 8);
+    try expectEqual(type_info.decls.len, 0);
+    try expectEqual(type_info.is_tuple, false);
+    const ages = fields[1];
+    try expectEqualStrings(ages.name, "Age");
+    try expectEqual(ages.field_type, *Component(Age));
+    try expectEqual(ages.default_value, null);
+    try expectEqual(ages.is_comptime, false);
+    try expectEqual(ages.alignment, 8);
+    try expectEqual(type_info.decls.len, 0);
+    try expectEqual(type_info.is_tuple, false);
+}
+
+fn Iterator(components: anytype) type {
+    const IteratorComponentsT = IteratorComponents(components);
+    const type_info = @typeInfo(@TypeOf(components)).Struct;
+    const fields = type_info.fields;
+
+    return struct {
+        iterator_components: IteratorComponentsT,
+        inverse: []const u64,
+        ecs: *ECS,
+
+        const Self = @This();
+
+        fn init(ecs: *ECS) Self {
+            var iterator_components: IteratorComponentsT = undefined;
+            inline for (fields) |field| {
+                const T = @field(components, field.name);
+                const component = ecs.components.get(typeid(T)).?;
+                @field(iterator_components, @typeName(T)) = @intToPtr(*Component(T), component);
+            }
+            const T = components[0];
+            const inverse = @intToPtr(*Component(T), ecs.components.get(typeid(T)).?).inverse.slice();
+            return .{
+                .iterator_components = iterator_components,
+                .inverse = inverse,
+                .ecs = ecs,
+            };
+        }
+
+        fn next(self: *Self) ?Entity {
+            while (self.inverse.len > 0) {
+                const uuid = self.inverse[0];
+                var matches = true;
+                inline for (fields[1..]) |field| {
+                    const T = @field(components, field.name);
+                    const component = @field(self.iterator_components, @typeName(T));
+                    if (!component.lookup.contains(uuid)) matches = false;
+                }
+                self.inverse = self.inverse[1..];
+                if (matches) return Entity{ .uuid = uuid, .ecs = self.ecs };
+            }
+            return null;
         }
     };
 }
@@ -97,6 +201,10 @@ pub const ECS = struct {
 
     pub fn getPtr(self: ECS, comptime T: type) *T {
         return @intToPtr(*T, self.resources.get(typeid(T)).?);
+    }
+
+    pub fn query(self: *ECS, components: anytype) Iterator(components) {
+        return Iterator(components).init(self);
     }
 };
 
@@ -190,4 +298,26 @@ test "ecs get and set components" {
     try ecs.set(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
     try expectEqual(ecs.get(Name), Name{ .value = "Joe" });
     try expectEqual(ecs.get(Age), Age{ .value = 20 });
+}
+
+test "ecs query entities with components" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var ecs = ECS.init(&arena);
+    const joe = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
+    const bob = try ecs.createEntity(.{Name{ .value = "Bob" }});
+    const sally = try ecs.createEntity(.{ Name{ .value = "Sally" }, Age{ .value = 24 } });
+    {
+        var iterator = ecs.query(.{ Name, Age });
+        try expectEqual(iterator.next(), joe);
+        try expectEqual(iterator.next(), sally);
+        try expectEqual(iterator.next(), null);
+    }
+    {
+        var iterator = ecs.query(.{Name});
+        try expectEqual(iterator.next(), joe);
+        try expectEqual(iterator.next(), bob);
+        try expectEqual(iterator.next(), sally);
+        try expectEqual(iterator.next(), null);
+    }
 }

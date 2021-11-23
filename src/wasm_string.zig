@@ -149,9 +149,9 @@ test "wasm string int literal" {
         \\  5
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const wasm_string = try wasmString(wasm);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -176,9 +176,9 @@ test "wasm string call local function" {
         \\  10
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const wasm_string = try wasmString(wasm);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -209,9 +209,9 @@ test "wasm string call function from import" {
         \\  10
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const wasm_string = try wasmString(wasm);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -236,9 +236,9 @@ test "wasm string assignment" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const wasm_string = try wasmString(wasm);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -267,9 +267,9 @@ test "wasm string function with argument" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const wasm_string = try wasmString(wasm);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -302,9 +302,9 @@ test "wasm string function with argument implicit type" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const wasm_string = try wasmString(wasm);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -336,9 +336,9 @@ test "wasm string function with int literal argument" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const wasm_string = try wasmString(wasm);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
@@ -368,9 +368,9 @@ test "codegen function with U64 argument" {
         \\  x
         \\end
     );
-    const ir = try lower(codebase, fs, "foo.yeti", "start");
-    const wasm = try codegen(ir);
-    const wasm_string = try wasmString(wasm);
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
     try expectEqualStrings(wasm_string,
         \\(module
         \\
