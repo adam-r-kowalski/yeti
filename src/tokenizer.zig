@@ -79,30 +79,30 @@ pub const Tokens = struct {
     }
 };
 
-pub fn tokenize(codebase: *ECS, code: []const u8) !Tokens {
-    var entities = List(Entity, .{ .initial_capacity = 1024 }).init(&codebase.arena.allocator);
+pub fn tokenize(module: Entity, code: []const u8) !Tokens {
+    var entities = List(Entity, .{ .initial_capacity = 1024 }).init(&module.ecs.arena.allocator);
     var source = Source.init(code);
     while (true) {
         source.trimWhitespace();
         if (source.code.len == 0) return Tokens.init(entities.slice());
         const token = switch (source.code[0]) {
-            '0'...'9', '-' => try tokenizeNumber(codebase, &source, false),
-            '.' => try tokenizeNumber(codebase, &source, true),
-            '"' => try tokenizeString(codebase, &source),
-            '(' => try tokenizeOne(codebase, &source, .left_paren),
-            ')' => try tokenizeOne(codebase, &source, .right_paren),
-            ':' => try tokenizeOne(codebase, &source, .colon),
-            '+' => try tokenizeOne(codebase, &source, .plus),
-            '*' => try tokenizeOne(codebase, &source, .times),
-            ',' => try tokenizeOne(codebase, &source, .comma),
-            '=' => try tokenizeOne(codebase, &source, .equal),
-            else => try tokenizeSymbol(codebase, &source),
+            '0'...'9', '-' => try tokenizeNumber(module, &source, false),
+            '.' => try tokenizeNumber(module, &source, true),
+            '"' => try tokenizeString(module, &source),
+            '(' => try tokenizeOne(module, &source, .left_paren),
+            ')' => try tokenizeOne(module, &source, .right_paren),
+            ':' => try tokenizeOne(module, &source, .colon),
+            '+' => try tokenizeOne(module, &source, .plus),
+            '*' => try tokenizeOne(module, &source, .times),
+            ',' => try tokenizeOne(module, &source, .comma),
+            '=' => try tokenizeOne(module, &source, .equal),
+            else => try tokenizeSymbol(module, &source),
         };
         try entities.append(token);
     }
 }
 
-fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
+fn tokenizeSymbol(module: Entity, source: *Source) !Entity {
     const begin = source.position;
     var i: u64 = 1;
     while (i < source.code.len) : (i += 1) {
@@ -134,14 +134,14 @@ fn tokenizeSymbol(codebase: *ECS, source: *Source) !Entity {
     const string = source.advance(i);
     const span = components.Span{ .begin = begin, .end = source.position };
     if (std.mem.eql(u8, string, "import")) {
-        return try codebase.createEntity(.{ components.TokenKind.import, span });
+        return try module.ecs.createEntity(.{ components.TokenKind.import, span });
     } else if (std.mem.eql(u8, string, "function")) {
-        return try codebase.createEntity(.{ components.TokenKind.function, span });
+        return try module.ecs.createEntity(.{ components.TokenKind.function, span });
     } else if (std.mem.eql(u8, string, "end")) {
-        return try codebase.createEntity(.{ components.TokenKind.end, span });
+        return try module.ecs.createEntity(.{ components.TokenKind.end, span });
     } else {
-        const interned = try codebase.getPtr(Strings).intern(string);
-        return try codebase.createEntity(.{
+        const interned = try module.ecs.getPtr(Strings).intern(string);
+        return try module.ecs.createEntity(.{
             components.Literal.init(interned),
             components.TokenKind.symbol,
             span,
@@ -153,8 +153,9 @@ test "tokenize symbol" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code = "foo bar? _baz_";
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     {
         const token = tokens.peek().?;
         try expectEqual(token.get(components.TokenKind), .symbol);
@@ -194,7 +195,7 @@ test "tokenize symbol" {
     try expectEqual(tokens.next(), null);
 }
 
-fn tokenizeNumber(codebase: *ECS, source: *Source, starts_with_decimal: bool) !Entity {
+fn tokenizeNumber(module: Entity, source: *Source, starts_with_decimal: bool) !Entity {
     var decimals_seen: u64 = if (starts_with_decimal) 1 else 0;
     const begin = source.position;
     var i: u64 = 1;
@@ -205,28 +206,38 @@ fn tokenizeNumber(codebase: *ECS, source: *Source, starts_with_decimal: bool) !E
             else => break,
         }
     }
-    assert(decimals_seen <= 1);
     const string = source.advance(i);
     const span = components.Span{ .begin = begin, .end = source.position };
     if (i == 1 and starts_with_decimal) {
-        return try codebase.createEntity(.{ components.TokenKind.dot, span });
-    } else {
-        const interned = try codebase.getPtr(Strings).intern(string);
-        const kind: components.TokenKind = if (decimals_seen == 0) .int else .float;
-        return try codebase.createEntity(.{
-            components.Literal.init(interned),
-            kind,
-            span,
-        });
+        return try module.ecs.createEntity(.{ components.TokenKind.dot, span });
     }
+    const interned = try module.ecs.getPtr(Strings).intern(string);
+    const kind: components.TokenKind = if (decimals_seen == 0) .int else .float;
+    const entity = try module.ecs.createEntity(.{
+        components.Literal.init(interned),
+        kind,
+        span,
+    });
+    if (decimals_seen > 1) {
+        const error_component = components.Error{
+            .header = "TOKENIZER ERROR",
+            .body = "Number should not have more than 1 decimal.",
+            .span = span,
+            .hint = "Remove the additional decimals.",
+            .module = module,
+        };
+        _ = try entity.set(.{error_component});
+    }
+    return entity;
 }
 
 test "tokenize number" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const code = "100 -324 3.25 .73";
-    var tokens = try tokenize(codebase, code);
+    const module = try codebase.createEntity(.{});
+    const code = "100 -324 3.25 .73 5.3.2";
+    var tokens = try tokenize(module, code);
     {
         const token = tokens.next().?;
         try expectEqual(token.get(components.TokenKind), .int);
@@ -235,6 +246,7 @@ test "tokenize number" {
             .begin = .{ .column = 0, .row = 0 },
             .end = .{ .column = 3, .row = 0 },
         });
+        try expectEqual(token.has(components.Error), null);
     }
     {
         const token = tokens.next().?;
@@ -244,6 +256,7 @@ test "tokenize number" {
             .begin = .{ .column = 4, .row = 0 },
             .end = .{ .column = 8, .row = 0 },
         });
+        try expectEqual(token.has(components.Error), null);
     }
     {
         const token = tokens.next().?;
@@ -253,6 +266,7 @@ test "tokenize number" {
             .begin = .{ .column = 9, .row = 0 },
             .end = .{ .column = 13, .row = 0 },
         });
+        try expectEqual(token.has(components.Error), null);
     }
     {
         const token = tokens.next().?;
@@ -262,11 +276,29 @@ test "tokenize number" {
             .begin = .{ .column = 14, .row = 0 },
             .end = .{ .column = 17, .row = 0 },
         });
+        try expectEqual(token.has(components.Error), null);
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .float);
+        try expectEqualStrings(literalOf(token), "5.3.2");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 18, .row = 0 },
+            .end = .{ .column = 23, .row = 0 },
+        });
+        const error_component = token.get(components.Error);
+        try expectEqualStrings(error_component.header, "TOKENIZER ERROR");
+        try expectEqualStrings(error_component.body, "Number should not have more than 1 decimal.");
+        try expectEqual(error_component.span, .{
+            .begin = .{ .column = 18, .row = 0 },
+            .end = .{ .column = 23, .row = 0 },
+        });
+        try expectEqualStrings(error_component.hint, "Remove the additional decimals.");
     }
     try expectEqual(tokens.next(), null);
 }
 
-fn tokenizeString(codebase: *ECS, source: *Source) !Entity {
+fn tokenizeString(module: Entity, source: *Source) !Entity {
     const begin = source.position;
     var i: u64 = 1;
     while (i < source.code.len) : (i += 1) {
@@ -280,8 +312,8 @@ fn tokenizeString(codebase: *ECS, source: *Source) !Entity {
     }
     const string = source.advance(i);
     const span = components.Span{ .begin = begin, .end = source.position };
-    const interned = try codebase.getPtr(Strings).intern(string[1 .. i - 1]);
-    return try codebase.createEntity(.{
+    const interned = try module.ecs.getPtr(Strings).intern(string[1 .. i - 1]);
+    return try module.ecs.createEntity(.{
         components.Literal.init(interned),
         components.TokenKind.string,
         span,
@@ -292,10 +324,11 @@ test "tokenize string" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\"hello" "world"
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     {
         const token = tokens.next().?;
         try expectEqual(token.get(components.TokenKind), .string);
@@ -317,19 +350,20 @@ test "tokenize string" {
     try expectEqual(tokens.next(), null);
 }
 
-fn tokenizeOne(codebase: *ECS, source: *Source, kind: components.TokenKind) !Entity {
+fn tokenizeOne(module: Entity, source: *Source, kind: components.TokenKind) !Entity {
     const begin = source.position;
     _ = source.advance(1);
     const span = components.Span{ .begin = begin, .end = source.position };
-    return try codebase.createEntity(.{ kind, span });
+    return try module.ecs.createEntity(.{ kind, span });
 }
 
 test "tokenize function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code = "start = function(): U64 0 end";
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     {
         const token = tokens.next().?;
         try expectEqual(token.get(components.TokenKind), .symbol);
@@ -412,6 +446,7 @@ test "tokenize multine function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\f = function(): U64
         \\  x = 5
@@ -419,7 +454,7 @@ test "tokenize multine function" {
         \\  x + y
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .equal);
     try expectEqual(tokens.next().?.get(components.TokenKind), .function);
@@ -465,6 +500,7 @@ test "tokenize mulitine function with binary op" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\sum_of_squares = function(x: U64, y: U64): U64
         \\  x2 = x * x
@@ -472,7 +508,7 @@ test "tokenize mulitine function with binary op" {
         \\  x2 + y2
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .equal);
     try expectEqual(tokens.next().?.get(components.TokenKind), .function);

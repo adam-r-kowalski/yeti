@@ -252,3 +252,11 @@ pub const Builtins = struct {
     StringLiteral: Entity,
     Void: Entity,
 };
+
+pub const Error = struct {
+    header: []const u8,
+    body: []const u8,
+    span: Span,
+    hint: []const u8,
+    module: Entity,
+};

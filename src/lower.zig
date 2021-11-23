@@ -62,7 +62,8 @@ fn lowerSymbol(comptime FS: type, context: Context(FS), entity: Entity) !Entity 
             .import => {
                 const module_name = literalOf(top_level.get(components.Path).entity);
                 const contents = try context.fs.read(module_name);
-                var tokens = try tokenize(context.codebase, contents);
+                const module = try context.codebase.createEntity(.{});
+                var tokens = try tokenize(module, contents);
                 // TODO:cache the ast into ir module component
                 const ast = try parse(context.codebase, &tokens);
                 const interned = try context.codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
@@ -292,7 +293,8 @@ pub fn lower(codebase: *ECS, fs: anytype, module_name: []const u8, function_name
     try initBuiltins(codebase);
     _ = try codebase.set(.{components.Functions.init(&codebase.arena.allocator)});
     const contents = try fs.read(module_name);
-    var tokens = try tokenize(codebase, contents);
+    const module = try codebase.createEntity(.{});
+    var tokens = try tokenize(module, contents);
     const ast = try parse(codebase, &tokens);
     const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
     _ = try ast.set(.{components.Literal.init(interned)});

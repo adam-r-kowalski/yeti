@@ -162,8 +162,9 @@ test "parse symbol" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code = "foo";
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const entity = try parseExpression(codebase, &tokens, LOWEST);
     try expectEqual(entity.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(entity), "foo");
@@ -177,8 +178,9 @@ test "parse int" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code = "35";
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const entity = try parseExpression(codebase, &tokens, LOWEST);
     try expectEqual(entity.get(components.AstKind), .int);
     try expectEqualStrings(literalOf(entity), "35");
@@ -244,8 +246,9 @@ test "parse function with int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code = "function(): U64 0 end";
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     try expectEqual(function.get(components.AstKind), .function);
     try expectEqual(function.get(components.Span), .{
@@ -275,8 +278,9 @@ test "parse function with binary entity" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code = "function(): U64 5 + x end";
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     try expectEqual(function.get(components.Parameters).slice().len, 0);
     try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
@@ -294,8 +298,9 @@ test "parse function with compound binary entity" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code = "function(): U64 m * x + b end";
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     try expectEqual(function.get(components.Parameters).slice().len, 0);
     const body = function.get(components.Body).slice();
@@ -322,8 +327,9 @@ test "parse function parameters" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code = "function(x: U64, y: U64): U64 x + y end";
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     const parameters = function.get(components.Parameters).slice();
     try expectEqual(parameters.len, 2);
@@ -347,12 +353,13 @@ test "parse function with newline" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\function(x: U64, y: U64): U64
         \\  x + y
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     const parameters = function.get(components.Parameters).slice();
     try expectEqual(parameters.len, 2);
@@ -375,6 +382,7 @@ test "parse constant definition" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\function(): U64
         \\  x = 5
@@ -382,7 +390,7 @@ test "parse constant definition" {
         \\  x + y
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
     try expectEqual(function.get(components.Parameters).slice().len, 0);
@@ -408,6 +416,7 @@ test "parse constant definition with binary op" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\function(x: U64, y: U64): U64
         \\  x2 = x * x
@@ -415,7 +424,7 @@ test "parse constant definition with binary op" {
         \\  x2 + y2
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
     const parameters = function.get(components.Parameters).slice();
@@ -457,12 +466,13 @@ test "parse function call" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\function(x: U64, y: U64): U64
         \\  square(x) + square(y)
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
     const parameters = function.get(components.Parameters).slice();
@@ -500,12 +510,13 @@ test "parse function call with multiple arguments" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\function(): U64
         \\  sum_of_squares(10, 56 * 3)
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const function = try parseFunction(codebase, &tokens);
     try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "U64");
     try expectEqual(function.get(components.Parameters).slice().len, 0);
@@ -540,10 +551,11 @@ test "parse import module" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\import("foo.yeti")
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const import = try parseImport(codebase, &tokens);
     try expectEqualStrings(literalOf(import.get(components.Path).entity), "foo.yeti");
 }
@@ -588,6 +600,7 @@ test "parse two functions" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\sum_of_squares = function(x: U64, y: U64): U64
         \\  x*2 + y*2
@@ -597,7 +610,7 @@ test "parse two functions" {
         \\  sum_of_squares(10, 56 * 3)
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const ast = try parse(codebase, &tokens);
     {
         const sum_of_squares = ast.get(components.TopLevel).findString("sum_of_squares");
@@ -617,12 +630,13 @@ test "parse overload" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\id = function(x: U64): U64 x end
         \\
         \\id = function(x: F64): F64 x end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const ast = try parse(codebase, &tokens);
     const id = ast.get(components.TopLevel).findString("id");
     const overloads = id.get(components.Overloads).slice();
@@ -651,6 +665,7 @@ test "parse import and function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\math = import("math.yeti")
         \\
@@ -658,7 +673,7 @@ test "parse import and function" {
         \\  math.sum_of_squares(10, 56 * 3)
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const ast = try parse(codebase, &tokens);
     const top_level = ast.get(components.TopLevel);
     const math = top_level.findString("math");
@@ -689,13 +704,14 @@ test "parse assignment" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\start = function(): U64
         \\  x = 10
         \\  x
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const ast = try parse(codebase, &tokens);
     const top_level = ast.get(components.TopLevel);
     const start = top_level.findString("start");
@@ -716,13 +732,14 @@ test "parse assignment with explicit type" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
     const code =
         \\start = function(): U64
         \\  x: U64 = 10
         \\  x
         \\end
     ;
-    var tokens = try tokenize(codebase, code);
+    var tokens = try tokenize(module, code);
     const ast = try parse(codebase, &tokens);
     const top_level = ast.get(components.TopLevel);
     const start = top_level.findString("start");
