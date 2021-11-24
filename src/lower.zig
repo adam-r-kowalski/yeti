@@ -102,20 +102,7 @@ fn Context(comptime FileSystem: type) type {
             return try context.lowerCall(call);
         }
 
-        fn lowerAdd(self: Self, entity: Entity) !Entity {
-            const builtins = self.codebase.get(components.Builtins);
-            const arguments = entity.get(components.Arguments).slice();
-            const lhs = try self.lowerExpression(arguments[0]);
-            const rhs = try self.lowerExpression(arguments[1]);
-            const lhs_type = typeOf(lhs);
-            const rhs_type = typeOf(rhs);
-            const result_type = if (eql(lhs_type, builtins.I64))
-                builtins.I64
-            else if (eql(lhs_type, builtins.U64))
-                builtins.U64
-            else
-                panic("\nlower add failed\n", .{});
-            assert(eql(rhs_type, result_type));
+        fn lowerAddSameType(self: Self, result_type: Entity) !Entity {
             const result = try self.codebase.createEntity(.{components.Type.init(result_type)});
             const instructions = self.basic_block.getPtr(components.IrInstructions);
             const instruction = try self.codebase.createEntity(.{
@@ -124,6 +111,38 @@ fn Context(comptime FileSystem: type) type {
             });
             try instructions.append(instruction);
             return result;
+        }
+
+        fn lowerAdd(self: Self, entity: Entity) !Entity {
+            const builtins = self.codebase.get(components.Builtins);
+            const arguments = entity.get(components.Arguments).slice();
+            const lhs = try self.lowerExpression(arguments[0]);
+            const rhs = try self.lowerExpression(arguments[1]);
+            const lhs_type = typeOf(lhs);
+            const rhs_type = typeOf(rhs);
+            assert(eql(lhs_type, rhs_type));
+            if (eql(lhs_type, builtins.I64)) return try self.lowerAddSameType(builtins.I64);
+            if (eql(lhs_type, builtins.U64)) return try self.lowerAddSameType(builtins.U64);
+            if (eql(lhs_type, builtins.IntLiteral)) {
+                const lhs_literal = literalOf(lhs);
+                const rhs_literal = literalOf(rhs);
+                const lhs_value = try std.fmt.parseInt(u64, lhs_literal, 10);
+                const rhs_value = try std.fmt.parseInt(u64, rhs_literal, 10);
+                const result_literal = try std.fmt.allocPrint(self.allocator, "{}", .{lhs_value + rhs_value});
+                const interned = try self.codebase.getPtr(Strings).intern(result_literal);
+                const result = try self.codebase.createEntity(.{
+                    components.Literal.init(interned),
+                    components.Type.init(builtins.IntLiteral),
+                });
+                const instructions = self.basic_block.getPtr(components.IrInstructions);
+                const instruction = try self.codebase.createEntity(.{
+                    components.IrInstructionKind.int_const,
+                    components.Result.init(result),
+                });
+                try instructions.append(instruction);
+                return result;
+            }
+            panic("\nlower add failed\n", .{});
         }
 
         fn lowerBinaryOp(self: Self, entity: Entity) !Entity {
@@ -262,7 +281,7 @@ fn Context(comptime FileSystem: type) type {
             return self.codebase.get(components.Builtins).Void;
         }
 
-        fn lowerExpression(self: Self, entity: Entity) error{ OutOfMemory, CantOpenFile }!Entity {
+        fn lowerExpression(self: Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile }!Entity {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
                 .symbol => try self.lowerSymbol(entity),
@@ -1230,5 +1249,48 @@ test "lower u64 add" {
     const int_add = basic_block[6];
     try expectEqual(int_add.get(components.IrInstructionKind), .int_add);
     const result = int_add.get(components.Result).entity;
+    try expectEqual(typeOf(result), builtins.U64);
+}
+
+test "lower int literal add" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): U64
+        \\  10 + 32
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.U64);
+    const basic_blocks = start.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 3);
+    {
+        const int_const = basic_block[0];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const result = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "10");
+        try expectEqual(typeOf(result), builtins.IntLiteral);
+    }
+    {
+        const int_const = basic_block[1];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const result = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "32");
+        try expectEqual(typeOf(result), builtins.IntLiteral);
+    }
+    const int_const = basic_block[2];
+    try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+    const result = int_const.get(components.Result).entity;
+    try expectEqualStrings(literalOf(result), "42");
     try expectEqual(typeOf(result), builtins.U64);
 }
