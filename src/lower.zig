@@ -75,10 +75,10 @@ fn Context(comptime FileSystem: type) type {
             panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
-        fn lowerInt(self: Self, entity: Entity) !Entity {
+        fn lowerNumber(self: Self, entity: Entity, kind: components.IrInstructionKind) !Entity {
             const instructions = self.basic_block.getPtr(components.IrInstructions);
             const instruction = try self.codebase.createEntity(.{
-                components.IrInstructionKind.int_const,
+                kind,
                 components.Result.init(entity),
             });
             try instructions.append(instruction);
@@ -285,7 +285,19 @@ fn Context(comptime FileSystem: type) type {
                 if (eql(expected_type, builtins.I64) or eql(expected_type, builtins.U64)) {
                     _ = try value.set(.{components.Type.init(expected_type)});
                 } else {
-                    panic("lower define found invalid explicit type for int literal", .{});
+                    panic("\ncannot implicitly convert {s} to {s}\n", .{
+                        literalOf(actual_type),
+                        literalOf(expected_type),
+                    });
+                }
+            } else if (eql(actual_type, builtins.FloatLiteral)) {
+                if (eql(expected_type, builtins.F64)) {
+                    _ = try value.set(.{components.Type.init(expected_type)});
+                } else {
+                    panic("\ncannot implicitly convert {s} to {s}\n", .{
+                        literalOf(actual_type),
+                        literalOf(expected_type),
+                    });
                 }
             } else {
                 assert(eql(expected_type, actual_type));
@@ -315,7 +327,8 @@ fn Context(comptime FileSystem: type) type {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
                 .symbol => try self.lowerSymbol(entity),
-                .int => try self.lowerInt(entity),
+                .int => try self.lowerNumber(entity, .int_const),
+                .float => try self.lowerNumber(entity, .float_const),
                 .binary_op => try self.lowerBinaryOp(entity),
                 .call => try self.lowerCall(entity),
                 .define => try self.lowerDefine(entity),
@@ -424,6 +437,35 @@ test "lower int literal" {
     const five = int_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(five), "5");
     try expectEqual(typeOf(five), builtins.I64);
+}
+
+test "lower float literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): F64
+        \\  5.3
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.F64);
+    const basic_blocks = start.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 1);
+    const float_const = basic_block[0];
+    try expectEqual(float_const.get(components.IrInstructionKind), .float_const);
+    const five_three = float_const.get(components.Result).entity;
+    try expectEqualStrings(literalOf(five_three), "5.3");
+    try expectEqual(typeOf(five_three), builtins.F64);
 }
 
 test "lower call local function" {

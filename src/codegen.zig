@@ -44,6 +44,23 @@ fn codegenIntConst(context: Context, ir_instruction: Entity) !void {
     _ = try context.wasm_instructions.append(wasm_instruction);
 }
 
+fn codegenFloatConst(context: Context, ir_instruction: Entity) !void {
+    const float_const = ir_instruction.get(components.Result).entity;
+    const type_of = float_const.get(components.Type).entity;
+    if (eql(type_of, context.builtins.FloatLiteral)) {
+        return;
+    }
+    const kind = if (eql(type_of, context.builtins.F64))
+        components.WasmInstructionKind.f64_const
+    else
+        panic("\ncompiler bug in codegen float_const\n", .{});
+    const wasm_instruction = try context.codebase.createEntity(.{
+        kind,
+        components.Result.init(float_const),
+    });
+    _ = try context.wasm_instructions.append(wasm_instruction);
+}
+
 fn codegenCall(context: Context, ir_instruction: Entity) !void {
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.call,
@@ -115,6 +132,7 @@ pub fn codegen(module: Entity) !void {
             switch (kind) {
                 .int_const => try codegenIntConst(context, ir_instruction),
                 .int_add => try codegenIntAdd(context),
+                .float_const => try codegenFloatConst(context, ir_instruction),
                 .call => try codegenCall(context, ir_instruction),
                 .get_local => try codegenGetLocal(context, ir_instruction),
                 .set_local => try codegenSetLocal(context, ir_instruction),
@@ -143,6 +161,27 @@ test "codegen int literal" {
     const i64_const = wasm_instructions[0];
     try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
     try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "5");
+}
+
+test "codegen float literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): F64
+        \\  5.3
+        \\end
+    );
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const wasm_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(wasm_instructions.len, 1);
+    const f64_const = wasm_instructions[0];
+    try expectEqual(f64_const.get(components.WasmInstructionKind), .f64_const);
+    try expectEqualStrings(literalOf(f64_const.get(components.Result).entity), "5.3");
 }
 
 test "codegen call local function" {

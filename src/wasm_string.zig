@@ -26,10 +26,10 @@ const WasmString = List(u8, .{ .initial_capacity = 1000 });
 
 fn wasmStringType(string: *WasmString, type_: Entity) !void {
     const builtins = type_.ecs.get(components.Builtins);
-    if (eql(type_, builtins.I64)) {
+    if (eql(type_, builtins.I64) or eql(type_, builtins.U64)) {
         try string.appendSlice("i64");
-    } else if (eql(type_, builtins.U64)) {
-        try string.appendSlice("i64");
+    } else if (eql(type_, builtins.F64)) {
+        try string.appendSlice("f64");
     } else {
         panic("\nwasm string unsupported type {s}\n", .{literalOf(type_)});
     }
@@ -92,6 +92,11 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
             try string.append(')');
         },
         .i64_add => try string.appendSlice("\n    (i64.add)"),
+        .f64_const => {
+            try string.appendSlice("\n    (f64.const ");
+            try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
+            try string.append(')');
+        },
         .call => {
             try string.appendSlice("\n    (call $");
             const callable = wasm_instruction.get(components.Callable).entity;
@@ -157,6 +162,29 @@ test "wasm string int literal" {
         \\
         \\  (func $foo/start (result i64)
         \\    (i64.const 5))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "wasm string float literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): F64
+        \\  5.3
+        \\end
+    );
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result f64)
+        \\    (f64.const 5.3))
         \\
         \\(export "_start" (func $foo/start)))
     );

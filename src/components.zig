@@ -210,6 +210,7 @@ pub const Locals = DistinctEntitySet("Locals");
 pub const AstKind = enum(u8) {
     symbol,
     int,
+    float,
     function,
     binary_op,
     define,
@@ -231,6 +232,7 @@ pub const LoweredParameters = struct {
 pub const IrInstructionKind = enum(u8) {
     int_const,
     int_add,
+    float_const,
     call,
     get_local,
     set_local,
@@ -239,6 +241,7 @@ pub const IrInstructionKind = enum(u8) {
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
     i64_add,
+    f64_const,
     call,
     get_local,
     set_local,

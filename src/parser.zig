@@ -41,6 +41,10 @@ fn prefixParser(token: Entity) !Entity {
             components.AstKind.int,
             components.Type.init(token.ecs.get(components.Builtins).IntLiteral),
         }),
+        .float => token.set(.{
+            components.AstKind.float,
+            components.Type.init(token.ecs.get(components.Builtins).FloatLiteral),
+        }),
         else => panic("\nno prefix parser for = {}\n", .{kind}),
     };
 }
@@ -185,6 +189,22 @@ test "parse int" {
     try expectEqual(entity.get(components.Span), .{
         .begin = .{ .column = 0, .row = 0 },
         .end = .{ .column = 2, .row = 0 },
+    });
+}
+
+test "parse float" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code = "35.3";
+    var tokens = try tokenize(module, code);
+    const entity = try parseExpression(codebase, &tokens, LOWEST);
+    try expectEqual(entity.get(components.AstKind), .float);
+    try expectEqualStrings(literalOf(entity), "35.3");
+    try expectEqual(entity.get(components.Span), .{
+        .begin = .{ .column = 0, .row = 0 },
+        .end = .{ .column = 4, .row = 0 },
     });
 }
 
