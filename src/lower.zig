@@ -27,45 +27,45 @@ const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
 const typeOf = test_utils.typeOf;
 
-fn Helpers(comptime FileSystem: type) type {
+fn Context(comptime FileSystem: type) type {
     return struct {
-        const Context = struct {
-            allocator: *Allocator,
-            codebase: *ECS,
-            file_system: FileSystem,
-            module: Entity,
-            function: Entity,
-            basic_block: Entity,
-        };
+        allocator: *Allocator,
+        codebase: *ECS,
+        file_system: FileSystem,
+        module: Entity,
+        function: Entity,
+        basic_block: Entity,
 
-        fn lowerSymbol(context: Context, entity: Entity) !Entity {
+        const Self = @This();
+
+        fn lowerSymbol(self: Self, entity: Entity) !Entity {
             const literal = entity.get(components.Literal);
-            const local_scope = context.basic_block.get(components.Scope);
+            const local_scope = self.basic_block.get(components.Scope);
             if (local_scope.hasLiteral(literal)) |local| {
-                const instructions = context.basic_block.getPtr(components.IrInstructions);
-                const instruction = try context.codebase.createEntity(.{
+                const instructions = self.basic_block.getPtr(components.IrInstructions);
+                const instruction = try self.codebase.createEntity(.{
                     components.IrInstructionKind.get_local,
                     components.Result.init(local),
                 });
                 try instructions.append(instruction);
                 return local;
             }
-            const global_scope = context.codebase.get(components.Scope);
+            const global_scope = self.codebase.get(components.Scope);
             if (global_scope.hasLiteral(literal)) |global| {
                 return global;
             }
-            const top_level_scope = context.module.get(components.TopLevel);
+            const top_level_scope = self.module.get(components.TopLevel);
             if (top_level_scope.hasLiteral(literal)) |top_level| {
                 const kind = top_level.get(components.AstKind);
                 switch (kind) {
                     .import => {
                         // TODO: Don't reparse the module every time. Cache them based on path
                         const module_name = literalOf(top_level.get(components.Path).entity);
-                        const contents = try context.file_system.read(module_name);
-                        const module = try context.codebase.createEntity(.{});
+                        const contents = try self.file_system.read(module_name);
+                        const module = try self.codebase.createEntity(.{});
                         var tokens = try tokenize(module, contents);
                         try parse(module, &tokens);
-                        const interned = try context.codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
+                        const interned = try self.codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
                         _ = try module.set(.{components.Literal.init(interned)});
                         return module;
                     },
@@ -75,9 +75,9 @@ fn Helpers(comptime FileSystem: type) type {
             panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
-        fn lowerInt(context: Context, entity: Entity) !Entity {
-            const instructions = context.basic_block.getPtr(components.IrInstructions);
-            const instruction = try context.codebase.createEntity(.{
+        fn lowerInt(self: Self, entity: Entity) !Entity {
+            const instructions = self.basic_block.getPtr(components.IrInstructions);
+            const instruction = try self.codebase.createEntity(.{
                 components.IrInstructionKind.int_const,
                 components.Result.init(entity),
             });
@@ -85,35 +85,35 @@ fn Helpers(comptime FileSystem: type) type {
             return entity;
         }
 
-        fn lowerDot(context: Context, entity: Entity) !Entity {
+        fn lowerDot(self: Self, entity: Entity) !Entity {
             const dot_arguments = entity.get(components.Arguments).slice();
-            const module = try lowerExpression(context, dot_arguments[0]);
-            assert(eql(typeOf(module), context.codebase.get(components.Builtins).Module));
+            const module = try self.lowerExpression(dot_arguments[0]);
+            assert(eql(typeOf(module), self.codebase.get(components.Builtins).Module));
             const call = dot_arguments[1];
             assert(call.get(components.AstKind) == .call);
-            const new_context = Context{
-                .allocator = context.allocator,
-                .codebase = context.codebase,
-                .file_system = context.file_system,
+            const context = Self{
+                .allocator = self.allocator,
+                .codebase = self.codebase,
+                .file_system = self.file_system,
                 .module = module,
-                .function = context.function,
-                .basic_block = context.basic_block,
+                .function = self.function,
+                .basic_block = self.basic_block,
             };
-            return try lowerCall(new_context, call);
+            return try context.lowerCall(call);
         }
 
-        fn lowerAdd(context: Context, entity: Entity) !Entity {
-            const builtins = context.codebase.get(components.Builtins);
+        fn lowerAdd(self: Self, entity: Entity) !Entity {
+            const builtins = self.codebase.get(components.Builtins);
             const arguments = entity.get(components.Arguments).slice();
-            const lhs = try lowerExpression(context, arguments[0]);
-            const rhs = try lowerExpression(context, arguments[1]);
+            const lhs = try self.lowerExpression(arguments[0]);
+            const rhs = try self.lowerExpression(arguments[1]);
             const lhs_type = typeOf(lhs);
             const rhs_type = typeOf(rhs);
             assert(eql(lhs_type, builtins.I64));
             assert(eql(rhs_type, builtins.I64));
-            const result = try context.codebase.createEntity(.{components.Type.init(builtins.I64)});
-            const instructions = context.basic_block.getPtr(components.IrInstructions);
-            const instruction = try context.codebase.createEntity(.{
+            const result = try self.codebase.createEntity(.{components.Type.init(builtins.I64)});
+            const instructions = self.basic_block.getPtr(components.IrInstructions);
+            const instruction = try self.codebase.createEntity(.{
                 components.IrInstructionKind.int_add,
                 components.Result.init(result),
             });
@@ -121,11 +121,11 @@ fn Helpers(comptime FileSystem: type) type {
             return result;
         }
 
-        fn lowerBinaryOp(context: Context, entity: Entity) !Entity {
+        fn lowerBinaryOp(self: Self, entity: Entity) !Entity {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
-                .dot => lowerDot(context, entity),
-                .add => lowerAdd(context, entity),
+                .dot => self.lowerDot(entity),
+                .add => self.lowerAdd(entity),
                 else => panic("\nlowerBinaryOp unsupported binary op {}\n", .{binary_op}),
             };
         }
@@ -136,29 +136,29 @@ fn Helpers(comptime FileSystem: type) type {
             exact,
         };
 
-        fn bestOverload(context: Context, callable: Entity, arguments: []const Entity) !Entity {
-            const top_level = context.module.get(components.TopLevel);
+        fn bestOverload(self: Self, callable: Entity, arguments: []const Entity) !Entity {
+            const top_level = self.module.get(components.TopLevel);
             const literal = callable.get(components.Literal);
             var best_overload: Entity = undefined;
             var best_match = Match.none;
-            const builtins = context.codebase.get(components.Builtins);
+            const builtins = self.codebase.get(components.Builtins);
             for (top_level.findLiteral(literal).get(components.Overloads).slice()) |overload| {
-                var basic_blocks = components.BasicBlocks.init(context.allocator);
-                const basic_block = try context.codebase.createEntity(.{
-                    components.IrInstructions.init(context.allocator),
-                    components.Scope.init(context.allocator, context.codebase.getPtr(Strings)),
+                var basic_blocks = components.BasicBlocks.init(self.allocator);
+                const basic_block = try self.codebase.createEntity(.{
+                    components.IrInstructions.init(self.allocator),
+                    components.Scope.init(self.allocator, self.codebase.getPtr(Strings)),
                 });
                 _ = try basic_blocks.append(basic_block);
                 _ = try overload.set(.{basic_blocks});
-                const new_context = Context{
-                    .allocator = context.allocator,
-                    .codebase = context.codebase,
-                    .file_system = context.file_system,
-                    .module = context.module,
+                const context = Self{
+                    .allocator = self.allocator,
+                    .codebase = self.codebase,
+                    .file_system = self.file_system,
+                    .module = self.module,
                     .function = overload,
                     .basic_block = basic_block,
                 };
-                try lowerFunctionParameters(new_context);
+                try context.lowerFunctionParameters();
                 const parameters = overload.get(components.Parameters).slice();
                 if (parameters.len != arguments.len) continue;
                 var match = Match.exact;
@@ -188,33 +188,33 @@ fn Helpers(comptime FileSystem: type) type {
             return best_overload;
         }
 
-        fn lowerCall(context: Context, call: Entity) !Entity {
+        fn lowerCall(self: Self, call: Entity) !Entity {
             const callable = call.get(components.Callable).entity;
             const call_arguments = call.get(components.Arguments).slice();
-            var function_arguments = try components.Arguments.withCapacity(context.allocator, call_arguments.len);
+            var function_arguments = try components.Arguments.withCapacity(self.allocator, call_arguments.len);
             for (call_arguments) |argument| {
-                function_arguments.appendAssumeCapacity(try lowerExpression(context, argument));
+                function_arguments.appendAssumeCapacity(try self.lowerExpression(argument));
             }
-            const function = try bestOverload(context, callable, function_arguments.slice());
+            const function = try self.bestOverload(callable, function_arguments.slice());
             {
-                const new_context = Context{
-                    .allocator = context.allocator,
-                    .codebase = context.codebase,
-                    .file_system = context.file_system,
-                    .module = context.module,
+                const context = Self{
+                    .allocator = self.allocator,
+                    .codebase = self.codebase,
+                    .file_system = self.file_system,
+                    .module = self.module,
                     .function = function,
                     .basic_block = function.get(components.BasicBlocks).slice()[0],
                 };
-                try lowerFunction(new_context);
+                try context.lowerFunction();
             }
             const function_parameters = function.get(components.Parameters).slice();
             for (function_arguments.slice()) |argument, i| {
                 try implicitTypeConversion(argument, typeOf(function_parameters[i]));
             }
             const return_type = function.get(components.ReturnType).entity;
-            const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
-            const instructions = context.basic_block.getPtr(components.IrInstructions);
-            const instruction = try context.codebase.createEntity(.{
+            const result = try self.codebase.createEntity(.{components.Type.init(return_type)});
+            const instructions = self.basic_block.getPtr(components.IrInstructions);
+            const instruction = try self.codebase.createEntity(.{
                 components.IrInstructionKind.call,
                 components.Callable.init(function),
                 function_arguments,
@@ -238,15 +238,15 @@ fn Helpers(comptime FileSystem: type) type {
             }
         }
 
-        fn lowerDefine(context: Context, define: Entity) !Entity {
-            const scope = context.basic_block.getPtr(components.Scope);
-            const value = try lowerExpression(context, define.get(components.Value).entity);
+        fn lowerDefine(self: Self, define: Entity) !Entity {
+            const scope = self.basic_block.getPtr(components.Scope);
+            const value = try self.lowerExpression(define.get(components.Value).entity);
             if (define.has(components.TypeAst)) |type_ast| {
-                const explicit_type = try lowerExpression(context, type_ast.entity);
+                const explicit_type = try lowerExpression(self, type_ast.entity);
                 try implicitTypeConversion(value, explicit_type);
             }
-            const instructions = context.basic_block.getPtr(components.IrInstructions);
-            const instruction = try context.codebase.createEntity(.{
+            const instructions = self.basic_block.getPtr(components.IrInstructions);
+            const instruction = try self.codebase.createEntity(.{
                 components.IrInstructionKind.set_local,
                 components.Result.init(value),
             });
@@ -254,64 +254,63 @@ fn Helpers(comptime FileSystem: type) type {
             const name = define.get(components.Name);
             _ = try value.set(.{name});
             try scope.putName(name, value);
-            return context.codebase.get(components.Builtins).Void;
+            return self.codebase.get(components.Builtins).Void;
         }
 
-        fn lowerExpression(context: Context, entity: Entity) error{ OutOfMemory, CantOpenFile }!Entity {
+        fn lowerExpression(self: Self, entity: Entity) error{ OutOfMemory, CantOpenFile }!Entity {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
-                .symbol => try lowerSymbol(context, entity),
-                .int => try lowerInt(context, entity),
-                .binary_op => try lowerBinaryOp(context, entity),
-                .call => try lowerCall(context, entity),
-                .define => try lowerDefine(context, entity),
+                .symbol => try self.lowerSymbol(entity),
+                .int => try self.lowerInt(entity),
+                .binary_op => try self.lowerBinaryOp(entity),
+                .call => try self.lowerCall(entity),
+                .define => try self.lowerDefine(entity),
                 else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
             };
         }
 
-        fn lowerFunctionParameters(context: Context) !void {
-            if (context.function.has(components.LoweredParameters) != null) return;
-            const scope = context.basic_block.getPtr(components.Scope);
-            const parameters = context.function.get(components.Parameters).slice();
+        fn lowerFunctionParameters(self: Self) !void {
+            if (self.function.has(components.LoweredParameters) != null) return;
+            const scope = self.basic_block.getPtr(components.Scope);
+            const parameters = self.function.get(components.Parameters).slice();
             for (parameters) |parameter| {
-                const parameter_type = try lowerExpression(context, parameter.get(components.TypeAst).entity);
+                const parameter_type = try lowerExpression(self, parameter.get(components.TypeAst).entity);
                 _ = try parameter.set(.{
                     components.Type.init(parameter_type),
                     components.Name.init(parameter),
                 });
                 try scope.putLiteral(parameter.get(components.Literal), parameter);
             }
-            _ = try context.function.set(.{components.LoweredParameters{ .value = true }});
+            _ = try self.function.set(.{components.LoweredParameters{ .value = true }});
         }
 
-        fn lowerFunctionReturnType(context: Context) !Entity {
-            const return_type = try lowerExpression(context, context.function.get(components.ReturnTypeAst).entity);
-            _ = try context.function.set(.{components.ReturnType.init(return_type)});
+        fn lowerFunctionReturnType(self: Self) !Entity {
+            const return_type = try self.lowerExpression(self.function.get(components.ReturnTypeAst).entity);
+            _ = try self.function.set(.{components.ReturnType.init(return_type)});
             return return_type;
         }
 
-        fn lowerFunctionBody(context: Context) !Entity {
-            const body = context.function.get(components.Body).slice();
+        fn lowerFunctionBody(self: Self) !Entity {
+            const body = self.function.get(components.Body).slice();
             var return_entity: Entity = undefined;
             for (body) |expression| {
-                return_entity = try lowerExpression(context, expression);
+                return_entity = try self.lowerExpression(expression);
             }
             return return_entity;
         }
 
-        fn lowerFunction(context: Context) !void {
-            _ = try context.function.set(.{components.Module.init(context.module)});
-            _ = try context.codebase.getPtr(components.Functions).append(context.function);
-            try lowerFunctionParameters(context);
-            const return_type = try lowerFunctionReturnType(context);
-            const return_entity = try lowerFunctionBody(context);
+        fn lowerFunction(self: Self) !void {
+            _ = try self.function.set(.{components.Module.init(self.module)});
+            _ = try self.codebase.getPtr(components.Functions).append(self.function);
+            try self.lowerFunctionParameters();
+            const return_type = try self.lowerFunctionReturnType();
+            const return_entity = try self.lowerFunctionBody();
             try implicitTypeConversion(return_entity, return_type);
         }
     };
 }
 
 pub fn lower(codebase: *ECS, file_system: anytype, module_name: []const u8, function_name: []const u8) !Entity {
-    const helpers = Helpers(@TypeOf(file_system));
     try initBuiltins(codebase);
     _ = try codebase.set(.{components.Functions.init(&codebase.arena.allocator)});
     const contents = try file_system.read(module_name);
@@ -332,7 +331,7 @@ pub fn lower(codebase: *ECS, file_system: anytype, module_name: []const u8, func
     _ = try basic_blocks.append(basic_block);
     const function = overloads[0];
     _ = try function.set(.{basic_blocks});
-    const context = helpers.Context{
+    const context = Context(@TypeOf(file_system)){
         .allocator = allocator,
         .codebase = codebase,
         .file_system = file_system,
@@ -340,7 +339,7 @@ pub fn lower(codebase: *ECS, file_system: anytype, module_name: []const u8, func
         .function = function,
         .basic_block = basic_block,
     };
-    try helpers.lowerFunction(context);
+    try context.lowerFunction();
     return module;
 }
 
