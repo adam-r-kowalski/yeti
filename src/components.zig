@@ -1,6 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
+const eql = std.meta.eql;
 
 const strings_module = @import("strings.zig");
 const Strings = strings_module.Strings;
@@ -119,23 +120,23 @@ pub fn DistinctEntitySet(comptime unique_id: []const u8) type {
     assert(unique_id.len > 0);
 
     return struct {
-        const Map = std.AutoHashMap(Entity, void);
-        pub const Iterator = Map.KeyIterator;
+        entities: List(Entity, .{}),
 
         const Self = @This();
 
-        map: Map,
-
         pub fn init(allocator: *Allocator) Self {
-            return Self{ .map = Map.init(allocator) };
+            return Self{ .entities = List(Entity, .{}).init(allocator) };
         }
 
         pub fn put(self: *Self, entity: Entity) !void {
-            try self.map.put(entity, {});
+            for (self.entities.slice()) |e| {
+                if (eql(entity, e)) return;
+            }
+            try self.entities.append(entity);
         }
 
-        pub fn iterate(self: Self) Iterator {
-            return self.map.keyIterator();
+        pub fn slice(self: Self) []const Entity {
+            return self.entities.slice();
         }
     };
 }

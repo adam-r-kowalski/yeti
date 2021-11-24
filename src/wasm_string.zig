@@ -65,8 +65,7 @@ fn wasmStringFunctionLocals(string: *WasmString, function: Entity) !void {
         parameter_names[i] = parameter.get(components.Name).entity.get(components.Literal).interned;
     }
     const strings = function.ecs.get(Strings);
-    var locals = function.get(components.Locals).iterate();
-    while (locals.next()) |local| {
+    for (function.get(components.Locals).slice()) |local| {
         const local_name = local.get(components.Name).entity.get(components.Literal).interned;
         var found = false;
         for (parameter_names) |parameter_name| {

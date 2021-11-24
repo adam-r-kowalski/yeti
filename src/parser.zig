@@ -143,19 +143,17 @@ fn parseCall(codebase: *ECS, tokens: *Tokens, callable: Entity) !Entity {
     var arguments = components.Arguments.init(&codebase.arena.allocator);
     while (tokens.peek()) |token| {
         switch (token.get(components.TokenKind)) {
-            .right_paren => {
-                return try codebase.createEntity(.{
-                    components.AstKind.call,
-                    components.Callable.init(callable),
-                    arguments,
-                    components.Span.init(callable.get(components.Span).begin, tokens.next().?.get(components.Span).end),
-                });
-            },
+            .right_paren => break,
             .comma => _ = tokens.next(),
             else => try arguments.append(try parseExpression(codebase, tokens, LOWEST)),
         }
     }
-    panic("compiler bug!!!", .{});
+    return try codebase.createEntity(.{
+        components.AstKind.call,
+        components.Callable.init(callable),
+        arguments,
+        components.Span.init(callable.get(components.Span).begin, tokens.next().?.get(components.Span).end),
+    });
 }
 
 test "parse symbol" {

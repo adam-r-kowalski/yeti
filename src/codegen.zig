@@ -430,3 +430,54 @@ test "codegen i64 add" {
     }
     try expectEqual(start_instructions[6].get(components.WasmInstructionKind), .i64_add);
 }
+
+test "codegen u64 add" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): U64
+        \\  x: U64 = 10
+        \\  y: U64 = 32
+        \\  x + y
+        \\end
+    );
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 7);
+    const x = blk: {
+        const i64_const = start_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+        const result = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "10");
+        const set_local = start_instructions[1];
+        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
+        break :blk result;
+    };
+    const y = blk: {
+        const i64_const = start_instructions[2];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+        const result = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "32");
+        const set_local = start_instructions[3];
+        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
+        break :blk result;
+    };
+    {
+        const get_local = start_instructions[4];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+    }
+    {
+        const get_local = start_instructions[5];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, y);
+    }
+    try expectEqual(start_instructions[6].get(components.WasmInstructionKind), .i64_add);
+}
