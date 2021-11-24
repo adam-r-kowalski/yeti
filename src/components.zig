@@ -228,15 +228,16 @@ pub const LoweredParameters = struct {
 };
 
 pub const IrInstructionKind = enum(u8) {
-    call,
     int_const,
+    int_add,
+    call,
     get_local,
     set_local,
-    i64_add,
 };
 
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
+    i64_add,
     call,
     get_local,
     set_local,

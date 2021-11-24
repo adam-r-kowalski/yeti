@@ -85,6 +85,14 @@ fn codegenSetLocal(context: Context, ir_instruction: Entity) !void {
     panic("\ncodegen set local type not supported {s}\n", .{literalOf(type_of)});
 }
 
+fn codegenIntAdd(context: Context) !void {
+    const wasm_instruction = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.i64_add,
+    });
+    _ = try context.wasm_instructions.append(wasm_instruction);
+    return;
+}
+
 pub fn codegen(module: Entity) !void {
     const codebase = module.ecs;
     const allocator = &codebase.arena.allocator;
@@ -106,6 +114,7 @@ pub fn codegen(module: Entity) !void {
             const kind = ir_instruction.get(components.IrInstructionKind);
             switch (kind) {
                 .int_const => try codegenIntConst(context, ir_instruction),
+                .int_add => try codegenIntAdd(context),
                 .call => try codegenCall(context, ir_instruction),
                 .get_local => try codegenGetLocal(context, ir_instruction),
                 .set_local => try codegenSetLocal(context, ir_instruction),
@@ -369,4 +378,55 @@ test "codegen function with U64 argument" {
     const id_get_local = id_instructions[0];
     try expectEqual(id_get_local.get(components.WasmInstructionKind), .get_local);
     try expectEqualStrings(literalOf(id_get_local.get(components.Result).entity.get(components.Name).entity), "x");
+}
+
+test "codegen i64 add" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x: I64 = 10
+        \\  y: I64 = 32
+        \\  x + y
+        \\end
+    );
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 7);
+    const x = blk: {
+        const i64_const = start_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+        const result = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "10");
+        const set_local = start_instructions[1];
+        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
+        break :blk result;
+    };
+    const y = blk: {
+        const i64_const = start_instructions[2];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+        const result = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "32");
+        const set_local = start_instructions[3];
+        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
+        break :blk result;
+    };
+    {
+        const get_local = start_instructions[4];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+    }
+    {
+        const get_local = start_instructions[5];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, y);
+    }
+    try expectEqual(start_instructions[6].get(components.WasmInstructionKind), .i64_add);
 }

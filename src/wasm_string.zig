@@ -92,6 +92,7 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
             try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
             try string.append(')');
         },
+        .i64_add => try string.appendSlice("\n    (i64.add)"),
         .call => {
             try string.appendSlice("\n    (call $");
             const callable = wasm_instruction.get(components.Callable).entity;
@@ -353,7 +354,7 @@ test "wasm string function with int literal argument" {
     );
 }
 
-test "codegen function with U64 argument" {
+test "wasm string function with U64 argument" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -383,6 +384,39 @@ test "codegen function with U64 argument" {
         \\
         \\  (func $foo/id (param $x i64) (result i64)
         \\    (get_local $x))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "wasm string i64 add" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x: I64 = 10
+        \\  y: I64 = 32
+        \\  x + y
+        \\end
+    );
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (local $x i64)
+        \\    (local $y i64)
+        \\    (i64.const 10)
+        \\    (set_local $x)
+        \\    (i64.const 32)
+        \\    (set_local $y)
+        \\    (get_local $x)
+        \\    (get_local $y)
+        \\    (i64.add))
         \\
         \\(export "_start" (func $foo/start)))
     );
