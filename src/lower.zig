@@ -102,10 +102,30 @@ fn lowerDot(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     return try lowerCall(FS, new_context, call);
 }
 
+fn lowerAdd(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
+    const builtins = context.codebase.get(components.Builtins);
+    const arguments = entity.get(components.Arguments).slice();
+    const lhs = try lowerExpression(FS, context, arguments[0]);
+    const rhs = try lowerExpression(FS, context, arguments[1]);
+    const lhs_type = typeOf(lhs);
+    const rhs_type = typeOf(rhs);
+    assert(eql(lhs_type, builtins.I64));
+    assert(eql(rhs_type, builtins.I64));
+    const result = try context.codebase.createEntity(.{components.Type.init(builtins.I64)});
+    const instructions = context.basic_block.getPtr(components.IrInstructions);
+    const instruction = try context.codebase.createEntity(.{
+        components.IrInstructionKind.i64_add,
+        components.Result.init(result),
+    });
+    try instructions.append(instruction);
+    return result;
+}
+
 fn lowerBinaryOp(comptime FS: type, context: Context(FS), entity: Entity) !Entity {
     const binary_op = entity.get(components.BinaryOp);
-    return switch (binary_op) {
+    return try switch (binary_op) {
         .dot => lowerDot(FS, context, entity),
+        .add => lowerAdd(FS, context, entity),
         else => panic("\nlowerBinaryOp unsupported binary op {}\n", .{binary_op}),
     };
 }
@@ -143,8 +163,8 @@ fn bestOverload(comptime FS: type, context: Context(FS), callable: Entity, argum
         if (parameters.len != arguments.len) continue;
         var match = Match.exact;
         for (parameters) |parameter, i| {
-            const parameter_type = parameter.get(components.Type).entity;
-            const argument_type = arguments[i].get(components.Type).entity;
+            const parameter_type = typeOf(parameter);
+            const argument_type = typeOf(arguments[i]);
             if (eql(parameter_type, argument_type)) continue;
             if (eql(argument_type, builtins.IntLiteral)) {
                 if (eql(parameter_type, builtins.I64) or eql(parameter_type, builtins.U64)) {
@@ -187,8 +207,7 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
     }
     const function_parameters = function.get(components.Parameters).slice();
     for (function_arguments.slice()) |argument, i| {
-        const expected_type = function_parameters[i].get(components.Type).entity;
-        try implicitTypeConversion(argument, expected_type);
+        try implicitTypeConversion(argument, typeOf(function_parameters[i]));
     }
     const return_type = function.get(components.ReturnType).entity;
     const result = try context.codebase.createEntity(.{components.Type.init(return_type)});
@@ -204,7 +223,7 @@ fn lowerCall(comptime FS: type, context: Context(FS), call: Entity) !Entity {
 }
 
 fn implicitTypeConversion(value: Entity, expected_type: Entity) !void {
-    const actual_type = value.get(components.Type).entity;
+    const actual_type = typeOf(value);
     const builtins = value.ecs.get(components.Builtins);
     if (eql(actual_type, builtins.IntLiteral)) {
         if (eql(expected_type, builtins.I64) or eql(expected_type, builtins.U64)) {
@@ -643,7 +662,7 @@ test "lower function with argument" {
     try expectEqual(parameters.len, 1);
     const x = parameters[0];
     try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-    try expectEqual(x.get(components.Type).entity, builtins.I64);
+    try expectEqual(typeOf(x), builtins.I64);
     try expectEqual(id.get(components.ReturnType).entity, builtins.I64);
     const basic_blocks = id.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
@@ -707,7 +726,7 @@ test "lower function with argument implicit conversion" {
     try expectEqual(parameters.len, 1);
     const x = parameters[0];
     try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-    try expectEqual(x.get(components.Type).entity, builtins.I64);
+    try expectEqual(typeOf(x), builtins.I64);
     try expectEqual(id.get(components.ReturnType).entity, builtins.I64);
     const basic_blocks = id.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
@@ -774,7 +793,7 @@ test "lower function call from import with implicit conversion" {
     try expectEqual(parameters.len, 1);
     const x = parameters[0];
     try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-    try expectEqual(x.get(components.Type).entity, builtins.I64);
+    try expectEqual(typeOf(x), builtins.I64);
     try expectEqual(baz.get(components.ReturnType).entity, builtins.I64);
     const basic_blocks = baz.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
@@ -838,7 +857,7 @@ test "lower function with U64 argument" {
     try expectEqual(parameters.len, 1);
     const x = parameters[0];
     try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-    try expectEqual(x.get(components.Type).entity, builtins.U64);
+    try expectEqual(typeOf(x), builtins.U64);
     try expectEqual(id.get(components.ReturnType).entity, builtins.U64);
     const basic_blocks = id.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
@@ -902,7 +921,7 @@ test "lower function with U64 argument" {
     try expectEqual(parameters.len, 1);
     const x = parameters[0];
     try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-    try expectEqual(x.get(components.Type).entity, builtins.U64);
+    try expectEqual(typeOf(x), builtins.U64);
     try expectEqual(id.get(components.ReturnType).entity, builtins.U64);
     const basic_blocks = id.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
@@ -999,7 +1018,7 @@ test "lower function overload using I64" {
     try expectEqual(parameters.len, 1);
     const x = parameters[0];
     try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-    try expectEqual(x.get(components.Type).entity, builtins.I64);
+    try expectEqual(typeOf(x), builtins.I64);
     try expectEqual(f.get(components.ReturnType).entity, builtins.I64);
     const basic_blocks = f.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
@@ -1069,7 +1088,7 @@ test "lower function overload using U64" {
     try expectEqual(parameters.len, 1);
     const x = parameters[0];
     try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-    try expectEqual(x.get(components.Type).entity, builtins.U64);
+    try expectEqual(typeOf(x), builtins.U64);
     try expectEqual(f.get(components.ReturnType).entity, builtins.I64);
     const basic_blocks = f.get(components.BasicBlocks).slice();
     try expectEqual(basic_blocks.len, 1);
@@ -1079,5 +1098,67 @@ test "lower function overload using U64" {
     try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
     const result = int_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(result), "24");
+    try expectEqual(typeOf(result), builtins.I64);
+}
+
+test "lower i64 add" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x: I64 = 10
+        \\  y: I64 = 32
+        \\  x + y
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const basic_blocks = start.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 7);
+    const x = blk: {
+        const int_const = basic_block[0];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const result = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "10");
+        try expectEqual(typeOf(result), builtins.I64);
+        const set_local = basic_block[1];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
+        break :blk result;
+    };
+    const y = blk: {
+        const int_const = basic_block[2];
+        try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        const result = int_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "32");
+        try expectEqual(typeOf(result), builtins.I64);
+        const set_local = basic_block[3];
+        try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, result);
+        break :blk result;
+    };
+    {
+        const get_local = basic_block[4];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+    }
+    {
+        const get_local = basic_block[5];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, y);
+    }
+    const i64_add = basic_block[6];
+    try expectEqual(i64_add.get(components.IrInstructionKind), .i64_add);
+    const result = i64_add.get(components.Result).entity;
     try expectEqual(typeOf(result), builtins.I64);
 }

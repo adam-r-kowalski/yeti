@@ -232,6 +232,7 @@ pub const IrInstructionKind = enum(u8) {
     int_const,
     get_local,
     set_local,
+    i64_add,
 };
 
 pub const WasmInstructionKind = enum(u8) {
