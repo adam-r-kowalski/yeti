@@ -9,7 +9,7 @@ const assert = std.debug.assert;
 
 const init_codebase = @import("init_codebase.zig");
 const initCodebase = init_codebase.initCodebase;
-const FileSystem = @import("file_system.zig").FileSystem;
+const MockFileSystem = @import("file_system.zig").FileSystem;
 const lower = @import("lower.zig").lower;
 const ecs = @import("ecs.zig");
 const Entity = ecs.Entity;
@@ -147,471 +147,372 @@ test "codegen int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  5
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const wasm_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(wasm_instructions.len, 1);
-    const i64_const = wasm_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "5");
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  5
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const wasm_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(wasm_instructions.len, 1);
+        const i64_const = wasm_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "5");
+    }
 }
 
 test "codegen float literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): F64
-        \\  5.3
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const wasm_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(wasm_instructions.len, 1);
-    const f64_const = wasm_instructions[0];
-    try expectEqual(f64_const.get(components.WasmInstructionKind), .f64_const);
-    try expectEqualStrings(literalOf(f64_const.get(components.Result).entity), "5.3");
+    const types = [_][]const u8{"F64"};
+    const const_kinds = [_]components.WasmInstructionKind{.f64_const};
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  5.3
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const wasm_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(wasm_instructions.len, 1);
+        const f64_const = wasm_instructions[0];
+        try expectEqual(f64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(f64_const.get(components.Result).entity), "5.3");
+    }
 }
 
-test "codegen int literal as f64" {
+test "codegen int literal as float" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): F64
-        \\  5
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const wasm_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(wasm_instructions.len, 1);
-    const f64_const = wasm_instructions[0];
-    try expectEqual(f64_const.get(components.WasmInstructionKind), .f64_const);
-    try expectEqualStrings(literalOf(f64_const.get(components.Result).entity), "5");
+    const types = [_][]const u8{"F64"};
+    const const_kinds = [_]components.WasmInstructionKind{.f64_const};
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  5
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const wasm_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(wasm_instructions.len, 1);
+        const f64_const = wasm_instructions[0];
+        try expectEqual(f64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(f64_const.get(components.Result).entity), "5");
+    }
 }
 
 test "codegen call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  baz()
-        \\end
-        \\
-        \\baz = function(): I64
-        \\  10
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 1);
-    const call = start_instructions[0];
-    try expectEqual(call.get(components.WasmInstructionKind), .call);
-    const baz = call.get(components.Callable).entity;
-    const baz_instructions = baz.get(components.WasmInstructions).slice();
-    try expectEqual(baz_instructions.len, 1);
-    const i64_const = baz_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  baz()
+            \\end
+            \\
+            \\baz = function(): {s}
+            \\  10
+            \\end
+        , .{ type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 1);
+        const call = start_instructions[0];
+        try expectEqual(call.get(components.WasmInstructionKind), .call);
+        const baz = call.get(components.Callable).entity;
+        const baz_instructions = baz.get(components.WasmInstructions).slice();
+        try expectEqual(baz_instructions.len, 1);
+        const i64_const = baz_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+    }
 }
 
 test "codegen call function from import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\bar = import("bar.yeti")
-        \\
-        \\start = function(): I64
-        \\  bar.baz()
-        \\end
-    );
-    _ = try fs.newFile("bar.yeti",
-        \\baz = function(): I64
-        \\  10
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 1);
-    try expectEqual(start_instructions.len, 1);
-    const call = start_instructions[0];
-    try expectEqual(call.get(components.WasmInstructionKind), .call);
-    const baz = call.get(components.Callable).entity;
-    const baz_instructions = baz.get(components.WasmInstructions).slice();
-    try expectEqual(baz_instructions.len, 1);
-    const i64_const = baz_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\bar = import("bar.yeti")
+            \\
+            \\start = function(): {s}
+            \\  bar.baz()
+            \\end
+        , .{type_}));
+        _ = try fs.newFile("bar.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\baz = function(): {s}
+            \\  10
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 1);
+        try expectEqual(start_instructions.len, 1);
+        const call = start_instructions[0];
+        try expectEqual(call.get(components.WasmInstructionKind), .call);
+        const baz = call.get(components.Callable).entity;
+        const baz_instructions = baz.get(components.WasmInstructions).slice();
+        try expectEqual(baz_instructions.len, 1);
+        const i64_const = baz_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+    }
 }
 
 test "codegen assignment" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x = 10
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 3);
-    const i64_const = start_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
-    const set_local = start_instructions[1];
-    try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-    try expectEqualStrings(literalOf(set_local.get(components.Result).entity.get(components.Name).entity), "x");
-    const get_local = start_instructions[2];
-    try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-    try expectEqualStrings(literalOf(get_local.get(components.Result).entity.get(components.Name).entity), "x");
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x = 10
+            \\  x
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 3);
+        const i64_const = start_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+        const set_local = start_instructions[1];
+        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+        try expectEqualStrings(literalOf(set_local.get(components.Result).entity.get(components.Name).entity), "x");
+        const get_local = start_instructions[2];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqualStrings(literalOf(get_local.get(components.Result).entity.get(components.Name).entity), "x");
+    }
 }
 
 test "codegen two assignments" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x = 10
-        \\  y = 42
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 3);
-    const i64_const = start_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    const x = i64_const.get(components.Result).entity;
-    try expectEqualStrings(literalOf(x), "10");
-    const set_local = start_instructions[1];
-    try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-    try expectEqual(set_local.get(components.Result).entity, x);
-    const get_local = start_instructions[2];
-    try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-    try expectEqual(get_local.get(components.Result).entity, x);
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x = 10
+            \\  y = 42
+            \\  x
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 3);
+        const i64_const = start_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        const x = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(x), "10");
+        const set_local = start_instructions[1];
+        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, x);
+        const get_local = start_instructions[2];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+    }
 }
 
 test "codegen assignment explicit type" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x: I64 = 10
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 3);
-    const i64_const = start_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    const x = i64_const.get(components.Result).entity;
-    try expectEqualStrings(literalOf(x), "10");
-    const set_local = start_instructions[1];
-    try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-    try expectEqual(set_local.get(components.Result).entity, x);
-    const get_local = start_instructions[2];
-    try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-    try expectEqual(get_local.get(components.Result).entity, x);
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  x
+            \\end
+        , .{ type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 3);
+        const i64_const = start_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        const x = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(x), "10");
+        const set_local = start_instructions[1];
+        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+        try expectEqual(set_local.get(components.Result).entity, x);
+        const get_local = start_instructions[2];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+    }
 }
 
 test "codegen function with argument" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x: I64 = 10
-        \\  id(x)
-        \\end
-        \\
-        \\id = function(x: I64): I64
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 4);
-    const i64_const = start_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    const x = i64_const.get(components.Result).entity;
-    try expectEqualStrings(literalOf(x), "10");
-    const set_local = start_instructions[1];
-    try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-    try expectEqual(set_local.get(components.Result).entity, x);
-    const get_local = start_instructions[2];
-    try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-    try expectEqual(get_local.get(components.Result).entity, x);
-    const call = start_instructions[3];
-    try expectEqual(call.get(components.WasmInstructionKind), .call);
-    const id = call.get(components.Callable).entity;
-    try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
-    const id_instructions = id.get(components.WasmInstructions).slice();
-    try expectEqual(id_instructions.len, 1);
-    const id_get_local = id_instructions[0];
-    try expectEqual(id_get_local.get(components.WasmInstructionKind), .get_local);
-    try expectEqualStrings(literalOf(id_get_local.get(components.Result).entity.get(components.Name).entity), "x");
-}
-
-test "codegen function with U64 argument" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): U64
-        \\  x: U64 = 10
-        \\  id(x)
-        \\end
-        \\
-        \\id = function(x: U64): U64
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 4);
-    const i64_const = start_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    const x = i64_const.get(components.Result).entity;
-    try expectEqualStrings(literalOf(x), "10");
-    const set_local = start_instructions[1];
-    try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-    try expectEqual(set_local.get(components.Result).entity, x);
-    const get_local = start_instructions[2];
-    try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-    try expectEqual(get_local.get(components.Result).entity, x);
-    const call = start_instructions[3];
-    try expectEqual(call.get(components.WasmInstructionKind), .call);
-    const id = call.get(components.Callable).entity;
-    try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
-    const id_instructions = id.get(components.WasmInstructions).slice();
-    try expectEqual(id_instructions.len, 1);
-    const id_get_local = id_instructions[0];
-    try expectEqual(id_get_local.get(components.WasmInstructionKind), .get_local);
-    try expectEqualStrings(literalOf(id_get_local.get(components.Result).entity.get(components.Name).entity), "x");
-}
-
-test "codegen i64 add" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x: I64 = 10
-        \\  y: I64 = 32
-        \\  x + y
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 7);
-    const x = blk: {
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  id(x)
+            \\end
+            \\
+            \\id = function(x: {s}): {s}
+            \\  x
+            \\end
+        , .{ type_, type_, type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 4);
         const i64_const = start_instructions[0];
-        try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-        const result = i64_const.get(components.Result).entity;
-        try expectEqualStrings(literalOf(result), "10");
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        const x = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(x), "10");
         const set_local = start_instructions[1];
         try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-        try expectEqual(set_local.get(components.Result).entity, result);
-        break :blk result;
-    };
-    const y = blk: {
-        const i64_const = start_instructions[2];
-        try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-        const result = i64_const.get(components.Result).entity;
-        try expectEqualStrings(literalOf(result), "32");
-        const set_local = start_instructions[3];
-        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-        try expectEqual(set_local.get(components.Result).entity, result);
-        break :blk result;
-    };
-    {
-        const get_local = start_instructions[4];
+        try expectEqual(set_local.get(components.Result).entity, x);
+        const get_local = start_instructions[2];
         try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
         try expectEqual(get_local.get(components.Result).entity, x);
+        const call = start_instructions[3];
+        try expectEqual(call.get(components.WasmInstructionKind), .call);
+        const id = call.get(components.Callable).entity;
+        try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
+        const id_instructions = id.get(components.WasmInstructions).slice();
+        try expectEqual(id_instructions.len, 1);
+        const id_get_local = id_instructions[0];
+        try expectEqual(id_get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqualStrings(literalOf(id_get_local.get(components.Result).entity.get(components.Name).entity), "x");
     }
-    {
-        const get_local = start_instructions[5];
-        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-        try expectEqual(get_local.get(components.Result).entity, y);
-    }
-    try expectEqual(start_instructions[6].get(components.WasmInstructionKind), .i64_add);
 }
 
-test "codegen u64 add" {
+test "codegen add" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): U64
-        \\  x: U64 = 10
-        \\  y: U64 = 32
-        \\  x + y
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 7);
-    const x = blk: {
-        const i64_const = start_instructions[0];
-        try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-        const result = i64_const.get(components.Result).entity;
-        try expectEqualStrings(literalOf(result), "10");
-        const set_local = start_instructions[1];
-        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-        try expectEqual(set_local.get(components.Result).entity, result);
-        break :blk result;
-    };
-    const y = blk: {
-        const i64_const = start_instructions[2];
-        try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-        const result = i64_const.get(components.Result).entity;
-        try expectEqualStrings(literalOf(result), "32");
-        const set_local = start_instructions[3];
-        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-        try expectEqual(set_local.get(components.Result).entity, result);
-        break :blk result;
-    };
-    {
-        const get_local = start_instructions[4];
-        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-        try expectEqual(get_local.get(components.Result).entity, x);
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    const add_kinds = [_]components.WasmInstructionKind{ .i64_add, .i64_add, .f64_add };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  y: {s} = 32
+            \\  x + y
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 7);
+        const x = blk: {
+            const i64_const = start_instructions[0];
+            try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+            const result = i64_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "10");
+            const set_local = start_instructions[1];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            break :blk result;
+        };
+        const y = blk: {
+            const i64_const = start_instructions[2];
+            try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+            const result = i64_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "32");
+            const set_local = start_instructions[3];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            break :blk result;
+        };
+        {
+            const get_local = start_instructions[4];
+            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, x);
+        }
+        {
+            const get_local = start_instructions[5];
+            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, y);
+        }
+        try expectEqual(start_instructions[6].get(components.WasmInstructionKind), add_kinds[i]);
     }
-    {
-        const get_local = start_instructions[5];
-        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-        try expectEqual(get_local.get(components.Result).entity, y);
-    }
-    try expectEqual(start_instructions[6].get(components.WasmInstructionKind), .i64_add);
-}
-
-test "codegen f64 add" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): F64
-        \\  x: F64 = 10.5
-        \\  y: F64 = 32.3
-        \\  x + y
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 7);
-    const x = blk: {
-        const f64_const = start_instructions[0];
-        try expectEqual(f64_const.get(components.WasmInstructionKind), .f64_const);
-        const result = f64_const.get(components.Result).entity;
-        try expectEqualStrings(literalOf(result), "10.5");
-        const set_local = start_instructions[1];
-        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-        try expectEqual(set_local.get(components.Result).entity, result);
-        break :blk result;
-    };
-    const y = blk: {
-        const f64_const = start_instructions[2];
-        try expectEqual(f64_const.get(components.WasmInstructionKind), .f64_const);
-        const result = f64_const.get(components.Result).entity;
-        try expectEqualStrings(literalOf(result), "32.3");
-        const set_local = start_instructions[3];
-        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-        try expectEqual(set_local.get(components.Result).entity, result);
-        break :blk result;
-    };
-    {
-        const get_local = start_instructions[4];
-        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-        try expectEqual(get_local.get(components.Result).entity, x);
-    }
-    {
-        const get_local = start_instructions[5];
-        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-        try expectEqual(get_local.get(components.Result).entity, y);
-    }
-    try expectEqual(start_instructions[6].get(components.WasmInstructionKind), .f64_add);
 }
 
 test "codegen int literal add" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): U64
-        \\  10 + 32
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 1);
-    const i64_const = start_instructions[0];
-    try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
-    const result = i64_const.get(components.Result).entity;
-    try expectEqualStrings(literalOf(result), "42");
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  10 + 32
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 1);
+        const i64_const = start_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        const result = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "42");
+    }
 }
