@@ -113,6 +113,17 @@ fn Context(comptime FileSystem: type) type {
             return result;
         }
 
+        fn i64Of(entity: Entity) !i64 {
+            if (entity.has(i64)) |cached| {
+                return cached;
+            } else {
+                const literal = literalOf(entity);
+                const value = try std.fmt.parseInt(i64, literal, 10);
+                _ = try entity.set(.{value});
+                return value;
+            }
+        }
+
         fn lowerAdd(self: Self, entity: Entity) !Entity {
             const builtins = self.codebase.get(components.Builtins);
             const arguments = entity.get(components.Arguments).slice();
@@ -154,15 +165,16 @@ fn Context(comptime FileSystem: type) type {
                     return try self.lowerAddSameType(builtins.U64);
                 }
                 assert(eql(rhs_type, builtins.IntLiteral));
-                const lhs_literal = literalOf(lhs);
-                const rhs_literal = literalOf(rhs);
-                const lhs_value = try std.fmt.parseInt(u64, lhs_literal, 10);
-                const rhs_value = try std.fmt.parseInt(u64, rhs_literal, 10);
-                const result_literal = try std.fmt.allocPrint(self.allocator, "{}", .{lhs_value + rhs_value});
+
+                const lhs_value = try i64Of(lhs);
+                const rhs_value = try i64Of(rhs);
+                const result_value = lhs_value + rhs_value;
+                const result_literal = try std.fmt.allocPrint(self.allocator, "{}", .{result_value});
                 const interned = try self.codebase.getPtr(Strings).intern(result_literal);
                 const result = try self.codebase.createEntity(.{
                     components.Literal.init(interned),
                     components.Type.init(builtins.IntLiteral),
+                    result_value,
                 });
                 const instructions = self.basic_block.getPtr(components.IrInstructions);
                 const instruction = try self.codebase.createEntity(.{
@@ -282,7 +294,7 @@ fn Context(comptime FileSystem: type) type {
             const actual_type = typeOf(value);
             const builtins = value.ecs.get(components.Builtins);
             if (eql(actual_type, builtins.IntLiteral)) {
-                if (eql(expected_type, builtins.I64) or eql(expected_type, builtins.U64)) {
+                if (eql(expected_type, builtins.I64) or eql(expected_type, builtins.U64) or eql(expected_type, builtins.F64)) {
                     _ = try value.set(.{components.Type.init(expected_type)});
                 } else {
                     panic("\ncannot implicitly convert {s} to {s}\n", .{
@@ -466,6 +478,35 @@ test "lower float literal" {
     const five_three = float_const.get(components.Result).entity;
     try expectEqualStrings(literalOf(five_three), "5.3");
     try expectEqual(typeOf(five_three), builtins.F64);
+}
+
+test "lower int literal as f64" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): F64
+        \\  5
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.F64);
+    const basic_blocks = start.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 1);
+    const int_const = basic_block[0];
+    try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+    const five = int_const.get(components.Result).entity;
+    try expectEqualStrings(literalOf(five), "5");
+    try expectEqual(typeOf(five), builtins.F64);
 }
 
 test "lower call local function" {
@@ -706,6 +747,42 @@ test "lower two assignments with explicit type" {
     const get_local = basic_block[4];
     try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
     try expectEqual(get_local.get(components.Result).entity, y);
+}
+
+test "lower assignments with explicit f64 type" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): F64
+        \\  x: F64 = 10.2
+        \\  x
+        \\end
+    );
+    const ir = try lower(codebase, fs, "foo.yeti", "start");
+    const builtins = codebase.get(components.Builtins);
+    const top_level = ir.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.F64);
+    const basic_blocks = start.get(components.BasicBlocks).slice();
+    try expectEqual(basic_blocks.len, 1);
+    const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+    try expectEqual(basic_block.len, 3);
+    const float_const = basic_block[0];
+    try expectEqual(float_const.get(components.IrInstructionKind), .float_const);
+    const x = float_const.get(components.Result).entity;
+    try expectEqual(typeOf(x), builtins.F64);
+    try expectEqualStrings(literalOf(x), "10.2");
+    const set_local = basic_block[1];
+    try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+    try expectEqual(set_local.get(components.Result).entity, x);
+    const get_local = basic_block[2];
+    try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+    try expectEqual(get_local.get(components.Result).entity, x);
 }
 
 test "lower function with argument" {
