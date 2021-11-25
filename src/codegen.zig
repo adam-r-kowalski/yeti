@@ -17,6 +17,7 @@ const ECS = ecs.ECS;
 const components = @import("components.zig");
 const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
+const typeOf = test_utils.typeOf;
 const List = @import("list.zig").List;
 
 const Context = struct {
@@ -29,38 +30,44 @@ const Context = struct {
 
 fn codegenIntConst(context: Context, ir_instruction: Entity) !void {
     const int_const = ir_instruction.get(components.Result).entity;
-    const type_of = int_const.get(components.Type).entity;
-    if (eql(type_of, context.builtins.IntLiteral)) {
+    const type_ = typeOf(int_const);
+    if (eql(type_, context.builtins.IntLiteral)) {
         return;
     }
-    const kind = if (eql(type_of, context.builtins.I64) or eql(type_of, context.builtins.U64))
-        components.WasmInstructionKind.i64_const
-    else if (eql(type_of, context.builtins.F64))
-        components.WasmInstructionKind.f64_const
-    else
-        panic("\ncompiler bug in codegen int_const\n", .{});
-    const wasm_instruction = try context.codebase.createEntity(.{
-        kind,
-        components.Result.init(int_const),
-    });
-    _ = try context.wasm_instructions.append(wasm_instruction);
+    const b = context.builtins;
+    const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    for (builtins) |builtin, i| {
+        if (!eql(type_, builtin)) continue;
+        const wasm_instruction = try context.codebase.createEntity(.{
+            kinds[i],
+            components.Result.init(int_const),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+        return;
+    }
+    panic("\ncodegen int const for type {s} not supported\n", .{literalOf(type_)});
 }
 
 fn codegenFloatConst(context: Context, ir_instruction: Entity) !void {
     const float_const = ir_instruction.get(components.Result).entity;
-    const type_of = float_const.get(components.Type).entity;
-    if (eql(type_of, context.builtins.FloatLiteral)) {
+    const type_ = float_const.get(components.Type).entity;
+    if (eql(type_, context.builtins.FloatLiteral)) {
         return;
     }
-    const kind = if (eql(type_of, context.builtins.F64))
-        components.WasmInstructionKind.f64_const
-    else
-        panic("\ncompiler bug in codegen float_const\n", .{});
-    const wasm_instruction = try context.codebase.createEntity(.{
-        kind,
-        components.Result.init(float_const),
-    });
-    _ = try context.wasm_instructions.append(wasm_instruction);
+    const b = context.builtins;
+    const builtins = &[_]Entity{ b.F64, b.F32 };
+    const kinds = &[_]components.WasmInstructionKind{ .f64_const, .f32_const };
+    for (builtins) |builtin, i| {
+        if (!eql(type_, builtin)) continue;
+        const wasm_instruction = try context.codebase.createEntity(.{
+            kinds[i],
+            components.Result.init(float_const),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+        return;
+    }
+    panic("\ncodegen float const for type {s} not supported\n", .{literalOf(type_)});
 }
 
 fn codegenCall(context: Context, ir_instruction: Entity) !void {
@@ -147,8 +154,8 @@ test "codegen int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,

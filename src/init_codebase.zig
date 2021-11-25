@@ -40,8 +40,11 @@ pub fn initBuiltins(codebase: *ECS) !void {
     _ = try Type.set(.{components.Type.init(Type)});
     const Module = try builtinType(codebase, &scope, "Module", Type);
     const I64 = try builtinType(codebase, &scope, "I64", Type);
+    const I32 = try builtinType(codebase, &scope, "I32", Type);
     const U64 = try builtinType(codebase, &scope, "U64", Type);
+    const U32 = try builtinType(codebase, &scope, "U32", Type);
     const F64 = try builtinType(codebase, &scope, "F64", Type);
+    const F32 = try builtinType(codebase, &scope, "F32", Type);
     const IntLiteral = try builtinType(codebase, &scope, "IntLiteral", Type);
     const FloatLiteral = try builtinType(codebase, &scope, "FloatLiteral", Type);
     const StringLiteral = try builtinType(codebase, &scope, "StringLiteral", Type);
@@ -50,8 +53,11 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .Type = Type,
         .Module = Module,
         .I64 = I64,
+        .I32 = I32,
         .U64 = U64,
+        .U32 = U32,
         .F64 = F64,
+        .F32 = F32,
         .IntLiteral = IntLiteral,
         .FloatLiteral = FloatLiteral,
         .StringLiteral = StringLiteral,

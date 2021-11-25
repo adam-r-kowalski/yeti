@@ -28,8 +28,12 @@ fn wasmStringType(string: *WasmString, type_: Entity) !void {
     const builtins = type_.ecs.get(components.Builtins);
     if (eql(type_, builtins.I64) or eql(type_, builtins.U64)) {
         try string.appendSlice("i64");
+    } else if (eql(type_, builtins.I32) or eql(type_, builtins.U32)) {
+        try string.appendSlice("i32");
     } else if (eql(type_, builtins.F64)) {
         try string.appendSlice("f64");
+    } else if (eql(type_, builtins.F32)) {
+        try string.appendSlice("f32");
     } else {
         panic("\nwasm string unsupported type {s}\n", .{literalOf(type_)});
     }
@@ -91,12 +95,22 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
             try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
             try string.append(')');
         },
-        .i64_add => try string.appendSlice("\n    (i64.add)"),
+        .i32_const => {
+            try string.appendSlice("\n    (i32.const ");
+            try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
+            try string.append(')');
+        },
         .f64_const => {
             try string.appendSlice("\n    (f64.const ");
             try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
             try string.append(')');
         },
+        .f32_const => {
+            try string.appendSlice("\n    (f32.const ");
+            try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
+            try string.append(')');
+        },
+        .i64_add => try string.appendSlice("\n    (i64.add)"),
         .f64_add => try string.appendSlice("\n    (f64.add)"),
         .call => {
             try string.appendSlice("\n    (call $");
@@ -149,8 +163,8 @@ test "wasm string int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,

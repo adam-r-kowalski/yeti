@@ -142,58 +142,50 @@ fn Context(comptime FileSystem: type) type {
             const rhs = try self.lowerExpression(arguments[1]);
             const lhs_type = typeOf(lhs);
             const rhs_type = typeOf(rhs);
-            if (eql(lhs_type, builtins.I64)) {
-                if (eql(rhs_type, builtins.I64)) {
-                    return try self.lowerAddSameType(builtins.I64, .int_add);
+            for (&[_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32 }) |builtin| {
+                if (eql(lhs_type, builtin)) {
+                    if (eql(rhs_type, builtin)) {
+                        return try self.lowerAddSameType(builtin, .int_add);
+                    }
+                    if (eql(rhs_type, builtins.IntLiteral)) {
+                        _ = try rhs.set(.{components.Type.init(builtin)});
+                        return try self.lowerAddSameType(builtin, .int_add);
+                    }
+                    panic("\nlower {s} + {s} not implemented\n", .{
+                        literalOf(lhs_type), literalOf(rhs_type),
+                    });
                 }
-                if (eql(rhs_type, builtins.IntLiteral)) {
-                    _ = try rhs.set(.{components.Type.init(builtins.I64)});
-                    return try self.lowerAddSameType(builtins.I64, .int_add);
-                }
-                panic("\nlower {s} + {s} not implemented\n", .{
-                    literalOf(lhs_type), literalOf(rhs_type),
-                });
             }
-            if (eql(lhs_type, builtins.U64)) {
-                if (eql(rhs_type, builtins.U64)) {
-                    return try self.lowerAddSameType(builtins.U64, .int_add);
+            for (&[_]Entity{ builtins.F64, builtins.F32 }) |builtin| {
+                if (eql(lhs_type, builtin)) {
+                    if (eql(rhs_type, builtin)) {
+                        return try self.lowerAddSameType(builtin, .float_add);
+                    }
+                    if (eql(rhs_type, builtins.IntLiteral)) {
+                        _ = try rhs.set(.{components.Type.init(builtin)});
+                        return try self.lowerAddSameType(builtin, .float_add);
+                    }
+                    if (eql(rhs_type, builtins.FloatLiteral)) {
+                        _ = try rhs.set(.{components.Type.init(builtin)});
+                        return try self.lowerAddSameType(builtin, .float_add);
+                    }
+                    panic("\nlower {s} + {s} not implemented\n", .{
+                        literalOf(lhs_type), literalOf(rhs_type),
+                    });
                 }
-                if (eql(rhs_type, builtins.IntLiteral)) {
-                    _ = try rhs.set(.{components.Type.init(builtins.U64)});
-                    return try self.lowerAddSameType(builtins.U64, .int_add);
-                }
-                panic("\nlower {s} + {s} not implemented\n", .{
-                    literalOf(lhs_type), literalOf(rhs_type),
-                });
-            }
-            if (eql(lhs_type, builtins.F64)) {
-                if (eql(rhs_type, builtins.F64)) {
-                    return try self.lowerAddSameType(builtins.F64, .float_add);
-                }
-                if (eql(rhs_type, builtins.IntLiteral)) {
-                    _ = try rhs.set(.{components.Type.init(builtins.F64)});
-                    return try self.lowerAddSameType(builtins.F64, .float_add);
-                }
-                if (eql(rhs_type, builtins.FloatLiteral)) {
-                    _ = try rhs.set(.{components.Type.init(builtins.F64)});
-                    return try self.lowerAddSameType(builtins.F64, .float_add);
-                }
-                panic("\nlower {s} + {s} not implemented\n", .{
-                    literalOf(lhs_type), literalOf(rhs_type),
-                });
             }
             if (eql(lhs_type, builtins.IntLiteral)) {
-                if (eql(rhs_type, builtins.I64)) {
-                    _ = try lhs.set(.{components.Type.init(builtins.I64)});
-                    return try self.lowerAddSameType(builtins.I64, .int_add);
+                for (&[_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32 }) |builtin| {
+                    if (eql(rhs_type, builtin)) {
+                        _ = try lhs.set(.{components.Type.init(builtin)});
+                        return try self.lowerAddSameType(builtin, .int_add);
+                    }
                 }
-                if (eql(rhs_type, builtins.U64)) {
-                    _ = try lhs.set(.{components.Type.init(builtins.U64)});
-                    return try self.lowerAddSameType(builtins.U64, .int_add);
-                }
-                if (eql(rhs_type, builtins.F64)) {
-                    _ = try lhs.set(.{components.Type.init(builtins.F64)});
-                    return try self.lowerAddSameType(builtins.F64, .float_add);
+                for (&[_]Entity{ builtins.F64, builtins.F32 }) |builtin| {
+                    if (eql(rhs_type, builtin)) {
+                        _ = try lhs.set(.{components.Type.init(builtin)});
+                        return try self.lowerAddSameType(builtin, .float_add);
+                    }
                 }
                 if (eql(rhs_type, builtins.FloatLiteral)) {
                     const lhs_value = try f64Of(lhs);
@@ -367,16 +359,17 @@ fn Context(comptime FileSystem: type) type {
             const actual_type = typeOf(value);
             const builtins = value.ecs.get(components.Builtins);
             if (eql(actual_type, builtins.IntLiteral)) {
-                if (eql(expected_type, builtins.I64) or eql(expected_type, builtins.U64) or eql(expected_type, builtins.F64)) {
+                for ([_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 }) |builtin| {
+                    if (eql(expected_type, builtin)) continue;
                     _ = try value.set(.{components.Type.init(expected_type)});
-                } else {
-                    panic("\ncannot implicitly convert {s} to {s}\n", .{
-                        literalOf(actual_type),
-                        literalOf(expected_type),
-                    });
+                    return;
                 }
+                panic("\ncannot implicitly convert {s} to {s}\n", .{
+                    literalOf(actual_type),
+                    literalOf(expected_type),
+                });
             } else if (eql(actual_type, builtins.FloatLiteral)) {
-                if (eql(expected_type, builtins.F64)) {
+                if (eql(expected_type, builtins.F64) or eql(expected_type, builtins.F32)) {
                     _ = try value.set(.{components.Type.init(expected_type)});
                 } else {
                     panic("\ncannot implicitly convert {s} to {s}\n", .{
@@ -499,8 +492,8 @@ test "lower int literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -532,8 +525,8 @@ test "lower float literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"F64"};
-    const builtin_types = [_]Entity{builtins.F64};
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -565,8 +558,8 @@ test "lower call local function" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -618,8 +611,8 @@ test "call function from import" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -674,8 +667,8 @@ test "lower assignment" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -717,8 +710,8 @@ test "lower two assignments" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -771,8 +764,8 @@ test "lower two assignments with explicit type" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -825,8 +818,8 @@ test "lower assignments with explicit float type" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"F64"};
-    const builtin_types = [_]Entity{builtins.F64};
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -865,8 +858,8 @@ test "lower function with argument" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -933,8 +926,8 @@ test "lower function with argument implicit conversion" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1001,8 +994,8 @@ test "lower function call from import with implicit conversion" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1212,9 +1205,9 @@ test "lower add two of same type" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
-    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .float_add };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .int_add, .int_add, .float_add, .float_add };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1279,8 +1272,8 @@ test "lower int literal add" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1326,8 +1319,8 @@ test "lower float literal add" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"F64"};
-    const builtin_types = [_]Entity{builtins.F64};
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1373,8 +1366,8 @@ test "lower float literal add int literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"F64"};
-    const builtin_types = [_]Entity{builtins.F64};
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1420,8 +1413,8 @@ test "lower int literal add float literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"F64"};
-    const builtin_types = [_]Entity{builtins.F64};
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1467,9 +1460,9 @@ test "lower add type with int literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
-    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .float_add };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .int_add, .int_add, .float_add, .float_add };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1522,9 +1515,9 @@ test "lower add int literal with type" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.U64, builtins.F64 };
-    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .float_add };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .int_add, .int_add, .float_add, .float_add };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,

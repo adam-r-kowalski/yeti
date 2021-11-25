@@ -241,8 +241,10 @@ pub const IrInstructionKind = enum(u8) {
 
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
-    i64_add,
+    i32_const,
     f64_const,
+    f32_const,
+    i64_add,
     f64_add,
     call,
     get_local,
@@ -253,8 +255,11 @@ pub const Builtins = struct {
     Type: Entity,
     Module: Entity,
     I64: Entity,
+    I32: Entity,
     U64: Entity,
+    U32: Entity,
     F64: Entity,
+    F32: Entity,
     IntLiteral: Entity,
     FloatLiteral: Entity,
     StringLiteral: Entity,
