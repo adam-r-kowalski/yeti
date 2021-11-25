@@ -8,7 +8,7 @@ const panic = std.debug.panic;
 const assert = std.debug.assert;
 
 const initCodebase = @import("init_codebase.zig").initCodebase;
-const FileSystem = @import("file_system.zig").FileSystem;
+const MockFileSystem = @import("file_system.zig").FileSystem;
 const lower = @import("lower.zig").lower;
 const codegen = @import("codegen.zig").codegen;
 const ecs = @import("ecs.zig");
@@ -149,336 +149,304 @@ test "wasm string int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  5
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (i64.const 5))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  5
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    ({s}.const 5))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i] }));
+    }
 }
 
 test "wasm string float literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): F64
-        \\  5.3
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result f64)
-        \\    (f64.const 5.3))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{"F64"};
+    const wasm_types = [_][]const u8{"f64"};
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  5.3
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    ({s}.const 5.3))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i] }));
+    }
 }
 
 test "wasm string call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  baz()
-        \\end
-        \\
-        \\baz = function(): I64
-        \\  10
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (call $foo/baz))
-        \\
-        \\  (func $foo/baz (result i64)
-        \\    (i64.const 10))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{"F64"};
+    const wasm_types = [_][]const u8{"f64"};
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  baz()
+            \\end
+            \\
+            \\baz = function(): {s}
+            \\  10
+            \\end
+        , .{ type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    (call $foo/baz))
+            \\
+            \\  (func $foo/baz (result {s})
+            \\    ({s}.const 10))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i] }));
+    }
 }
 
 test "wasm string call function from import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\bar = import("bar.yeti")
-        \\
-        \\start = function(): I64
-        \\  bar.baz()
-        \\end
-    );
-    _ = try fs.newFile("bar.yeti",
-        \\baz = function(): I64
-        \\  10
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (call $bar/baz))
-        \\
-        \\  (func $bar/baz (result i64)
-        \\    (i64.const 10))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{"F64"};
+    const wasm_types = [_][]const u8{"f64"};
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\bar = import("bar.yeti")
+            \\
+            \\start = function(): {s}
+            \\  bar.baz()
+            \\end
+        , .{type_}));
+        _ = try fs.newFile("bar.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\baz = function(): {s}
+            \\  10
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    (call $bar/baz))
+            \\
+            \\  (func $bar/baz (result {s})
+            \\    ({s}.const 10))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i] }));
+    }
 }
 
 test "wasm string assignment" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x = 10
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (local $x i64)
-        \\    (i64.const 10)
-        \\    (set_local $x)
-        \\    (get_local $x))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x = 10
+            \\  x
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    (local $x {s})
+            \\    ({s}.const 10)
+            \\    (set_local $x)
+            \\    (get_local $x))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i] }));
+    }
 }
 
 test "wasm string function with argument" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x: I64 = 10
-        \\  id(x)
-        \\end
-        \\
-        \\id = function(x: I64): I64
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (local $x i64)
-        \\    (i64.const 10)
-        \\    (set_local $x)
-        \\    (get_local $x)
-        \\    (call $foo/id))
-        \\
-        \\  (func $foo/id (param $x i64) (result i64)
-        \\    (get_local $x))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  id(x)
+            \\end
+            \\
+            \\id = function(x: {s}): {s}
+            \\  x
+            \\end
+        , .{ type_, type_, type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    (local $x {s})
+            \\    ({s}.const 10)
+            \\    (set_local $x)
+            \\    (get_local $x)
+            \\    (call $foo/id))
+            \\
+            \\  (func $foo/id (param $x {s}) (result {s})
+            \\    (get_local $x))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
+    }
 }
 
 test "wasm string function with argument implicit type" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x = 10
-        \\  id(x)
-        \\end
-        \\
-        \\id = function(x: I64): I64
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (local $x i64)
-        \\    (i64.const 10)
-        \\    (set_local $x)
-        \\    (get_local $x)
-        \\    (call $foo/id))
-        \\
-        \\  (func $foo/id (param $x i64) (result i64)
-        \\    (get_local $x))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x = 10
+            \\  id(x)
+            \\end
+            \\
+            \\id = function(x: {s}): {s}
+            \\  x
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    (local $x {s})
+            \\    ({s}.const 10)
+            \\    (set_local $x)
+            \\    (get_local $x)
+            \\    (call $foo/id))
+            \\
+            \\  (func $foo/id (param $x {s}) (result {s})
+            \\    (get_local $x))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
+    }
 }
 
 test "wasm string function with int literal argument" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  id(10)
-        \\end
-        \\
-        \\id = function(x: I64): I64
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (i64.const 10)
-        \\    (call $foo/id))
-        \\
-        \\  (func $foo/id (param $x i64) (result i64)
-        \\    (get_local $x))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  id(10)
+            \\end
+            \\
+            \\id = function(x: {s}): {s}
+            \\  x
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    ({s}.const 10)
+            \\    (call $foo/id))
+            \\
+            \\  (func $foo/id (param $x {s}) (result {s})
+            \\    (get_local $x))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
+    }
 }
 
-test "wasm string function with U64 argument" {
+test "wasm string add" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): U64
-        \\  x: U64 = 10
-        \\  id(x)
-        \\end
-        \\
-        \\id = function(x: U64): U64
-        \\  x
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (local $x i64)
-        \\    (i64.const 10)
-        \\    (set_local $x)
-        \\    (get_local $x)
-        \\    (call $foo/id))
-        \\
-        \\  (func $foo/id (param $x i64) (result i64)
-        \\    (get_local $x))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
-}
-
-test "wasm string i64 add" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  x: I64 = 10
-        \\  y: I64 = 32
-        \\  x + y
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result i64)
-        \\    (local $x i64)
-        \\    (local $y i64)
-        \\    (i64.const 10)
-        \\    (set_local $x)
-        \\    (i64.const 32)
-        \\    (set_local $y)
-        \\    (get_local $x)
-        \\    (get_local $y)
-        \\    (i64.add))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
-}
-
-test "wasm string f64 add" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    var fs = try FileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = function(): F64
-        \\  x: F64 = 10.2
-        \\  y: F64 = 32.3
-        \\  x + y
-        \\end
-    );
-    const module = try lower(codebase, fs, "foo.yeti", "start");
-    try codegen(module);
-    const wasm_string = try wasmString(module);
-    try expectEqualStrings(wasm_string,
-        \\(module
-        \\
-        \\  (func $foo/start (result f64)
-        \\    (local $x f64)
-        \\    (local $y f64)
-        \\    (f64.const 10.2)
-        \\    (set_local $x)
-        \\    (f64.const 32.3)
-        \\    (set_local $y)
-        \\    (get_local $x)
-        \\    (get_local $y)
-        \\    (f64.add))
-        \\
-        \\(export "_start" (func $foo/start)))
-    );
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  y: {s} = 32
+            \\  x + y
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    (local $x {s})
+            \\    (local $y {s})
+            \\    ({s}.const 10)
+            \\    (set_local $x)
+            \\    ({s}.const 32)
+            \\    (set_local $y)
+            \\    (get_local $x)
+            \\    (get_local $y)
+            \\    ({s}.add))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
+    }
 }
