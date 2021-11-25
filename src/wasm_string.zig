@@ -97,6 +97,7 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
             try string.appendSlice(literalOf(wasm_instruction.get(components.Result).entity));
             try string.append(')');
         },
+        .f64_add => try string.appendSlice("\n    (f64.add)"),
         .call => {
             try string.appendSlice("\n    (call $");
             const callable = wasm_instruction.get(components.Callable).entity;
@@ -444,6 +445,39 @@ test "wasm string i64 add" {
         \\    (get_local $x)
         \\    (get_local $y)
         \\    (i64.add))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "wasm string f64 add" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try FileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): F64
+        \\  x: F64 = 10.2
+        \\  y: F64 = 32.3
+        \\  x + y
+        \\end
+    );
+    const module = try lower(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm_string = try wasmString(module);
+    try expectEqualStrings(wasm_string,
+        \\(module
+        \\
+        \\  (func $foo/start (result f64)
+        \\    (local $x f64)
+        \\    (local $y f64)
+        \\    (f64.const 10.2)
+        \\    (set_local $x)
+        \\    (f64.const 32.3)
+        \\    (set_local $y)
+        \\    (get_local $x)
+        \\    (get_local $y)
+        \\    (f64.add))
         \\
         \\(export "_start" (func $foo/start)))
     );
