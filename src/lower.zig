@@ -136,58 +136,68 @@ fn Context(comptime FileSystem: type) type {
         }
 
         fn lowerAdd(self: Self, entity: Entity) !Entity {
-            const builtins = self.codebase.get(components.Builtins);
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.lowerExpression(arguments[0]);
             const rhs = try self.lowerExpression(arguments[1]);
             const lhs_type = typeOf(lhs);
             const rhs_type = typeOf(rhs);
-            for (&[_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32 }) |builtin| {
-                if (eql(lhs_type, builtin)) {
+            const b = self.codebase.get(components.Builtins);
+            {
+                const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32 };
+                const kinds = &[_]components.IrInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add };
+                for (builtins) |builtin, i| {
+                    if (!eql(lhs_type, builtin)) continue;
                     if (eql(rhs_type, builtin)) {
-                        return try self.lowerAddSameType(builtin, .int_add);
+                        return try self.lowerAddSameType(builtin, kinds[i]);
                     }
-                    if (eql(rhs_type, builtins.IntLiteral)) {
+                    if (eql(rhs_type, b.IntLiteral)) {
                         _ = try rhs.set(.{components.Type.init(builtin)});
-                        return try self.lowerAddSameType(builtin, .int_add);
+                        return try self.lowerAddSameType(builtin, kinds[i]);
                     }
                     panic("\nlower {s} + {s} not implemented\n", .{
                         literalOf(lhs_type), literalOf(rhs_type),
                     });
                 }
             }
-            for (&[_]Entity{ builtins.F64, builtins.F32 }) |builtin| {
-                if (eql(lhs_type, builtin)) {
+            {
+                const builtins = &[_]Entity{ b.F64, b.F32 };
+                const kinds = &[_]components.IrInstructionKind{ .f64_add, .f32_add };
+                for (builtins) |builtin, i| {
+                    if (!eql(lhs_type, builtin)) continue;
                     if (eql(rhs_type, builtin)) {
-                        return try self.lowerAddSameType(builtin, .float_add);
+                        return try self.lowerAddSameType(builtin, kinds[i]);
                     }
-                    if (eql(rhs_type, builtins.IntLiteral)) {
+                    if (eql(rhs_type, b.IntLiteral) or eql(rhs_type, b.FloatLiteral)) {
                         _ = try rhs.set(.{components.Type.init(builtin)});
-                        return try self.lowerAddSameType(builtin, .float_add);
-                    }
-                    if (eql(rhs_type, builtins.FloatLiteral)) {
-                        _ = try rhs.set(.{components.Type.init(builtin)});
-                        return try self.lowerAddSameType(builtin, .float_add);
+                        return try self.lowerAddSameType(builtin, kinds[i]);
                     }
                     panic("\nlower {s} + {s} not implemented\n", .{
                         literalOf(lhs_type), literalOf(rhs_type),
                     });
                 }
             }
-            if (eql(lhs_type, builtins.IntLiteral)) {
-                for (&[_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32 }) |builtin| {
-                    if (eql(rhs_type, builtin)) {
-                        _ = try lhs.set(.{components.Type.init(builtin)});
-                        return try self.lowerAddSameType(builtin, .int_add);
+            if (eql(lhs_type, b.IntLiteral)) {
+                {
+                    const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32 };
+                    const kinds = &[_]components.IrInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add };
+                    for (builtins) |builtin, i| {
+                        if (eql(rhs_type, builtin)) {
+                            _ = try lhs.set(.{components.Type.init(builtin)});
+                            return try self.lowerAddSameType(builtin, kinds[i]);
+                        }
                     }
                 }
-                for (&[_]Entity{ builtins.F64, builtins.F32 }) |builtin| {
-                    if (eql(rhs_type, builtin)) {
-                        _ = try lhs.set(.{components.Type.init(builtin)});
-                        return try self.lowerAddSameType(builtin, .float_add);
+                {
+                    const builtins = &[_]Entity{ b.F64, b.F32 };
+                    const kinds = &[_]components.IrInstructionKind{ .f64_add, .f32_add };
+                    for (builtins) |builtin, i| {
+                        if (eql(rhs_type, builtin)) {
+                            _ = try lhs.set(.{components.Type.init(builtin)});
+                            return try self.lowerAddSameType(builtin, kinds[i]);
+                        }
                     }
                 }
-                if (eql(rhs_type, builtins.FloatLiteral)) {
+                if (eql(rhs_type, b.FloatLiteral)) {
                     const lhs_value = try f64Of(lhs);
                     const rhs_value = try f64Of(rhs);
                     const result_value = lhs_value + rhs_value;
@@ -195,7 +205,7 @@ fn Context(comptime FileSystem: type) type {
                     const interned = try self.codebase.getPtr(Strings).intern(result_literal);
                     const result = try self.codebase.createEntity(.{
                         components.Literal.init(interned),
-                        components.Type.init(builtins.IntLiteral),
+                        components.Type.init(b.IntLiteral),
                         result_value,
                     });
                     const instructions = self.basic_block.getPtr(components.IrInstructions);
@@ -206,7 +216,7 @@ fn Context(comptime FileSystem: type) type {
                     try instructions.append(instruction);
                     return result;
                 }
-                assert(eql(rhs_type, builtins.IntLiteral));
+                assert(eql(rhs_type, b.IntLiteral));
                 const lhs_value = try i64Of(lhs);
                 const rhs_value = try i64Of(rhs);
                 const result_value = lhs_value + rhs_value;
@@ -214,7 +224,7 @@ fn Context(comptime FileSystem: type) type {
                 const interned = try self.codebase.getPtr(Strings).intern(result_literal);
                 const result = try self.codebase.createEntity(.{
                     components.Literal.init(interned),
-                    components.Type.init(builtins.IntLiteral),
+                    components.Type.init(b.IntLiteral),
                     result_value,
                 });
                 const instructions = self.basic_block.getPtr(components.IrInstructions);
@@ -225,12 +235,12 @@ fn Context(comptime FileSystem: type) type {
                 try instructions.append(instruction);
                 return result;
             }
-            if (eql(lhs_type, builtins.FloatLiteral)) {
-                if (eql(rhs_type, builtins.F64)) {
-                    _ = try lhs.set(.{components.Type.init(builtins.F64)});
-                    return try self.lowerAddSameType(builtins.F64, .float_add);
+            if (eql(lhs_type, b.FloatLiteral)) {
+                if (eql(rhs_type, b.F64)) {
+                    _ = try lhs.set(.{components.Type.init(b.F64)});
+                    return try self.lowerAddSameType(b.F64, .f64_add);
                 }
-                assert(eql(rhs_type, builtins.FloatLiteral) or eql(rhs_type, builtins.IntLiteral));
+                assert(eql(rhs_type, b.FloatLiteral) or eql(rhs_type, b.IntLiteral));
                 const lhs_value = try f64Of(lhs);
                 const rhs_value = try f64Of(rhs);
                 const result_value = lhs_value + rhs_value;
@@ -238,7 +248,7 @@ fn Context(comptime FileSystem: type) type {
                 const interned = try self.codebase.getPtr(Strings).intern(result_literal);
                 const result = try self.codebase.createEntity(.{
                     components.Literal.init(interned),
-                    components.Type.init(builtins.IntLiteral),
+                    components.Type.init(b.IntLiteral),
                     result_value,
                 });
                 const instructions = self.basic_block.getPtr(components.IrInstructions);
@@ -1207,7 +1217,7 @@ test "lower add two of same type" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .int_add, .int_add, .float_add, .float_add };
+    const add_kinds = [_]components.IrInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1462,7 +1472,7 @@ test "lower add type with int literal" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .int_add, .int_add, .float_add, .float_add };
+    const add_kinds = [_]components.IrInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -1517,7 +1527,7 @@ test "lower add int literal with type" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    const add_kinds = [_]components.IrInstructionKind{ .int_add, .int_add, .int_add, .int_add, .float_add, .float_add };
+    const add_kinds = [_]components.IrInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,

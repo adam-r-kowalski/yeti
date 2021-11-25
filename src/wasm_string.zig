@@ -111,7 +111,9 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
             try string.append(')');
         },
         .i64_add => try string.appendSlice("\n    (i64.add)"),
+        .i32_add => try string.appendSlice("\n    (i32.add)"),
         .f64_add => try string.appendSlice("\n    (f64.add)"),
+        .f32_add => try string.appendSlice("\n    (f32.add)"),
         .call => {
             try string.appendSlice("\n    (call $");
             const callable = wasm_instruction.get(components.Callable).entity;

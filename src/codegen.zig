@@ -81,7 +81,10 @@ fn codegenCall(context: Context, ir_instruction: Entity) !void {
 fn codegenGetLocal(context: Context, ir_instruction: Entity) !void {
     const local = ir_instruction.get(components.Result).entity;
     const type_of = local.get(components.Type).entity;
-    if (eql(type_of, context.builtins.I64) or eql(type_of, context.builtins.U64) or eql(type_of, context.builtins.F64)) {
+    const b = context.builtins;
+    const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+    for (builtins) |builtin| {
+        if (!eql(type_of, builtin)) continue;
         const wasm_instruction = try context.codebase.createEntity(.{
             components.WasmInstructionKind.get_local,
             components.Result.init(local),
@@ -99,7 +102,10 @@ fn codegenSetLocal(context: Context, ir_instruction: Entity) !void {
     if (eql(type_of, context.builtins.IntLiteral)) {
         return;
     }
-    if (eql(type_of, context.builtins.I64) or eql(type_of, context.builtins.U64) or eql(type_of, context.builtins.F64)) {
+    const b = context.builtins;
+    const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+    for (builtins) |builtin| {
+        if (!eql(type_of, builtin)) continue;
         const wasm_instruction = try context.codebase.createEntity(.{
             components.WasmInstructionKind.set_local,
             components.Result.init(local),
@@ -138,9 +144,11 @@ pub fn codegen(module: Entity) !void {
             const kind = ir_instruction.get(components.IrInstructionKind);
             switch (kind) {
                 .int_const => try codegenIntConst(context, ir_instruction),
-                .int_add => try codegenAdd(context, .i64_add),
+                .i64_add => try codegenAdd(context, .i64_add),
+                .i32_add => try codegenAdd(context, .i32_add),
                 .float_const => try codegenFloatConst(context, ir_instruction),
-                .float_add => try codegenAdd(context, .f64_add),
+                .f64_add => try codegenAdd(context, .f64_add),
+                .f32_add => try codegenAdd(context, .f32_add),
                 .call => try codegenCall(context, ir_instruction),
                 .get_local => try codegenGetLocal(context, ir_instruction),
                 .set_local => try codegenSetLocal(context, ir_instruction),
@@ -179,8 +187,8 @@ test "codegen float literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{"F64"};
-    const const_kinds = [_]components.WasmInstructionKind{.f64_const};
+    const types = [_][]const u8{ "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -204,8 +212,8 @@ test "codegen int literal as float" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{"F64"};
-    const const_kinds = [_]components.WasmInstructionKind{.f64_const};
+    const types = [_][]const u8{ "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -229,8 +237,8 @@ test "codegen call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -263,8 +271,8 @@ test "codegen call function from import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -301,8 +309,8 @@ test "codegen assignment" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -333,8 +341,8 @@ test "codegen two assignments" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -367,8 +375,8 @@ test "codegen assignment explicit type" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -400,8 +408,8 @@ test "codegen function with argument" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -446,9 +454,9 @@ test "codegen add" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i64_const, .f64_const };
-    const add_kinds = [_]components.WasmInstructionKind{ .i64_add, .i64_add, .f64_add };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const add_kinds = [_]components.WasmInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
