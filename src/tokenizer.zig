@@ -94,6 +94,7 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
             ':' => try tokenizeOne(module, &source, .colon),
             '+' => try tokenizeOne(module, &source, .plus),
             '*' => try tokenizeOne(module, &source, .times),
+            '/' => try tokenizeOne(module, &source, .slash),
             ',' => try tokenizeOne(module, &source, .comma),
             '=' => try tokenizeOne(module, &source, .equal),
             else => try tokenizeSymbol(module, &source),

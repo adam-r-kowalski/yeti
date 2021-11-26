@@ -96,17 +96,21 @@ fn Context(comptime FileSystem: type) type {
 
         const Self = @This();
 
+        fn lowerResultInstruction(self: Self, result: Entity, kind: components.IrInstructionKind) !Entity {
+            const instructions = self.basic_block.getPtr(components.IrInstructions);
+            const instruction = try self.codebase.createEntity(.{
+                kind,
+                components.Result.init(result),
+            });
+            try instructions.append(instruction);
+            return result;
+        }
+
         fn lowerSymbol(self: Self, entity: Entity) !Entity {
             const literal = entity.get(components.Literal);
             const local_scope = self.basic_block.get(components.Scope);
             if (local_scope.hasLiteral(literal)) |local| {
-                const instructions = self.basic_block.getPtr(components.IrInstructions);
-                const instruction = try self.codebase.createEntity(.{
-                    components.IrInstructionKind.get_local,
-                    components.Result.init(local),
-                });
-                try instructions.append(instruction);
-                return local;
+                return self.lowerResultInstruction(local, .get_local);
             }
             const global_scope = self.codebase.get(components.Scope);
             if (global_scope.hasLiteral(literal)) |global| {
@@ -133,16 +137,6 @@ fn Context(comptime FileSystem: type) type {
             panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
-        fn lowerNumber(self: Self, entity: Entity, kind: components.IrInstructionKind) !Entity {
-            const instructions = self.basic_block.getPtr(components.IrInstructions);
-            const instruction = try self.codebase.createEntity(.{
-                kind,
-                components.Result.init(entity),
-            });
-            try instructions.append(instruction);
-            return entity;
-        }
-
         fn lowerDot(self: Self, entity: Entity) !Entity {
             const dot_arguments = entity.get(components.Arguments).slice();
             const module = try self.lowerExpression(dot_arguments[0]);
@@ -160,18 +154,7 @@ fn Context(comptime FileSystem: type) type {
             return try context.lowerCall(call);
         }
 
-        fn lowerAddSameType(self: Self, result_type: Entity, kind: components.IrInstructionKind) !Entity {
-            const result = try self.codebase.createEntity(.{components.Type.init(result_type)});
-            const instructions = self.basic_block.getPtr(components.IrInstructions);
-            const instruction = try self.codebase.createEntity(.{
-                kind,
-                components.Result.init(result),
-            });
-            try instructions.append(instruction);
-            return result;
-        }
-
-        fn lowerAdd(self: Self, entity: Entity, ops: BinaryOps) !Entity {
+        fn lowerIntFloatBinaryOp(self: Self, entity: Entity, ops: BinaryOps) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.lowerExpression(arguments[0]);
             const rhs = try self.lowerExpression(arguments[1]);
@@ -180,15 +163,18 @@ fn Context(comptime FileSystem: type) type {
             const b = self.codebase.get(components.Builtins);
             {
                 const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32 };
-                const kinds = &[_]components.IrInstructionKind{ ops.I64, ops.I32, ops.I64, ops.I32 };
+                const kinds = &[_]components.IrInstructionKind{ ops.I64, ops.I32, ops.U64, ops.U32 };
                 for (builtins) |builtin, i| {
                     if (!eql(lhs_type, builtin)) continue;
                     if (eql(rhs_type, builtin)) {
-                        return try self.lowerAddSameType(builtin, kinds[i]);
+                        // return try self.lowerAddSameType(builtin, kinds[i]);
+                        const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                        return try self.lowerResultInstruction(result, kinds[i]);
                     }
                     if (eql(rhs_type, b.IntLiteral)) {
                         _ = try rhs.set(.{components.Type.init(builtin)});
-                        return try self.lowerAddSameType(builtin, kinds[i]);
+                        const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                        return try self.lowerResultInstruction(result, kinds[i]);
                     }
                     panic("\nlower {s} + {s} not implemented\n", .{
                         literalOf(lhs_type), literalOf(rhs_type),
@@ -201,11 +187,13 @@ fn Context(comptime FileSystem: type) type {
                 for (builtins) |builtin, i| {
                     if (!eql(lhs_type, builtin)) continue;
                     if (eql(rhs_type, builtin)) {
-                        return try self.lowerAddSameType(builtin, kinds[i]);
+                        const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                        return try self.lowerResultInstruction(result, kinds[i]);
                     }
                     if (eql(rhs_type, b.IntLiteral) or eql(rhs_type, b.FloatLiteral)) {
                         _ = try rhs.set(.{components.Type.init(builtin)});
-                        return try self.lowerAddSameType(builtin, kinds[i]);
+                        const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                        return try self.lowerResultInstruction(result, kinds[i]);
                     }
                     panic("\nlower {s} + {s} not implemented\n", .{
                         literalOf(lhs_type), literalOf(rhs_type),
@@ -215,11 +203,12 @@ fn Context(comptime FileSystem: type) type {
             if (eql(lhs_type, b.IntLiteral)) {
                 {
                     const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32 };
-                    const kinds = &[_]components.IrInstructionKind{ ops.I64, ops.I32, ops.I64, ops.I32 };
+                    const kinds = &[_]components.IrInstructionKind{ ops.I64, ops.I32, ops.U64, ops.U32 };
                     for (builtins) |builtin, i| {
                         if (eql(rhs_type, builtin)) {
                             _ = try lhs.set(.{components.Type.init(builtin)});
-                            return try self.lowerAddSameType(builtin, kinds[i]);
+                            const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                            return try self.lowerResultInstruction(result, kinds[i]);
                         }
                     }
                 }
@@ -229,7 +218,8 @@ fn Context(comptime FileSystem: type) type {
                     for (builtins) |builtin, i| {
                         if (eql(rhs_type, builtin)) {
                             _ = try lhs.set(.{components.Type.init(builtin)});
-                            return try self.lowerAddSameType(builtin, kinds[i]);
+                            const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                            return try self.lowerResultInstruction(result, kinds[i]);
                         }
                     }
                 }
@@ -244,13 +234,7 @@ fn Context(comptime FileSystem: type) type {
                         components.Type.init(b.IntLiteral),
                         result_value,
                     });
-                    const instructions = self.basic_block.getPtr(components.IrInstructions);
-                    const instruction = try self.codebase.createEntity(.{
-                        components.IrInstructionKind.float_const,
-                        components.Result.init(result),
-                    });
-                    try instructions.append(instruction);
-                    return result;
+                    return try self.lowerResultInstruction(result, .float_const);
                 }
                 assert(eql(rhs_type, b.IntLiteral));
                 const lhs_value = try i64Of(lhs);
@@ -263,13 +247,7 @@ fn Context(comptime FileSystem: type) type {
                     components.Type.init(b.IntLiteral),
                     result_value,
                 });
-                const instructions = self.basic_block.getPtr(components.IrInstructions);
-                const instruction = try self.codebase.createEntity(.{
-                    components.IrInstructionKind.int_const,
-                    components.Result.init(result),
-                });
-                try instructions.append(instruction);
-                return result;
+                return try self.lowerResultInstruction(result, .int_const);
             }
             if (eql(lhs_type, b.FloatLiteral)) {
                 {
@@ -278,7 +256,8 @@ fn Context(comptime FileSystem: type) type {
                     for (builtins) |builtin, i| {
                         if (eql(rhs_type, builtin)) {
                             _ = try lhs.set(.{components.Type.init(builtin)});
-                            return try self.lowerAddSameType(builtin, kinds[i]);
+                            const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                            return try self.lowerResultInstruction(result, kinds[i]);
                         }
                     }
                 }
@@ -293,13 +272,7 @@ fn Context(comptime FileSystem: type) type {
                     components.Type.init(b.IntLiteral),
                     result_value,
                 });
-                const instructions = self.basic_block.getPtr(components.IrInstructions);
-                const instruction = try self.codebase.createEntity(.{
-                    components.IrInstructionKind.float_const,
-                    components.Result.init(result),
-                });
-                try instructions.append(instruction);
-                return result;
+                return try self.lowerResultInstruction(result, .float_const);
             }
             panic("\nlower add failed\n", .{});
         }
@@ -308,7 +281,7 @@ fn Context(comptime FileSystem: type) type {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
                 .dot => self.lowerDot(entity),
-                .add => self.lowerAdd(entity, .{
+                .add => self.lowerIntFloatBinaryOp(entity, .{
                     .I64 = .i64_add,
                     .I32 = .i32_add,
                     .U64 = .i64_add,
@@ -316,7 +289,7 @@ fn Context(comptime FileSystem: type) type {
                     .F64 = .f64_add,
                     .F32 = .f32_add,
                 }),
-                .sub => self.lowerAdd(entity, .{
+                .subtract => self.lowerIntFloatBinaryOp(entity, .{
                     .I64 = .i64_sub,
                     .I32 = .i32_sub,
                     .U64 = .i64_sub,
@@ -324,7 +297,22 @@ fn Context(comptime FileSystem: type) type {
                     .F64 = .f64_sub,
                     .F32 = .f32_sub,
                 }),
-                else => panic("\nlowerBinaryOp unsupported binary op {}\n", .{binary_op}),
+                .multiply => self.lowerIntFloatBinaryOp(entity, .{
+                    .I64 = .i64_mul,
+                    .I32 = .i32_mul,
+                    .U64 = .i64_mul,
+                    .U32 = .i32_mul,
+                    .F64 = .f64_mul,
+                    .F32 = .f32_mul,
+                }),
+                .divide => self.lowerIntFloatBinaryOp(entity, .{
+                    .I64 = .i64_div,
+                    .I32 = .i32_div,
+                    .U64 = .u64_div,
+                    .U32 = .u32_div,
+                    .F64 = .f64_div,
+                    .F32 = .f32_div,
+                }),
             };
         }
 
@@ -429,12 +417,7 @@ fn Context(comptime FileSystem: type) type {
                 const explicit_type = try lowerExpression(self, type_ast.entity);
                 try implicitTypeConversion(value, explicit_type);
             }
-            const instructions = self.basic_block.getPtr(components.IrInstructions);
-            const instruction = try self.codebase.createEntity(.{
-                components.IrInstructionKind.set_local,
-                components.Result.init(value),
-            });
-            try instructions.append(instruction);
+            _ = try self.lowerResultInstruction(value, .set_local);
             const name = define.get(components.Name);
             _ = try value.set(.{name});
             try scope.putName(name, value);
@@ -445,8 +428,8 @@ fn Context(comptime FileSystem: type) type {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
                 .symbol => try self.lowerSymbol(entity),
-                .int => try self.lowerNumber(entity, .int_const),
-                .float => try self.lowerNumber(entity, .float_const),
+                .int => try self.lowerResultInstruction(entity, .int_const),
+                .float => try self.lowerResultInstruction(entity, .float_const),
                 .binary_op => try self.lowerBinaryOp(entity),
                 .call => try self.lowerCall(entity),
                 .define => try self.lowerDefine(entity),
@@ -1240,7 +1223,7 @@ test "lower function overload using U64" {
     try expectEqual(typeOf(result), builtins.I64);
 }
 
-test "lower add two of same type" {
+test "lower binary op two of same type" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -1250,8 +1233,10 @@ test "lower add two of same type" {
     const ops = [_]BinaryOps{
         .{ .I64 = .i64_add, .I32 = .i32_add, .U64 = .i64_add, .U32 = .i32_add, .F64 = .f64_add, .F32 = .f32_add },
         .{ .I64 = .i64_sub, .I32 = .i32_sub, .U64 = .i64_sub, .U32 = .i32_sub, .F64 = .f64_sub, .F32 = .f32_sub },
+        .{ .I64 = .i64_mul, .I32 = .i32_mul, .U64 = .i64_mul, .U32 = .i32_mul, .F64 = .f64_mul, .F32 = .f32_mul },
+        .{ .I64 = .i64_div, .I32 = .i32_div, .U64 = .u64_div, .U32 = .u32_div, .F64 = .f64_div, .F32 = .f32_div },
     };
-    const op_strings = [_][]const u8{ "+", "-" };
+    const op_strings = [_][]const u8{ "+", "-", "*", "/" };
     for (op_strings) |op_string, op_index| {
         const op_table = ops[op_index];
         const kinds = [_]components.IrInstructionKind{ op_table.I64, op_table.I32, op_table.U64, op_table.U32, op_table.F64, op_table.F32 };
