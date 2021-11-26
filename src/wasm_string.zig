@@ -192,8 +192,8 @@ test "wasm string float literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{"F64"};
-    const wasm_types = [_][]const u8{"f64"};
+    const types = [_][]const u8{ "F64", "F32" };
+    const wasm_types = [_][]const u8{ "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -219,8 +219,8 @@ test "wasm string call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{"F64"};
-    const wasm_types = [_][]const u8{"f64"};
+    const types = [_][]const u8{ "F64", "F32" };
+    const wasm_types = [_][]const u8{ "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,

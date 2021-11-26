@@ -236,9 +236,15 @@ fn Context(comptime FileSystem: type) type {
                 return result;
             }
             if (eql(lhs_type, b.FloatLiteral)) {
-                if (eql(rhs_type, b.F64)) {
-                    _ = try lhs.set(.{components.Type.init(b.F64)});
-                    return try self.lowerAddSameType(b.F64, .f64_add);
+                {
+                    const builtins = &[_]Entity{ b.F64, b.F32 };
+                    const kinds = &[_]components.IrInstructionKind{ .f64_add, .f32_add };
+                    for (builtins) |builtin, i| {
+                        if (eql(rhs_type, builtin)) {
+                            _ = try lhs.set(.{components.Type.init(builtin)});
+                            return try self.lowerAddSameType(builtin, kinds[i]);
+                        }
+                    }
                 }
                 assert(eql(rhs_type, b.FloatLiteral) or eql(rhs_type, b.IntLiteral));
                 const lhs_value = try f64Of(lhs);
@@ -1571,6 +1577,116 @@ test "lower add int literal with type" {
         const int_add = basic_block[4];
         try expectEqual(int_add.get(components.IrInstructionKind), add_kinds[i]);
         const result = int_add.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtin_types[i]);
+    }
+}
+
+test "lower add type with float literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
+    const add_kinds = [_]components.IrInstructionKind{ .f64_add, .f32_add };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  x + 32.5
+            \\end
+        , .{ type_, type_ }));
+        const ir = try lower(codebase, fs, "foo.yeti", "start");
+        const top_level = ir.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 5);
+        const x = blk: {
+            const int_const = basic_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "10");
+            try expectEqual(typeOf(result), builtin_types[i]);
+            const set_local = basic_block[1];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            break :blk result;
+        };
+        const get_local = basic_block[2];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+        {
+            const float_const = basic_block[3];
+            try expectEqual(float_const.get(components.IrInstructionKind), .float_const);
+            const result = float_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "32.5");
+            try expectEqual(typeOf(result), builtin_types[i]);
+        }
+        const add = basic_block[4];
+        try expectEqual(add.get(components.IrInstructionKind), add_kinds[i]);
+        const result = add.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtin_types[i]);
+    }
+}
+
+test "lower add float literal with type" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
+    const add_kinds = [_]components.IrInstructionKind{ .f64_add, .f32_add };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  32.5 + x
+            \\end
+        , .{ type_, type_ }));
+        const ir = try lower(codebase, fs, "foo.yeti", "start");
+        const top_level = ir.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 5);
+        const x = blk: {
+            const int_const = basic_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "10");
+            try expectEqual(typeOf(result), builtin_types[i]);
+            const set_local = basic_block[1];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            break :blk result;
+        };
+        {
+            const float_const = basic_block[2];
+            try expectEqual(float_const.get(components.IrInstructionKind), .float_const);
+            const result = float_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "32.5");
+            try expectEqual(typeOf(result), builtin_types[i]);
+        }
+        const get_local = basic_block[3];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+        const add = basic_block[4];
+        try expectEqual(add.get(components.IrInstructionKind), add_kinds[i]);
+        const result = add.get(components.Result).entity;
         try expectEqual(typeOf(result), builtin_types[i]);
     }
 }
