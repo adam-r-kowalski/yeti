@@ -53,6 +53,7 @@ const NEXT_PRECEDENCE: u64 = 10;
 const LOWEST: u64 = 0;
 const DEFINE: u64 = LOWEST;
 const ADD: u64 = DEFINE + NEXT_PRECEDENCE;
+const SUB: u64 = ADD;
 const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
 const DOT: u64 = MULTIPLY + NEXT_PRECEDENCE;
 const CALL: u64 = DOT + NEXT_PRECEDENCE;
@@ -69,6 +70,7 @@ const InfixParser = union(enum) {
             const kind = token.get(components.TokenKind);
             return switch (kind) {
                 .plus => .{ .binary_op = .{ .op = .add, .precedence = ADD } },
+                .minus => .{ .binary_op = .{ .op = .sub, .precedence = SUB } },
                 .times => .{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
                 .dot => .{ .binary_op = .{ .op = .dot, .precedence = DOT } },
                 .equal => .define_type_infer,

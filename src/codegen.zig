@@ -117,7 +117,7 @@ fn codegenSetLocal(context: Context, ir_instruction: Entity) !void {
     panic("\ncodegen set local type not supported {s}\n", .{literalOf(type_of)});
 }
 
-fn codegenAdd(context: Context, kind: components.WasmInstructionKind) !void {
+fn codegenBinaryOp(context: Context, kind: components.WasmInstructionKind) !void {
     const wasm_instruction = try context.codebase.createEntity(.{kind});
     _ = try context.wasm_instructions.append(wasm_instruction);
     return;
@@ -144,11 +144,15 @@ pub fn codegen(module: Entity) !void {
             const kind = ir_instruction.get(components.IrInstructionKind);
             switch (kind) {
                 .int_const => try codegenIntConst(context, ir_instruction),
-                .i64_add => try codegenAdd(context, .i64_add),
-                .i32_add => try codegenAdd(context, .i32_add),
                 .float_const => try codegenFloatConst(context, ir_instruction),
-                .f64_add => try codegenAdd(context, .f64_add),
-                .f32_add => try codegenAdd(context, .f32_add),
+                .i64_add => try codegenBinaryOp(context, .i64_add),
+                .i32_add => try codegenBinaryOp(context, .i32_add),
+                .f64_add => try codegenBinaryOp(context, .f64_add),
+                .f32_add => try codegenBinaryOp(context, .f32_add),
+                .i64_sub => try codegenBinaryOp(context, .i64_sub),
+                .i32_sub => try codegenBinaryOp(context, .i32_sub),
+                .f64_sub => try codegenBinaryOp(context, .f64_sub),
+                .f32_sub => try codegenBinaryOp(context, .f32_sub),
                 .call => try codegenCall(context, ir_instruction),
                 .get_local => try codegenGetLocal(context, ir_instruction),
                 .set_local => try codegenSetLocal(context, ir_instruction),

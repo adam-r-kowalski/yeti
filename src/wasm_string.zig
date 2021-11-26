@@ -114,6 +114,10 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
         .i32_add => try string.appendSlice("\n    (i32.add)"),
         .f64_add => try string.appendSlice("\n    (f64.add)"),
         .f32_add => try string.appendSlice("\n    (f32.add)"),
+        .i64_sub => try string.appendSlice("\n    (i64.sub)"),
+        .i32_sub => try string.appendSlice("\n    (i32.sub)"),
+        .f64_sub => try string.appendSlice("\n    (f64.sub)"),
+        .f32_sub => try string.appendSlice("\n    (f32.sub)"),
         .call => {
             try string.appendSlice("\n    (call $");
             const callable = wasm_instruction.get(components.Callable).entity;

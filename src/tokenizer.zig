@@ -208,8 +208,9 @@ fn tokenizeNumber(module: Entity, source: *Source, starts_with_decimal: bool) !E
     }
     const string = source.advance(i);
     const span = components.Span{ .begin = begin, .end = source.position };
-    if (i == 1 and starts_with_decimal) {
-        return try module.ecs.createEntity(.{ components.TokenKind.dot, span });
+    if (i == 1) {
+        if (starts_with_decimal) return try module.ecs.createEntity(.{ components.TokenKind.dot, span });
+        if (string[0] == '-') return try module.ecs.createEntity(.{ components.TokenKind.minus, span });
     }
     const interned = try module.ecs.getPtr(Strings).intern(string);
     const kind: components.TokenKind = if (decimals_seen == 0) .int else .float;
