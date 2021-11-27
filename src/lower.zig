@@ -409,10 +409,20 @@ fn Context(comptime FileSystem: type) type {
                     const argument_type = typeOf(arguments[i]);
                     if (eql(parameter_type, argument_type)) continue;
                     if (eql(argument_type, builtins.IntLiteral)) {
-                        if (eql(parameter_type, builtins.I64) or eql(parameter_type, builtins.U64)) {
+                        for (&[_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 }) |builtin| {
+                            if (!eql(parameter_type, builtin)) continue;
                             if (best_match == .none) {
                                 best_match = .implict_conversion;
                             }
+                            break;
+                        }
+                    } else if (eql(argument_type, builtins.FloatLiteral)) {
+                        for (&[_]Entity{ builtins.F64, builtins.F32 }) |builtin| {
+                            if (!eql(parameter_type, builtin)) continue;
+                            if (best_match == .none) {
+                                best_match = .implict_conversion;
+                            }
+                            break;
                         }
                     } else {
                         match = .none;
@@ -1000,7 +1010,7 @@ test "lower function with argument" {
     }
 }
 
-test "lower function with argument implicit conversion" {
+test "lower function with argument int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -1068,7 +1078,75 @@ test "lower function with argument implicit conversion" {
     }
 }
 
-test "lower function call from import with implicit conversion" {
+test "lower function with argument float literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x = 10.5
+            \\  id(x)
+            \\end
+            \\
+            \\id = function(x: {s}): {s}
+            \\  x
+            \\end
+        , .{ type_, type_, type_ }));
+        const ir = try lower(codebase, fs, "foo.yeti", "start");
+        const top_level = ir.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const id = blk: {
+            const basic_blocks = start.get(components.BasicBlocks).slice();
+            try expectEqual(basic_blocks.len, 1);
+            const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+            try expectEqual(basic_block.len, 4);
+            const float_const = basic_block[0];
+            try expectEqual(float_const.get(components.IrInstructionKind), .float_const);
+            const x = float_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(x), "10.5");
+            try expectEqual(typeOf(x), builtin_types[i]);
+            const set_local = basic_block[1];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, x);
+            const get_local = basic_block[2];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, x);
+            try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+            const call = basic_block[3];
+            try expectEqual(call.get(components.IrInstructionKind), .call);
+            const result = call.get(components.Result).entity;
+            try expectEqual(typeOf(result), builtin_types[i]);
+            try expectEqualSlices(Entity, call.get(components.Arguments).slice(), &.{x});
+            break :blk call.get(components.Callable).entity;
+        };
+        try expectEqualStrings(literalOf(id.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
+        const parameters = id.get(components.Parameters).slice();
+        try expectEqual(parameters.len, 1);
+        const x = parameters[0];
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+        try expectEqual(typeOf(x), builtin_types[i]);
+        try expectEqual(id.get(components.ReturnType).entity, builtin_types[i]);
+        const basic_blocks = id.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 1);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 1);
+        const get_local = basic_block[0];
+        try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Result).entity, x);
+    }
+}
+
+test "lower function call from import with int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
