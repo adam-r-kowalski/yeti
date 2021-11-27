@@ -52,6 +52,10 @@ fn Component(comptime T: type) type {
             return null;
         }
 
+        fn contains(self: Self, entity: Entity) bool {
+            return self.lookup.contains(entity.uuid);
+        }
+
         fn getPtr(self: *Self, entity: Entity) *T {
             return &self.data.mutSlice()[self.lookup.get(entity.uuid).?];
         }
@@ -241,6 +245,13 @@ pub const Entity = struct {
             return @intToPtr(*Component(T), component).has(self);
         }
         return null;
+    }
+
+    pub fn contains(self: Entity, comptime T: type) bool {
+        if (self.ecs.components.get(typeid(T))) |component| {
+            return @intToPtr(*Component(T), component).contains(self);
+        }
+        return false;
     }
 
     pub fn getPtr(self: Entity, comptime T: type) *T {

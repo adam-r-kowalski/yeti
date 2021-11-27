@@ -229,9 +229,8 @@ pub const BinaryOp = enum(u8) {
     dot,
 };
 
-pub const LoweredParameters = struct {
-    value: bool,
-};
+pub const LoweredParameters = struct { value: bool };
+pub const LoweredBody = struct { value: bool };
 
 pub const IrInstructionKind = enum(u8) {
     int_const,
