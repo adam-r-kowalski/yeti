@@ -315,7 +315,7 @@ fn Context(comptime FileSystem: type) type {
                     const interned = try self.codebase.getPtr(Strings).intern(result_literal);
                     const result = try self.codebase.createEntity(.{
                         components.Literal.init(interned),
-                        components.Type.init(b.IntLiteral),
+                        components.Type.init(b.FloatLiteral),
                         result_value,
                     });
                     return try self.lowerResultInstruction(result, .float_const);
@@ -353,7 +353,7 @@ fn Context(comptime FileSystem: type) type {
                 const interned = try self.codebase.getPtr(Strings).intern(result_literal);
                 const result = try self.codebase.createEntity(.{
                     components.Literal.init(interned),
-                    components.Type.init(b.IntLiteral),
+                    components.Type.init(b.FloatLiteral),
                     result_value,
                 });
                 return try self.lowerResultInstruction(result, .float_const);
