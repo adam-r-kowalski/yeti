@@ -91,12 +91,14 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
             '"' => try tokenizeString(module, &source),
             '(' => try tokenizeOne(module, &source, .left_paren),
             ')' => try tokenizeOne(module, &source, .right_paren),
-            ':' => try tokenizeOne(module, &source, .colon),
             '+' => try tokenizeOne(module, &source, .plus),
             '*' => try tokenizeOne(module, &source, .times),
             '/' => try tokenizeOne(module, &source, .slash),
             ',' => try tokenizeOne(module, &source, .comma),
-            '=' => try tokenizeOne(module, &source, .equal),
+            ':' => try tokenizeOneOrTwo(module, &source, .colon, '=', .colon_equal),
+            '=' => try tokenizeOneOrTwo(module, &source, .equal, '=', .equal_equal),
+            '>' => try tokenizeOneOrTwo(module, &source, .greater_than, '=', .greater_equal),
+            '<' => try tokenizeOneOrTwo(module, &source, .less_than, '=', .less_equal),
             else => try tokenizeSymbol(module, &source),
         };
         try entities.append(token);
@@ -359,6 +361,18 @@ fn tokenizeOne(module: Entity, source: *Source, kind: components.TokenKind) !Ent
     return try module.ecs.createEntity(.{ kind, span });
 }
 
+fn tokenizeOneOrTwo(module: Entity, source: *Source, first: components.TokenKind, char: u8, second: components.TokenKind) !Entity {
+    const begin = source.position;
+    if (source.code.len > 1 and source.code[1] == char) {
+        _ = source.advance(2);
+        const span = components.Span{ .begin = begin, .end = source.position };
+        return try module.ecs.createEntity(.{ second, span });
+    }
+    _ = source.advance(1);
+    const span = components.Span{ .begin = begin, .end = source.position };
+    return try module.ecs.createEntity(.{ first, span });
+}
+
 test "tokenize function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -539,5 +553,79 @@ test "tokenize mulitine function with binary op" {
     try expectEqual(tokens.next().?.get(components.TokenKind), .plus);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .end);
+    try expectEqual(tokens.next(), null);
+}
+
+test "greater than and greater equal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code = "> >= = == : := < <=";
+    var tokens = try tokenize(module, code);
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .greater_than);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 0, .row = 0 },
+            .end = .{ .column = 1, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .greater_equal);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 2, .row = 0 },
+            .end = .{ .column = 4, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .equal);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 5, .row = 0 },
+            .end = .{ .column = 6, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .equal_equal);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 7, .row = 0 },
+            .end = .{ .column = 9, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .colon);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 10, .row = 0 },
+            .end = .{ .column = 11, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .colon_equal);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 12, .row = 0 },
+            .end = .{ .column = 14, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .less_than);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 15, .row = 0 },
+            .end = .{ .column = 16, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .less_equal);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 17, .row = 0 },
+            .end = .{ .column = 19, .row = 0 },
+        });
+    }
     try expectEqual(tokens.next(), null);
 }
