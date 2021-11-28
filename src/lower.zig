@@ -152,6 +152,14 @@ fn or_fn(comptime T: type) fn (T, T) T {
     }.f;
 }
 
+fn xor_fn(comptime T: type) fn (T, T) T {
+    return struct {
+        fn f(x: T, y: T) T {
+            return x ^ y;
+        }
+    }.f;
+}
+
 fn and_fn(comptime T: type) fn (T, T) T {
     return struct {
         fn f(x: T, y: T) T {
@@ -172,6 +180,14 @@ fn shr_fn(comptime T: type) fn (T, T) T {
     return struct {
         fn f(x: T, y: T) T {
             return x >> @intCast(std.math.Log2Int(T), y);
+        }
+    }.f;
+}
+
+fn rem_fn(comptime T: type) fn (T, T) T {
+    return struct {
+        fn f(x: T, y: T) T {
+            return @rem(x, y);
         }
     }.f;
 }
@@ -294,6 +310,14 @@ const bit_or_binary_ops = IntBinaryOps{
     .i64_fn = or_fn(i64),
 };
 
+const bit_xor_binary_ops = IntBinaryOps{
+    .I64 = .i64_xor,
+    .I32 = .i32_xor,
+    .U64 = .i64_xor,
+    .U32 = .i32_xor,
+    .i64_fn = xor_fn(i64),
+};
+
 const bit_and_binary_ops = IntBinaryOps{
     .I64 = .i64_and,
     .I32 = .i32_and,
@@ -316,6 +340,14 @@ const shr_binary_ops = IntBinaryOps{
     .U64 = .u64_shr,
     .U32 = .u32_shr,
     .i64_fn = shr_fn(i64),
+};
+
+const rem_binary_ops = IntBinaryOps{
+    .I64 = .i64_rem,
+    .I32 = .i32_rem,
+    .U64 = .u64_rem,
+    .U32 = .u32_rem,
+    .i64_fn = rem_fn(i64),
 };
 
 fn i64Of(entity: Entity) !i64 {
@@ -711,9 +743,11 @@ fn Context(comptime FileSystem: type) type {
                 .equal => self.lowerComparisonBinaryOp(entity, eq_binary_ops),
                 .not_equal => self.lowerComparisonBinaryOp(entity, ne_binary_ops),
                 .bit_or => self.lowerIntBinaryOp(entity, bit_or_binary_ops),
+                .bit_xor => self.lowerIntBinaryOp(entity, bit_xor_binary_ops),
                 .bit_and => self.lowerIntBinaryOp(entity, bit_and_binary_ops),
                 .left_shift => self.lowerIntBinaryOp(entity, shl_binary_ops),
                 .right_shift => self.lowerIntBinaryOp(entity, shr_binary_ops),
+                .remainder => self.lowerIntBinaryOp(entity, rem_binary_ops),
             };
         }
 
@@ -2381,8 +2415,8 @@ test "lower int binary op two of same type" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32 };
-    const ops = [_]IntBinaryOps{ bit_or_binary_ops, bit_and_binary_ops, shl_binary_ops, shr_binary_ops };
-    const op_strings = [_][]const u8{ "|", "&", "<<", ">>" };
+    const ops = [_]IntBinaryOps{ bit_or_binary_ops, bit_and_binary_ops, shl_binary_ops, shr_binary_ops, rem_binary_ops, bit_xor_binary_ops };
+    const op_strings = [_][]const u8{ "|", "&", "<<", ">>", "%", "^" };
     for (op_strings) |op_string, op_index| {
         const op_table = ops[op_index];
         const kinds = [_]components.IrInstructionKind{ op_table.I64, op_table.I32, op_table.U64, op_table.U32 };

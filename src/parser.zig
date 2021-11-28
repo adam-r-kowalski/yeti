@@ -59,13 +59,15 @@ const GREATER_EQUAL: u64 = LESS_THAN;
 const EQUAL: u64 = LESS_THAN;
 const NOT_EQUAL: u64 = LESS_THAN;
 const BIT_OR: u64 = LESS_THAN + NEXT_PRECEDENCE;
-const BIT_AND: u64 = BIT_OR + NEXT_PRECEDENCE;
+const BIT_XOR: u64 = BIT_OR + NEXT_PRECEDENCE;
+const BIT_AND: u64 = BIT_XOR + NEXT_PRECEDENCE;
 const LEFT_SHIFT: u64 = BIT_AND + NEXT_PRECEDENCE;
 const RIGHT_SHIFT: u64 = LEFT_SHIFT;
 const ADD: u64 = LEFT_SHIFT + NEXT_PRECEDENCE;
 const SUBTRACT: u64 = ADD;
 const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
 const DIVIDE: u64 = MULTIPLY;
+const REMAINDER: u64 = MULTIPLY;
 const DOT: u64 = MULTIPLY + NEXT_PRECEDENCE;
 const CALL: u64 = DOT + NEXT_PRECEDENCE;
 const HIGHEST: u64 = CALL;
@@ -84,6 +86,7 @@ const InfixParser = union(enum) {
                 .minus => .{ .binary_op = .{ .op = .subtract, .precedence = SUBTRACT } },
                 .times => .{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
                 .slash => .{ .binary_op = .{ .op = .divide, .precedence = DIVIDE } },
+                .percent => .{ .binary_op = .{ .op = .remainder, .precedence = REMAINDER } },
                 .dot => .{ .binary_op = .{ .op = .dot, .precedence = DOT } },
                 .less_than => .{ .binary_op = .{ .op = .less_than, .precedence = LESS_THAN } },
                 .less_equal => .{ .binary_op = .{ .op = .less_equal, .precedence = LESS_EQUAL } },
@@ -93,8 +96,9 @@ const InfixParser = union(enum) {
                 .greater_greater => .{ .binary_op = .{ .op = .right_shift, .precedence = RIGHT_SHIFT } },
                 .equal_equal => .{ .binary_op = .{ .op = .equal, .precedence = EQUAL } },
                 .bang_equal => .{ .binary_op = .{ .op = .not_equal, .precedence = NOT_EQUAL } },
-                .ampersand => .{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
                 .bar => .{ .binary_op = .{ .op = .bit_or, .precedence = BIT_OR } },
+                .caret => .{ .binary_op = .{ .op = .bit_xor, .precedence = BIT_XOR } },
+                .ampersand => .{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
                 .equal => .define_type_infer,
                 .colon => .define,
                 .left_paren => .call,
