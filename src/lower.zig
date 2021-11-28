@@ -49,6 +49,14 @@ const ComparisonBinaryOps = struct {
     f64_fn: fn (f64, f64) i32,
 };
 
+const IntBinaryOps = struct {
+    I64: components.IrInstructionKind,
+    I32: components.IrInstructionKind,
+    U64: components.IrInstructionKind,
+    U32: components.IrInstructionKind,
+    i64_fn: fn (i64, i64) i64,
+};
+
 fn add_fn(comptime T: type) fn (T, T) T {
     return struct {
         fn f(x: T, y: T) T {
@@ -132,6 +140,22 @@ fn ne_fn(comptime T: type) fn (T, T) i32 {
     return struct {
         fn f(x: T, y: T) i32 {
             return if (x != y) 1 else 0;
+        }
+    }.f;
+}
+
+fn or_fn(comptime T: type) fn (T, T) T {
+    return struct {
+        fn f(x: T, y: T) T {
+            return x | y;
+        }
+    }.f;
+}
+
+fn and_fn(comptime T: type) fn (T, T) T {
+    return struct {
+        fn f(x: T, y: T) T {
+            return x & y;
         }
     }.f;
 }
@@ -244,6 +268,22 @@ const ne_binary_ops = ComparisonBinaryOps{
     .F32 = .f32_ne,
     .i64_fn = ne_fn(i64),
     .f64_fn = ne_fn(f64),
+};
+
+const bit_or_binary_ops = IntBinaryOps{
+    .I64 = .i64_or,
+    .I32 = .i32_or,
+    .U64 = .i64_or,
+    .U32 = .i32_or,
+    .i64_fn = or_fn(i64),
+};
+
+const bit_and_binary_ops = IntBinaryOps{
+    .I64 = .i64_and,
+    .I32 = .i32_and,
+    .U64 = .i64_and,
+    .U32 = .i32_and,
+    .i64_fn = and_fn(i64),
 };
 
 fn i64Of(entity: Entity) !i64 {
@@ -576,6 +616,54 @@ fn Context(comptime FileSystem: type) type {
             panic("\nlower comparison binary op failed for {s} and {s}\n", .{ literalOf(lhs_type), literalOf(rhs_type) });
         }
 
+        fn lowerIntBinaryOp(self: Self, entity: Entity, ops: IntBinaryOps) !Entity {
+            const arguments = entity.get(components.Arguments).slice();
+            const lhs = try self.lowerExpression(arguments[0]);
+            const rhs = try self.lowerExpression(arguments[1]);
+            const lhs_type = typeOf(lhs);
+            const rhs_type = typeOf(rhs);
+            const b = self.codebase.get(components.Builtins);
+            const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32 };
+            const kinds = &[_]components.IrInstructionKind{ ops.I64, ops.I32, ops.U64, ops.U32 };
+            for (builtins) |builtin, i| {
+                if (!eql(lhs_type, builtin)) continue;
+                if (eql(rhs_type, builtin)) {
+                    const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                    return try self.lowerResultInstruction(result, kinds[i]);
+                }
+                if (eql(rhs_type, b.IntLiteral)) {
+                    _ = try rhs.set(.{components.Type.init(builtin)});
+                    const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                    return try self.lowerResultInstruction(result, kinds[i]);
+                }
+                panic("\nlower {s} + {s} not implemented\n", .{
+                    literalOf(lhs_type), literalOf(rhs_type),
+                });
+            }
+            if (eql(lhs_type, b.IntLiteral)) {
+                for (builtins) |builtin, i| {
+                    if (eql(rhs_type, builtin)) {
+                        _ = try lhs.set(.{components.Type.init(builtin)});
+                        const result = try self.codebase.createEntity(.{components.Type.init(builtin)});
+                        return try self.lowerResultInstruction(result, kinds[i]);
+                    }
+                }
+                assert(eql(rhs_type, b.IntLiteral));
+                const lhs_value = try i64Of(lhs);
+                const rhs_value = try i64Of(rhs);
+                const result_value = ops.i64_fn(lhs_value, rhs_value);
+                const result_literal = try std.fmt.allocPrint(self.allocator, "{}", .{result_value});
+                const interned = try self.codebase.getPtr(Strings).intern(result_literal);
+                const result = try self.codebase.createEntity(.{
+                    components.Literal.init(interned),
+                    components.Type.init(b.IntLiteral),
+                    result_value,
+                });
+                return try self.lowerResultInstruction(result, .int_const);
+            }
+            panic("\nlower int binary op failed for {s} and {s}\n", .{ literalOf(lhs_type), literalOf(rhs_type) });
+        }
+
         fn lowerBinaryOp(self: Self, entity: Entity) !Entity {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
@@ -590,6 +678,8 @@ fn Context(comptime FileSystem: type) type {
                 .greater_equal => self.lowerComparisonBinaryOp(entity, ge_binary_ops),
                 .equal => self.lowerComparisonBinaryOp(entity, eq_binary_ops),
                 .not_equal => self.lowerComparisonBinaryOp(entity, ne_binary_ops),
+                .bit_or => self.lowerIntBinaryOp(entity, bit_or_binary_ops),
+                .bit_and => self.lowerIntBinaryOp(entity, bit_and_binary_ops),
             };
         }
 
@@ -2246,6 +2336,78 @@ test "lower comparison binary op two of same type" {
             try expectEqual(add.get(components.IrInstructionKind), kinds[i]);
             const result = add.get(components.Result).entity;
             try expectEqual(typeOf(result), builtins.I32);
+        }
+    }
+}
+
+test "lower int binary op two of same type" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32 };
+    const ops = [_]IntBinaryOps{ bit_or_binary_ops, bit_and_binary_ops };
+    const op_strings = [_][]const u8{ "|", "&" };
+    for (op_strings) |op_string, op_index| {
+        const op_table = ops[op_index];
+        const kinds = [_]components.IrInstructionKind{ op_table.I64, op_table.I32, op_table.U64, op_table.U32 };
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): {s}
+                \\  x: {s} = 10
+                \\  y: {s} = 32
+                \\  x {s} y
+                \\end
+            , .{ type_, type_, type_, op_string }));
+            const ir = try lower(codebase, fs, "foo.yeti", "start");
+            const top_level = ir.get(components.TopLevel);
+            const start = top_level.findString("start").get(components.Overloads).slice()[0];
+            try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+            try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+            try expectEqual(start.get(components.Parameters).len(), 0);
+            try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+            const basic_blocks = start.get(components.BasicBlocks).slice();
+            try expectEqual(basic_blocks.len, 1);
+            const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+            try expectEqual(basic_block.len, 7);
+            const x = blk: {
+                const int_const = basic_block[0];
+                try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+                const result = int_const.get(components.Result).entity;
+                try expectEqualStrings(literalOf(result), "10");
+                try expectEqual(typeOf(result), builtin_types[i]);
+                const set_local = basic_block[1];
+                try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+                try expectEqual(set_local.get(components.Result).entity, result);
+                break :blk result;
+            };
+            const y = blk: {
+                const int_const = basic_block[2];
+                try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+                const result = int_const.get(components.Result).entity;
+                try expectEqualStrings(literalOf(result), "32");
+                try expectEqual(typeOf(result), builtin_types[i]);
+                const set_local = basic_block[3];
+                try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+                try expectEqual(set_local.get(components.Result).entity, result);
+                break :blk result;
+            };
+            {
+                const get_local = basic_block[4];
+                try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+                try expectEqual(get_local.get(components.Result).entity, x);
+            }
+            {
+                const get_local = basic_block[5];
+                try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+                try expectEqual(get_local.get(components.Result).entity, y);
+            }
+            const add = basic_block[6];
+            try expectEqual(add.get(components.IrInstructionKind), kinds[i]);
+            const result = add.get(components.Result).entity;
+            try expectEqual(typeOf(result), builtin_types[i]);
         }
     }
 }

@@ -57,8 +57,10 @@ const LESS_EQUAL: u64 = LESS_THAN;
 const GREATER_THAN: u64 = LESS_THAN;
 const GREATER_EQUAL: u64 = LESS_THAN;
 const EQUAL: u64 = LESS_THAN;
-const NOT_EQUAL: u64 = EQUAL;
-const ADD: u64 = LESS_THAN + NEXT_PRECEDENCE;
+const NOT_EQUAL: u64 = LESS_THAN;
+const BIT_OR: u64 = LESS_THAN + NEXT_PRECEDENCE;
+const BIT_AND: u64 = BIT_OR + NEXT_PRECEDENCE;
+const ADD: u64 = BIT_AND + NEXT_PRECEDENCE;
 const SUBTRACT: u64 = ADD;
 const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
 const DIVIDE: u64 = MULTIPLY;
@@ -87,6 +89,8 @@ const InfixParser = union(enum) {
                 .greater_equal => .{ .binary_op = .{ .op = .greater_equal, .precedence = GREATER_EQUAL } },
                 .equal_equal => .{ .binary_op = .{ .op = .equal, .precedence = EQUAL } },
                 .bang_equal => .{ .binary_op = .{ .op = .not_equal, .precedence = NOT_EQUAL } },
+                .ampersand => .{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
+                .bar => .{ .binary_op = .{ .op = .bit_or, .precedence = BIT_OR } },
                 .equal => .define_type_infer,
                 .colon => .define,
                 .left_paren => .call,
