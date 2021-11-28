@@ -128,6 +128,14 @@ fn eq_fn(comptime T: type) fn (T, T) i32 {
     }.f;
 }
 
+fn ne_fn(comptime T: type) fn (T, T) i32 {
+    return struct {
+        fn f(x: T, y: T) i32 {
+            return if (x != y) 1 else 0;
+        }
+    }.f;
+}
+
 const add_binary_ops = ArithmeticBinaryOps{
     .I64 = .i64_add,
     .I32 = .i32_add,
@@ -225,6 +233,17 @@ const eq_binary_ops = ComparisonBinaryOps{
     .F32 = .f32_eq,
     .i64_fn = eq_fn(i64),
     .f64_fn = eq_fn(f64),
+};
+
+const ne_binary_ops = ComparisonBinaryOps{
+    .I64 = .i64_ne,
+    .I32 = .i32_ne,
+    .U64 = .i64_ne,
+    .U32 = .i32_ne,
+    .F64 = .f64_ne,
+    .F32 = .f32_ne,
+    .i64_fn = ne_fn(i64),
+    .f64_fn = ne_fn(f64),
 };
 
 fn i64Of(entity: Entity) !i64 {
@@ -570,6 +589,7 @@ fn Context(comptime FileSystem: type) type {
                 .greater_than => self.lowerComparisonBinaryOp(entity, gt_binary_ops),
                 .greater_equal => self.lowerComparisonBinaryOp(entity, ge_binary_ops),
                 .equal => self.lowerComparisonBinaryOp(entity, eq_binary_ops),
+                .not_equal => self.lowerComparisonBinaryOp(entity, ne_binary_ops),
             };
         }
 
@@ -2165,8 +2185,8 @@ test "lower comparison binary op two of same type" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    const ops = [_]ComparisonBinaryOps{ lt_binary_ops, le_binary_ops, gt_binary_ops, ge_binary_ops, eq_binary_ops };
-    const op_strings = [_][]const u8{ "<", "<=", ">", ">=", "==" };
+    const ops = [_]ComparisonBinaryOps{ lt_binary_ops, le_binary_ops, gt_binary_ops, ge_binary_ops, eq_binary_ops, ne_binary_ops };
+    const op_strings = [_][]const u8{ "<", "<=", ">", ">=", "==", "!=" };
     for (op_strings) |op_string, op_index| {
         const op_table = ops[op_index];
         const kinds = [_]components.IrInstructionKind{ op_table.I64, op_table.I32, op_table.U64, op_table.U32, op_table.F64, op_table.F32 };

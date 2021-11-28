@@ -57,6 +57,7 @@ const LESS_EQUAL: u64 = LESS_THAN;
 const GREATER_THAN: u64 = LESS_THAN;
 const GREATER_EQUAL: u64 = LESS_THAN;
 const EQUAL: u64 = LESS_THAN;
+const NOT_EQUAL: u64 = EQUAL;
 const ADD: u64 = LESS_THAN + NEXT_PRECEDENCE;
 const SUBTRACT: u64 = ADD;
 const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
@@ -85,6 +86,7 @@ const InfixParser = union(enum) {
                 .greater_than => .{ .binary_op = .{ .op = .greater_than, .precedence = GREATER_THAN } },
                 .greater_equal => .{ .binary_op = .{ .op = .greater_equal, .precedence = GREATER_EQUAL } },
                 .equal_equal => .{ .binary_op = .{ .op = .equal, .precedence = EQUAL } },
+                .bang_equal => .{ .binary_op = .{ .op = .not_equal, .precedence = NOT_EQUAL } },
                 .equal => .define_type_infer,
                 .colon => .define,
                 .left_paren => .call,

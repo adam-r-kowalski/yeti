@@ -99,6 +99,7 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
             '=' => try tokenizeOneOrTwo(module, &source, .equal, '=', .equal_equal),
             '>' => try tokenizeOneOrTwo(module, &source, .greater_than, '=', .greater_equal),
             '<' => try tokenizeOneOrTwo(module, &source, .less_than, '=', .less_equal),
+            '!' => try tokenizeTwo(module, &source, '=', .bang_equal),
             else => try tokenizeSymbol(module, &source),
         };
         try entities.append(token);
@@ -371,6 +372,14 @@ fn tokenizeOneOrTwo(module: Entity, source: *Source, first: components.TokenKind
     _ = source.advance(1);
     const span = components.Span{ .begin = begin, .end = source.position };
     return try module.ecs.createEntity(.{ first, span });
+}
+
+fn tokenizeTwo(module: Entity, source: *Source, char: u8, kind: components.TokenKind) !Entity {
+    const begin = source.position;
+    assert(source.code.len > 1 and source.code[1] == char);
+    _ = source.advance(2);
+    const span = components.Span{ .begin = begin, .end = source.position };
+    return try module.ecs.createEntity(.{ kind, span });
 }
 
 test "tokenize function" {
