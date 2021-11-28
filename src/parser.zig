@@ -52,7 +52,8 @@ fn prefixParser(token: Entity) !Entity {
 const NEXT_PRECEDENCE: u64 = 10;
 const LOWEST: u64 = 0;
 const DEFINE: u64 = LOWEST;
-const ADD: u64 = DEFINE + NEXT_PRECEDENCE;
+const LESS_THAN: u64 = DEFINE + NEXT_PRECEDENCE;
+const ADD: u64 = LESS_THAN + NEXT_PRECEDENCE;
 const SUBTRACT: u64 = ADD;
 const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
 const DIVIDE: u64 = MULTIPLY;
@@ -75,6 +76,7 @@ const InfixParser = union(enum) {
                 .times => .{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
                 .slash => .{ .binary_op = .{ .op = .divide, .precedence = DIVIDE } },
                 .dot => .{ .binary_op = .{ .op = .dot, .precedence = DOT } },
+                .less_than => .{ .binary_op = .{ .op = .less_than, .precedence = LESS_THAN } },
                 .equal => .define_type_infer,
                 .colon => .define,
                 .left_paren => .call,
