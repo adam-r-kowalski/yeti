@@ -120,6 +120,14 @@ fn ge_fn(comptime T: type) fn (T, T) i32 {
     }.f;
 }
 
+fn eq_fn(comptime T: type) fn (T, T) i32 {
+    return struct {
+        fn f(x: T, y: T) i32 {
+            return if (x == y) 1 else 0;
+        }
+    }.f;
+}
+
 const add_binary_ops = ArithmeticBinaryOps{
     .I64 = .i64_add,
     .I32 = .i32_add,
@@ -156,8 +164,8 @@ const mul_binary_ops = ArithmeticBinaryOps{
 const div_binary_ops = ArithmeticBinaryOps{
     .I64 = .i64_div,
     .I32 = .i32_div,
-    .U64 = .i64_div,
-    .U32 = .i32_div,
+    .U64 = .u64_div,
+    .U32 = .u32_div,
     .F64 = .f64_div,
     .F32 = .f32_div,
     .i64_fn = div_fn(i64),
@@ -167,8 +175,8 @@ const div_binary_ops = ArithmeticBinaryOps{
 const lt_binary_ops = ComparisonBinaryOps{
     .I64 = .i64_lt,
     .I32 = .i32_lt,
-    .U64 = .i64_lt,
-    .U32 = .i32_lt,
+    .U64 = .u64_lt,
+    .U32 = .u32_lt,
     .F64 = .f64_lt,
     .F32 = .f32_lt,
     .i64_fn = lt_fn(i64),
@@ -178,8 +186,8 @@ const lt_binary_ops = ComparisonBinaryOps{
 const le_binary_ops = ComparisonBinaryOps{
     .I64 = .i64_le,
     .I32 = .i32_le,
-    .U64 = .i64_le,
-    .U32 = .i32_le,
+    .U64 = .u64_le,
+    .U32 = .u32_le,
     .F64 = .f64_le,
     .F32 = .f32_le,
     .i64_fn = le_fn(i64),
@@ -189,8 +197,8 @@ const le_binary_ops = ComparisonBinaryOps{
 const gt_binary_ops = ComparisonBinaryOps{
     .I64 = .i64_gt,
     .I32 = .i32_gt,
-    .U64 = .i64_gt,
-    .U32 = .i32_gt,
+    .U64 = .u64_gt,
+    .U32 = .u32_gt,
     .F64 = .f64_gt,
     .F32 = .f32_gt,
     .i64_fn = gt_fn(i64),
@@ -200,12 +208,23 @@ const gt_binary_ops = ComparisonBinaryOps{
 const ge_binary_ops = ComparisonBinaryOps{
     .I64 = .i64_ge,
     .I32 = .i32_ge,
-    .U64 = .i64_ge,
-    .U32 = .i32_ge,
+    .U64 = .u64_ge,
+    .U32 = .u32_ge,
     .F64 = .f64_ge,
     .F32 = .f32_ge,
     .i64_fn = ge_fn(i64),
     .f64_fn = ge_fn(f64),
+};
+
+const eq_binary_ops = ComparisonBinaryOps{
+    .I64 = .i64_eq,
+    .I32 = .i32_eq,
+    .U64 = .i64_eq,
+    .U32 = .i32_eq,
+    .F64 = .f64_eq,
+    .F32 = .f32_eq,
+    .i64_fn = eq_fn(i64),
+    .f64_fn = eq_fn(f64),
 };
 
 fn i64Of(entity: Entity) !i64 {
@@ -550,6 +569,7 @@ fn Context(comptime FileSystem: type) type {
                 .less_equal => self.lowerComparisonBinaryOp(entity, le_binary_ops),
                 .greater_than => self.lowerComparisonBinaryOp(entity, gt_binary_ops),
                 .greater_equal => self.lowerComparisonBinaryOp(entity, ge_binary_ops),
+                .equal => self.lowerComparisonBinaryOp(entity, eq_binary_ops),
             };
         }
 
@@ -2145,8 +2165,8 @@ test "lower comparison binary op two of same type" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    const ops = [_]ComparisonBinaryOps{ lt_binary_ops, le_binary_ops };
-    const op_strings = [_][]const u8{ "<", "<=" };
+    const ops = [_]ComparisonBinaryOps{ lt_binary_ops, le_binary_ops, gt_binary_ops, ge_binary_ops, eq_binary_ops };
+    const op_strings = [_][]const u8{ "<", "<=", ">", ">=", "==" };
     for (op_strings) |op_string, op_index| {
         const op_table = ops[op_index];
         const kinds = [_]components.IrInstructionKind{ op_table.I64, op_table.I32, op_table.U64, op_table.U32, op_table.F64, op_table.F32 };
