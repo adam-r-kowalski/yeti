@@ -82,8 +82,11 @@ fn codegenGetLocal(context: Context, ir_instruction: Entity) !void {
     const local = ir_instruction.get(components.Result).entity;
     const type_of = local.get(components.Type).entity;
     const b = context.builtins;
-    const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
-    for (builtins) |builtin| {
+    for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
+        if (!eql(type_of, builtin)) continue;
+        return;
+    }
+    for (&[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 }) |builtin| {
         if (!eql(type_of, builtin)) continue;
         const wasm_instruction = try context.codebase.createEntity(.{
             components.WasmInstructionKind.get_local,
@@ -559,6 +562,34 @@ test "codegen int literal add" {
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
             \\  10 + 32
+            \\end
+        , .{type_}));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 1);
+        const i64_const = start_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        const result = i64_const.get(components.Result).entity;
+        try expectEqualStrings(literalOf(result), "42");
+    }
+}
+
+test "codegen int literal add through variable" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x = 10
+            \\  y = 32
+            \\  x + y
             \\end
         , .{type_}));
         const module = try lower(codebase, fs, "foo.yeti", "start");
