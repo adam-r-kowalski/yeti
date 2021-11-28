@@ -160,6 +160,22 @@ fn and_fn(comptime T: type) fn (T, T) T {
     }.f;
 }
 
+fn shl_fn(comptime T: type) fn (T, T) T {
+    return struct {
+        fn f(x: T, y: T) T {
+            return x << @intCast(std.math.Log2Int(T), y);
+        }
+    }.f;
+}
+
+fn shr_fn(comptime T: type) fn (T, T) T {
+    return struct {
+        fn f(x: T, y: T) T {
+            return x >> @intCast(std.math.Log2Int(T), y);
+        }
+    }.f;
+}
+
 const add_binary_ops = ArithmeticBinaryOps{
     .I64 = .i64_add,
     .I32 = .i32_add,
@@ -284,6 +300,22 @@ const bit_and_binary_ops = IntBinaryOps{
     .U64 = .i64_and,
     .U32 = .i32_and,
     .i64_fn = and_fn(i64),
+};
+
+const shl_binary_ops = IntBinaryOps{
+    .I64 = .i64_shl,
+    .I32 = .i32_shl,
+    .U64 = .u64_shl,
+    .U32 = .u32_shl,
+    .i64_fn = shl_fn(i64),
+};
+
+const shr_binary_ops = IntBinaryOps{
+    .I64 = .i64_shr,
+    .I32 = .i32_shr,
+    .U64 = .u64_shr,
+    .U32 = .u32_shr,
+    .i64_fn = shr_fn(i64),
 };
 
 fn i64Of(entity: Entity) !i64 {
@@ -680,6 +712,8 @@ fn Context(comptime FileSystem: type) type {
                 .not_equal => self.lowerComparisonBinaryOp(entity, ne_binary_ops),
                 .bit_or => self.lowerIntBinaryOp(entity, bit_or_binary_ops),
                 .bit_and => self.lowerIntBinaryOp(entity, bit_and_binary_ops),
+                .left_shift => self.lowerIntBinaryOp(entity, shl_binary_ops),
+                .right_shift => self.lowerIntBinaryOp(entity, shr_binary_ops),
             };
         }
 
@@ -2347,8 +2381,8 @@ test "lower int binary op two of same type" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32 };
-    const ops = [_]IntBinaryOps{ bit_or_binary_ops, bit_and_binary_ops };
-    const op_strings = [_][]const u8{ "|", "&" };
+    const ops = [_]IntBinaryOps{ bit_or_binary_ops, bit_and_binary_ops, shl_binary_ops, shr_binary_ops };
+    const op_strings = [_][]const u8{ "|", "&", "<<", ">>" };
     for (op_strings) |op_string, op_index| {
         const op_table = ops[op_index];
         const kinds = [_]components.IrInstructionKind{ op_table.I64, op_table.I32, op_table.U64, op_table.U32 };

@@ -3,7 +3,8 @@
 - [x] Support primitive types (i64, i32, u64, u32, f64, f32)
 - [x] Binary operators for primitive types (+, -, *, /)
 - [x] Can call the same function twice
-- [ ] Comparison operators for primitive types (<, <=, >, >=, ==, &, |, !=)
+- [x] Comparison operators for primitive types (<, <=, >, >=, ==, !=)
+- [ ] Int operators for primitive types (&, |, <<, >>, %, ^, %)
 - [ ] If expressions
 - [ ] Assignment
 - [ ] Loops

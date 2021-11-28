@@ -97,10 +97,10 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
             '&' => try tokenizeOne(module, &source, .ampersand),
             '|' => try tokenizeOne(module, &source, .bar),
             ',' => try tokenizeOne(module, &source, .comma),
-            ':' => try tokenizeOneOrTwo(module, &source, .colon, '=', .colon_equal),
-            '=' => try tokenizeOneOrTwo(module, &source, .equal, '=', .equal_equal),
-            '>' => try tokenizeOneOrTwo(module, &source, .greater_than, '=', .greater_equal),
-            '<' => try tokenizeOneOrTwo(module, &source, .less_than, '=', .less_equal),
+            ':' => try tokenizeOneOrTwo(module, &source, .colon, &.{'='}, &.{.colon_equal}),
+            '=' => try tokenizeOneOrTwo(module, &source, .equal, &.{'='}, &.{.equal_equal}),
+            '>' => try tokenizeOneOrTwo(module, &source, .greater_than, &.{ '=', '>' }, &.{ .greater_equal, .greater_greater }),
+            '<' => try tokenizeOneOrTwo(module, &source, .less_than, &.{ '=', '<' }, &.{ .less_equal, .less_less }),
             '!' => try tokenizeTwo(module, &source, '=', .bang_equal),
             else => try tokenizeSymbol(module, &source),
         };
@@ -364,12 +364,17 @@ fn tokenizeOne(module: Entity, source: *Source, kind: components.TokenKind) !Ent
     return try module.ecs.createEntity(.{ kind, span });
 }
 
-fn tokenizeOneOrTwo(module: Entity, source: *Source, first: components.TokenKind, char: u8, second: components.TokenKind) !Entity {
+fn tokenizeOneOrTwo(module: Entity, source: *Source, first: components.TokenKind, chars: []const u8, second: []const components.TokenKind) !Entity {
     const begin = source.position;
-    if (source.code.len > 1 and source.code[1] == char) {
-        _ = source.advance(2);
-        const span = components.Span{ .begin = begin, .end = source.position };
-        return try module.ecs.createEntity(.{ second, span });
+    if (source.code.len > 1) {
+        const actual = source.code[1];
+        for (chars) |expected, i| {
+            if (actual == expected) {
+                _ = source.advance(2);
+                const span = components.Span{ .begin = begin, .end = source.position };
+                return try module.ecs.createEntity(.{ second[i], span });
+            }
+        }
     }
     _ = source.advance(1);
     const span = components.Span{ .begin = begin, .end = source.position };
@@ -572,7 +577,7 @@ test "greater than and greater equal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
-    const code = "> >= = == : := < <=";
+    const code = "> >= = == : := < <= >> <<";
     var tokens = try tokenize(module, code);
     {
         const token = tokens.next().?;
@@ -636,6 +641,22 @@ test "greater than and greater equal" {
         try expectEqual(token.get(components.Span), .{
             .begin = .{ .column = 17, .row = 0 },
             .end = .{ .column = 19, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .greater_greater);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 20, .row = 0 },
+            .end = .{ .column = 22, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .less_less);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 23, .row = 0 },
+            .end = .{ .column = 25, .row = 0 },
         });
     }
     try expectEqual(tokens.next(), null);

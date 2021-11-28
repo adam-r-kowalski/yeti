@@ -60,7 +60,9 @@ const EQUAL: u64 = LESS_THAN;
 const NOT_EQUAL: u64 = LESS_THAN;
 const BIT_OR: u64 = LESS_THAN + NEXT_PRECEDENCE;
 const BIT_AND: u64 = BIT_OR + NEXT_PRECEDENCE;
-const ADD: u64 = BIT_AND + NEXT_PRECEDENCE;
+const LEFT_SHIFT: u64 = BIT_AND + NEXT_PRECEDENCE;
+const RIGHT_SHIFT: u64 = LEFT_SHIFT;
+const ADD: u64 = LEFT_SHIFT + NEXT_PRECEDENCE;
 const SUBTRACT: u64 = ADD;
 const MULTIPLY: u64 = ADD + NEXT_PRECEDENCE;
 const DIVIDE: u64 = MULTIPLY;
@@ -85,8 +87,10 @@ const InfixParser = union(enum) {
                 .dot => .{ .binary_op = .{ .op = .dot, .precedence = DOT } },
                 .less_than => .{ .binary_op = .{ .op = .less_than, .precedence = LESS_THAN } },
                 .less_equal => .{ .binary_op = .{ .op = .less_equal, .precedence = LESS_EQUAL } },
+                .less_less => .{ .binary_op = .{ .op = .left_shift, .precedence = LEFT_SHIFT } },
                 .greater_than => .{ .binary_op = .{ .op = .greater_than, .precedence = GREATER_THAN } },
                 .greater_equal => .{ .binary_op = .{ .op = .greater_equal, .precedence = GREATER_EQUAL } },
+                .greater_greater => .{ .binary_op = .{ .op = .right_shift, .precedence = RIGHT_SHIFT } },
                 .equal_equal => .{ .binary_op = .{ .op = .equal, .precedence = EQUAL } },
                 .bang_equal => .{ .binary_op = .{ .op = .not_equal, .precedence = NOT_EQUAL } },
                 .ampersand => .{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
