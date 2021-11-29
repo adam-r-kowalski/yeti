@@ -111,7 +111,7 @@ const InfixParser = union(enum) {
                 .left_paren => {
                     const left_end = left.get(components.Span).end;
                     const paren_begin = token.get(components.Span).begin;
-                    if (left_end.row != paren_begin.row or left_end.column != paren_begin.column - 1)
+                    if (left_end.row != paren_begin.row or left_end.column != paren_begin.column)
                         return null;
                     return InfixParser.call;
                 },
@@ -847,3 +847,34 @@ test "parse grouping with parenthesis" {
     try expectEqualStrings(literalOf(add_arguments[1]), "10");
     try expectEqualStrings(literalOf(multiply_arguments[1]), "3");
 }
+
+// test "parse grouping with parenthesis" {
+//     var arena = Arena.init(std.heap.page_allocator);
+//     defer arena.deinit();
+//     var codebase = try initCodebase(&arena);
+//     const module = try codebase.createEntity(.{});
+//     const code =
+//         \\start = function(): U64
+//         \\  (5 + 10) * 3
+//         \\end
+//     ;
+//     var tokens = try tokenize(module, code);
+//     try parse(module, &tokens);
+//     const top_level = module.get(components.TopLevel);
+//     const start = top_level.findString("start");
+//     const overloads = start.get(components.Overloads).slice();
+//     try expectEqual(overloads.len, 1);
+//     const body = overloads[0].get(components.Body).slice();
+//     try expectEqual(body.len, 1);
+//     const multiply = body[0];
+//     try expectEqual(multiply.get(components.AstKind), .binary_op);
+//     try expectEqual(multiply.get(components.BinaryOp), .multiply);
+//     const multiply_arguments = multiply.get(components.Arguments).slice();
+//     const add = multiply_arguments[0];
+//     try expectEqual(add.get(components.AstKind), .binary_op);
+//     try expectEqual(add.get(components.BinaryOp), .add);
+//     const add_arguments = add.get(components.Arguments).slice();
+//     try expectEqualStrings(literalOf(add_arguments[0]), "5");
+//     try expectEqualStrings(literalOf(add_arguments[1]), "10");
+//     try expectEqualStrings(literalOf(multiply_arguments[1]), "3");
+// }
