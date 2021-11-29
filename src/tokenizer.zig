@@ -147,6 +147,12 @@ fn tokenizeSymbol(module: Entity, source: *Source) !Entity {
         return try module.ecs.createEntity(.{ components.TokenKind.function, span });
     } else if (std.mem.eql(u8, string, "end")) {
         return try module.ecs.createEntity(.{ components.TokenKind.end, span });
+    } else if (std.mem.eql(u8, string, "if")) {
+        return try module.ecs.createEntity(.{ components.TokenKind.if_, span });
+    } else if (std.mem.eql(u8, string, "then")) {
+        return try module.ecs.createEntity(.{ components.TokenKind.then, span });
+    } else if (std.mem.eql(u8, string, "else")) {
+        return try module.ecs.createEntity(.{ components.TokenKind.else_, span });
     } else {
         const interned = try module.ecs.getPtr(Strings).intern(string);
         return try module.ecs.createEntity(.{

@@ -190,6 +190,9 @@ pub const TokenKind = enum(u8) {
     import,
     function,
     end,
+    if_,
+    then,
+    else_,
 };
 
 pub const Literal = struct {
@@ -221,6 +224,9 @@ pub const Module = DistinctEntity("Module");
 pub const Functions = DistinctEntities("Functions");
 pub const WasmInstructions = DistinctEntities("Wasm Instructions");
 pub const Locals = DistinctEntitySet("Locals");
+pub const Conditional = DistinctEntity("Conditional");
+pub const Then = DistinctEntities("Then");
+pub const Else = DistinctEntities("Else");
 
 pub const AstKind = enum(u8) {
     symbol,
@@ -232,6 +238,7 @@ pub const AstKind = enum(u8) {
     call,
     import,
     overload_set,
+    if_,
 };
 
 pub const BinaryOp = enum(u8) {
