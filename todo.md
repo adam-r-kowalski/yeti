@@ -5,6 +5,7 @@
 - [x] Can call the same function twice
 - [x] Comparison operators for primitive types (<, <=, >, >=, ==, !=)
 - [x] Int operators for primitive types (&, |, <<, >>, %, ^)
+- [ ] Grouping
 - [ ] If expressions
 - [ ] Assignment
 - [ ] Loops

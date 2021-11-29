@@ -22,9 +22,9 @@ const literalOf = @import("test_utils.zig").literalOf;
 
 fn parseExpression(codebase: *ECS, tokens: *Tokens, precedence: u64) error{OutOfMemory}!Entity {
     const token = tokens.next().?;
-    var left = try prefixParser(token);
+    var left = try prefixParser(tokens, token);
     while (true) {
-        if (InfixParser.init(tokens)) |parser| {
+        if (InfixParser.init(tokens, left)) |parser| {
             const parser_precedence = parser.precedence();
             if (precedence <= parser_precedence) {
                 left = try parser.run(codebase, tokens, left, parser_precedence);
@@ -33,7 +33,13 @@ fn parseExpression(codebase: *ECS, tokens: *Tokens, precedence: u64) error{OutOf
     }
 }
 
-fn prefixParser(token: Entity) !Entity {
+fn parseGrouping(codebase: *ECS, tokens: *Tokens) !Entity {
+    const expression = try parseExpression(codebase, tokens, LOWEST);
+    _ = tokens.consume(.right_paren);
+    return expression;
+}
+
+fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
     const kind = token.get(components.TokenKind);
     return try switch (kind) {
         .symbol => token.set(.{components.AstKind.symbol}),
@@ -45,6 +51,7 @@ fn prefixParser(token: Entity) !Entity {
             components.AstKind.float,
             components.Type.init(token.ecs.get(components.Builtins).FloatLiteral),
         }),
+        .left_paren => parseGrouping(token.ecs, tokens),
         else => panic("\nno prefix parser for = {}\n", .{kind}),
     };
 }
@@ -78,32 +85,38 @@ const InfixParser = union(enum) {
     define,
     call,
 
-    fn init(tokens: *Tokens) ?InfixParser {
+    fn init(tokens: *Tokens, left: Entity) ?InfixParser {
         if (tokens.peek()) |token| {
             const kind = token.get(components.TokenKind);
-            return switch (kind) {
-                .plus => .{ .binary_op = .{ .op = .add, .precedence = ADD } },
-                .minus => .{ .binary_op = .{ .op = .subtract, .precedence = SUBTRACT } },
-                .times => .{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
-                .slash => .{ .binary_op = .{ .op = .divide, .precedence = DIVIDE } },
-                .percent => .{ .binary_op = .{ .op = .remainder, .precedence = REMAINDER } },
-                .dot => .{ .binary_op = .{ .op = .dot, .precedence = DOT } },
-                .less_than => .{ .binary_op = .{ .op = .less_than, .precedence = LESS_THAN } },
-                .less_equal => .{ .binary_op = .{ .op = .less_equal, .precedence = LESS_EQUAL } },
-                .less_less => .{ .binary_op = .{ .op = .left_shift, .precedence = LEFT_SHIFT } },
-                .greater_than => .{ .binary_op = .{ .op = .greater_than, .precedence = GREATER_THAN } },
-                .greater_equal => .{ .binary_op = .{ .op = .greater_equal, .precedence = GREATER_EQUAL } },
-                .greater_greater => .{ .binary_op = .{ .op = .right_shift, .precedence = RIGHT_SHIFT } },
-                .equal_equal => .{ .binary_op = .{ .op = .equal, .precedence = EQUAL } },
-                .bang_equal => .{ .binary_op = .{ .op = .not_equal, .precedence = NOT_EQUAL } },
-                .bar => .{ .binary_op = .{ .op = .bit_or, .precedence = BIT_OR } },
-                .caret => .{ .binary_op = .{ .op = .bit_xor, .precedence = BIT_XOR } },
-                .ampersand => .{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
-                .equal => .define_type_infer,
-                .colon => .define,
-                .left_paren => .call,
-                else => null,
-            };
+            switch (kind) {
+                .plus => return InfixParser{ .binary_op = .{ .op = .add, .precedence = ADD } },
+                .minus => return InfixParser{ .binary_op = .{ .op = .subtract, .precedence = SUBTRACT } },
+                .times => return InfixParser{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
+                .slash => return InfixParser{ .binary_op = .{ .op = .divide, .precedence = DIVIDE } },
+                .percent => return InfixParser{ .binary_op = .{ .op = .remainder, .precedence = REMAINDER } },
+                .dot => return InfixParser{ .binary_op = .{ .op = .dot, .precedence = DOT } },
+                .less_than => return InfixParser{ .binary_op = .{ .op = .less_than, .precedence = LESS_THAN } },
+                .less_equal => return InfixParser{ .binary_op = .{ .op = .less_equal, .precedence = LESS_EQUAL } },
+                .less_less => return InfixParser{ .binary_op = .{ .op = .left_shift, .precedence = LEFT_SHIFT } },
+                .greater_than => return InfixParser{ .binary_op = .{ .op = .greater_than, .precedence = GREATER_THAN } },
+                .greater_equal => return InfixParser{ .binary_op = .{ .op = .greater_equal, .precedence = GREATER_EQUAL } },
+                .greater_greater => return InfixParser{ .binary_op = .{ .op = .right_shift, .precedence = RIGHT_SHIFT } },
+                .equal_equal => return InfixParser{ .binary_op = .{ .op = .equal, .precedence = EQUAL } },
+                .bang_equal => return InfixParser{ .binary_op = .{ .op = .not_equal, .precedence = NOT_EQUAL } },
+                .bar => return InfixParser{ .binary_op = .{ .op = .bit_or, .precedence = BIT_OR } },
+                .caret => return InfixParser{ .binary_op = .{ .op = .bit_xor, .precedence = BIT_XOR } },
+                .ampersand => return InfixParser{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
+                .equal => return InfixParser.define_type_infer,
+                .colon => return InfixParser.define,
+                .left_paren => {
+                    const left_end = left.get(components.Span).end;
+                    const paren_begin = token.get(components.Span).begin;
+                    if (left_end.row != paren_begin.row or left_end.column != paren_begin.column - 1)
+                        return null;
+                    return InfixParser.call;
+                },
+                else => return null,
+            }
         } else {
             return null;
         }
@@ -802,4 +815,35 @@ test "parse assignment with explicit type" {
     const x = body[1];
     try expectEqual(x.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(x), "x");
+}
+
+test "parse grouping with parenthesis" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = function(): U64
+        \\  (5 + 10) * 3
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const multiply = body[0];
+    try expectEqual(multiply.get(components.AstKind), .binary_op);
+    try expectEqual(multiply.get(components.BinaryOp), .multiply);
+    const multiply_arguments = multiply.get(components.Arguments).slice();
+    const add = multiply_arguments[0];
+    try expectEqual(add.get(components.AstKind), .binary_op);
+    try expectEqual(add.get(components.BinaryOp), .add);
+    const add_arguments = add.get(components.Arguments).slice();
+    try expectEqualStrings(literalOf(add_arguments[0]), "5");
+    try expectEqualStrings(literalOf(add_arguments[1]), "10");
+    try expectEqualStrings(literalOf(multiply_arguments[1]), "3");
 }
