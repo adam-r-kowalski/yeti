@@ -40,22 +40,39 @@ fn parseGrouping(codebase: *ECS, tokens: *Tokens) !Entity {
 }
 
 fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
+    const begin = if_.get(components.Span).begin;
     const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
     _ = tokens.consume(.then);
     var then = components.Then.init(&codebase.arena.allocator);
-    try then.append(try parseExpression(codebase, tokens, LOWEST));
-    _ = tokens.consume(.else_);
+    while (true) {
+        try then.append(try parseExpression(codebase, tokens, LOWEST));
+        if (tokens.peek()) |token| {
+            if (token.get(components.TokenKind) == .else_) {
+                _ = tokens.next();
+                break;
+            }
+        } else break;
+    }
     var else_ = components.Else.init(&codebase.arena.allocator);
-    try else_.append(try parseExpression(codebase, tokens, LOWEST));
-    const begin = if_.get(components.Span).begin;
-    const end = tokens.consume(.end).get(components.Span).end;
-    return try codebase.createEntity(.{
+    const result = try codebase.createEntity(.{
         components.AstKind.if_,
         conditional,
         then,
-        else_,
-        components.Span.init(begin, end),
     });
+    while (true) {
+        try else_.append(try parseExpression(codebase, tokens, LOWEST));
+        if (tokens.peek()) |token| {
+            if (token.get(components.TokenKind) == .end) {
+                const end = tokens.next().?.get(components.Span).end;
+                _ = try result.set(.{
+                    else_,
+                    components.Span.init(begin, end),
+                });
+                break;
+            }
+        } else break;
+    }
+    return result;
 }
 
 fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
@@ -897,4 +914,57 @@ test "parse if then else" {
     const else_ = if_.get(components.Else).slice();
     try expectEqual(else_.len, 1);
     try expectEqualStrings(literalOf(else_[0]), "30");
+}
+
+test "parse multiline if then else" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = function(): U64
+        \\  if 10 > 5 then
+        \\    x = 20
+        \\    x
+        \\  else
+        \\    y = 30
+        \\    y
+        \\  end
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const if_ = body[0];
+    try expectEqual(if_.get(components.AstKind), .if_);
+    const conditional = if_.get(components.Conditional).entity;
+    try expectEqual(conditional.get(components.AstKind), .binary_op);
+    try expectEqual(conditional.get(components.BinaryOp), .greater_than);
+    const then = if_.get(components.Then).slice();
+    try expectEqual(then.len, 2);
+    {
+        const define = then[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "20");
+        const x = then[1];
+        try expectEqual(x.get(components.AstKind), .symbol);
+        try expectEqualStrings(literalOf(x), "x");
+    }
+    const else_ = if_.get(components.Else).slice();
+    try expectEqual(else_.len, 2);
+    {
+        const define = else_[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqualStrings(literalOf(define.get(components.Name).entity), "y");
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "30");
+        const y = else_[1];
+        try expectEqual(y.get(components.AstKind), .symbol);
+        try expectEqualStrings(literalOf(y), "y");
+    }
 }
