@@ -126,6 +126,11 @@ fn codegenBinaryOp(context: Context, kind: components.WasmInstructionKind) !void
     return;
 }
 
+fn codegenIf(context: Context, ir_instruction: Entity) !void {
+    _ = try context.wasm_instructions.append(ir_instruction);
+    panic("\ncodegen if not implemented\n", .{});
+}
+
 pub fn codegen(module: Entity) !void {
     const codebase = module.ecs;
     const allocator = &codebase.arena.allocator;
@@ -219,6 +224,7 @@ pub fn codegen(module: Entity) !void {
                 .call => try codegenCall(context, ir_instruction),
                 .get_local => try codegenGetLocal(context, ir_instruction),
                 .set_local => try codegenSetLocal(context, ir_instruction),
+                .if_ => try codegenIf(context, ir_instruction),
             }
         }
         _ = try function.set(.{ wasm_instructions, locals });
