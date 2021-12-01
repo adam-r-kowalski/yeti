@@ -198,6 +198,14 @@ fn wasmStringInstruction(string: *WasmString, wasm_instruction: Entity) !void {
             try string.appendSlice(literalOf(result.get(components.Name).entity));
             try string.append(')');
         },
+        .if_ => {
+            try string.appendSlice("\n    if (result ");
+            const result = wasm_instruction.get(components.Result).entity;
+            try wasmStringType(string, result.get(components.Type).entity);
+            try string.append(')');
+        },
+        .else_ => try string.appendSlice("\n    else"),
+        .end => try string.appendSlice("\n    end"),
     }
 }
 
@@ -525,6 +533,54 @@ test "wasm string add" {
             \\    (get_local $x)
             \\    (get_local $y)
             \\    ({s}.add))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
+    }
+}
+
+test "wasm string add" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  conditional: I32 = 1
+            \\  if conditional then
+            \\    x: {s} = 20
+            \\    x
+            \\  else
+            \\    y: {s} = 30
+            \\    y
+            \\  end
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm_string = try wasmString(module);
+        try expectEqualStrings(wasm_string, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    (local $conditional i32)
+            \\    (local $x {s})
+            \\    (local $y {s})
+            \\    (i32.const 1)
+            \\    (set_local $conditional)
+            \\    (get_local $conditional)
+            \\    if (result {s})
+            \\    ({s}.const 20)
+            \\    (set_local $x)
+            \\    (get_local $x)
+            \\    else
+            \\    ({s}.const 30)
+            \\    (set_local $y)
+            \\    (get_local $y)
+            \\    end)
             \\
             \\(export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));

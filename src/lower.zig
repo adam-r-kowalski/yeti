@@ -2559,7 +2559,8 @@ test "lower if then else" {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
-            \\  if 10 > 5 then
+            \\  x: I32 = 1
+            \\  if x then
             \\    x: {s} = 20
             \\    x
             \\  else
@@ -2583,22 +2584,14 @@ test "lower if then else" {
             const int_const = basic_block[0];
             try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
             const result = int_const.get(components.Result).entity;
-            try expectEqualStrings(literalOf(result), "10");
-            try expectEqual(typeOf(result), builtins.IntLiteral);
-        }
-        {
-            const int_const = basic_block[1];
-            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
-            const result = int_const.get(components.Result).entity;
-            try expectEqualStrings(literalOf(result), "5");
-            try expectEqual(typeOf(result), builtins.IntLiteral);
-        }
-        {
-            const int_const = basic_block[2];
-            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
-            const result = int_const.get(components.Result).entity;
             try expectEqualStrings(literalOf(result), "1");
-            try expectEqual(typeOf(result), builtins.IntLiteral);
+            try expectEqual(typeOf(result), builtins.I32);
+            const set_local = basic_block[1];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            const get_local = basic_block[2];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, result);
         }
         const if_ = basic_block[3];
         try expectEqual(if_.get(components.IrInstructionKind), .if_);

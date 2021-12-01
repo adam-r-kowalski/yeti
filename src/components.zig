@@ -420,6 +420,9 @@ pub const WasmInstructionKind = enum(u8) {
     call,
     get_local,
     set_local,
+    if_,
+    else_,
+    end,
 };
 
 pub const Builtins = struct {

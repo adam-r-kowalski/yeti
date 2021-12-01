@@ -127,8 +127,111 @@ fn codegenBinaryOp(context: Context, kind: components.WasmInstructionKind) !void
 }
 
 fn codegenIf(context: Context, ir_instruction: Entity) !void {
-    _ = try context.wasm_instructions.append(ir_instruction);
-    panic("\ncodegen if not implemented\n", .{});
+    {
+        const wasm_instruction = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.if_,
+            ir_instruction.get(components.Result),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    const then_block = ir_instruction.get(components.ThenBlock).entity.get(components.IrInstructions).slice();
+    for (then_block) |instruction| {
+        try codegenInstruction(context, instruction);
+    }
+    {
+        const wasm_instruction = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.else_,
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    const else_block = ir_instruction.get(components.ElseBlock).entity.get(components.IrInstructions).slice();
+    for (else_block) |instruction| {
+        try codegenInstruction(context, instruction);
+    }
+    const wasm_instruction = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.end,
+    });
+    _ = try context.wasm_instructions.append(wasm_instruction);
+}
+
+fn codegenInstruction(context: Context, ir_instruction: Entity) error{OutOfMemory}!void {
+    const kind = ir_instruction.get(components.IrInstructionKind);
+    switch (kind) {
+        .int_const => try codegenIntConst(context, ir_instruction),
+        .float_const => try codegenFloatConst(context, ir_instruction),
+        .i64_add => try codegenBinaryOp(context, .i64_add),
+        .i32_add => try codegenBinaryOp(context, .i32_add),
+        .f64_add => try codegenBinaryOp(context, .f64_add),
+        .f32_add => try codegenBinaryOp(context, .f32_add),
+        .i64_sub => try codegenBinaryOp(context, .i64_sub),
+        .i32_sub => try codegenBinaryOp(context, .i32_sub),
+        .f64_sub => try codegenBinaryOp(context, .f64_sub),
+        .f32_sub => try codegenBinaryOp(context, .f32_sub),
+        .i64_mul => try codegenBinaryOp(context, .i64_mul),
+        .i32_mul => try codegenBinaryOp(context, .i32_mul),
+        .f64_mul => try codegenBinaryOp(context, .f64_mul),
+        .f32_mul => try codegenBinaryOp(context, .f32_mul),
+        .i64_div => try codegenBinaryOp(context, .i64_div),
+        .i32_div => try codegenBinaryOp(context, .i32_div),
+        .u64_div => try codegenBinaryOp(context, .u64_div),
+        .u32_div => try codegenBinaryOp(context, .u32_div),
+        .f64_div => try codegenBinaryOp(context, .f64_div),
+        .f32_div => try codegenBinaryOp(context, .f32_div),
+        .i64_lt => try codegenBinaryOp(context, .i64_lt),
+        .i32_lt => try codegenBinaryOp(context, .i32_lt),
+        .u64_lt => try codegenBinaryOp(context, .u64_lt),
+        .u32_lt => try codegenBinaryOp(context, .u32_lt),
+        .f64_lt => try codegenBinaryOp(context, .f64_lt),
+        .f32_lt => try codegenBinaryOp(context, .f32_lt),
+        .i64_le => try codegenBinaryOp(context, .i64_le),
+        .i32_le => try codegenBinaryOp(context, .i32_le),
+        .u64_le => try codegenBinaryOp(context, .u64_le),
+        .u32_le => try codegenBinaryOp(context, .u32_le),
+        .f64_le => try codegenBinaryOp(context, .f64_le),
+        .f32_le => try codegenBinaryOp(context, .f32_le),
+        .i64_gt => try codegenBinaryOp(context, .i64_gt),
+        .i32_gt => try codegenBinaryOp(context, .i32_gt),
+        .u64_gt => try codegenBinaryOp(context, .u64_gt),
+        .u32_gt => try codegenBinaryOp(context, .u32_gt),
+        .f64_gt => try codegenBinaryOp(context, .f64_gt),
+        .f32_gt => try codegenBinaryOp(context, .f32_gt),
+        .i64_ge => try codegenBinaryOp(context, .i64_ge),
+        .i32_ge => try codegenBinaryOp(context, .i32_ge),
+        .u64_ge => try codegenBinaryOp(context, .u64_ge),
+        .u32_ge => try codegenBinaryOp(context, .u32_ge),
+        .f64_ge => try codegenBinaryOp(context, .f64_ge),
+        .f32_ge => try codegenBinaryOp(context, .f32_ge),
+        .i64_eq => try codegenBinaryOp(context, .i64_eq),
+        .i32_eq => try codegenBinaryOp(context, .i32_eq),
+        .f64_eq => try codegenBinaryOp(context, .f64_eq),
+        .f32_eq => try codegenBinaryOp(context, .f32_eq),
+        .i64_ne => try codegenBinaryOp(context, .i64_ne),
+        .i32_ne => try codegenBinaryOp(context, .i32_ne),
+        .f64_ne => try codegenBinaryOp(context, .f64_ne),
+        .f32_ne => try codegenBinaryOp(context, .f32_ne),
+        .i64_or => try codegenBinaryOp(context, .i64_or),
+        .i32_or => try codegenBinaryOp(context, .i32_or),
+        .i64_and => try codegenBinaryOp(context, .i64_and),
+        .i32_and => try codegenBinaryOp(context, .i32_and),
+        .i64_shl => try codegenBinaryOp(context, .i64_shl),
+        .i32_shl => try codegenBinaryOp(context, .i32_shl),
+        .u64_shl => try codegenBinaryOp(context, .u64_shl),
+        .u32_shl => try codegenBinaryOp(context, .u32_shl),
+        .i64_shr => try codegenBinaryOp(context, .i64_shr),
+        .i32_shr => try codegenBinaryOp(context, .i32_shr),
+        .u64_shr => try codegenBinaryOp(context, .u64_shr),
+        .u32_shr => try codegenBinaryOp(context, .u32_shr),
+        .i64_rem => try codegenBinaryOp(context, .i64_rem),
+        .i32_rem => try codegenBinaryOp(context, .i32_rem),
+        .u64_rem => try codegenBinaryOp(context, .u64_rem),
+        .u32_rem => try codegenBinaryOp(context, .u32_rem),
+        .i64_xor => try codegenBinaryOp(context, .i64_xor),
+        .i32_xor => try codegenBinaryOp(context, .i32_xor),
+        .call => try codegenCall(context, ir_instruction),
+        .get_local => try codegenGetLocal(context, ir_instruction),
+        .set_local => try codegenSetLocal(context, ir_instruction),
+        .if_ => try codegenIf(context, ir_instruction),
+    }
 }
 
 pub fn codegen(module: Entity) !void {
@@ -146,86 +249,9 @@ pub fn codegen(module: Entity) !void {
             .builtins = builtins,
         };
         const basic_blocks = function.get(components.BasicBlocks).slice();
-        try expectEqual(basic_blocks.len, 1);
         const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
         for (basic_block) |ir_instruction| {
-            const kind = ir_instruction.get(components.IrInstructionKind);
-            switch (kind) {
-                .int_const => try codegenIntConst(context, ir_instruction),
-                .float_const => try codegenFloatConst(context, ir_instruction),
-                .i64_add => try codegenBinaryOp(context, .i64_add),
-                .i32_add => try codegenBinaryOp(context, .i32_add),
-                .f64_add => try codegenBinaryOp(context, .f64_add),
-                .f32_add => try codegenBinaryOp(context, .f32_add),
-                .i64_sub => try codegenBinaryOp(context, .i64_sub),
-                .i32_sub => try codegenBinaryOp(context, .i32_sub),
-                .f64_sub => try codegenBinaryOp(context, .f64_sub),
-                .f32_sub => try codegenBinaryOp(context, .f32_sub),
-                .i64_mul => try codegenBinaryOp(context, .i64_mul),
-                .i32_mul => try codegenBinaryOp(context, .i32_mul),
-                .f64_mul => try codegenBinaryOp(context, .f64_mul),
-                .f32_mul => try codegenBinaryOp(context, .f32_mul),
-                .i64_div => try codegenBinaryOp(context, .i64_div),
-                .i32_div => try codegenBinaryOp(context, .i32_div),
-                .u64_div => try codegenBinaryOp(context, .u64_div),
-                .u32_div => try codegenBinaryOp(context, .u32_div),
-                .f64_div => try codegenBinaryOp(context, .f64_div),
-                .f32_div => try codegenBinaryOp(context, .f32_div),
-                .i64_lt => try codegenBinaryOp(context, .i64_lt),
-                .i32_lt => try codegenBinaryOp(context, .i32_lt),
-                .u64_lt => try codegenBinaryOp(context, .u64_lt),
-                .u32_lt => try codegenBinaryOp(context, .u32_lt),
-                .f64_lt => try codegenBinaryOp(context, .f64_lt),
-                .f32_lt => try codegenBinaryOp(context, .f32_lt),
-                .i64_le => try codegenBinaryOp(context, .i64_le),
-                .i32_le => try codegenBinaryOp(context, .i32_le),
-                .u64_le => try codegenBinaryOp(context, .u64_le),
-                .u32_le => try codegenBinaryOp(context, .u32_le),
-                .f64_le => try codegenBinaryOp(context, .f64_le),
-                .f32_le => try codegenBinaryOp(context, .f32_le),
-                .i64_gt => try codegenBinaryOp(context, .i64_gt),
-                .i32_gt => try codegenBinaryOp(context, .i32_gt),
-                .u64_gt => try codegenBinaryOp(context, .u64_gt),
-                .u32_gt => try codegenBinaryOp(context, .u32_gt),
-                .f64_gt => try codegenBinaryOp(context, .f64_gt),
-                .f32_gt => try codegenBinaryOp(context, .f32_gt),
-                .i64_ge => try codegenBinaryOp(context, .i64_ge),
-                .i32_ge => try codegenBinaryOp(context, .i32_ge),
-                .u64_ge => try codegenBinaryOp(context, .u64_ge),
-                .u32_ge => try codegenBinaryOp(context, .u32_ge),
-                .f64_ge => try codegenBinaryOp(context, .f64_ge),
-                .f32_ge => try codegenBinaryOp(context, .f32_ge),
-                .i64_eq => try codegenBinaryOp(context, .i64_eq),
-                .i32_eq => try codegenBinaryOp(context, .i32_eq),
-                .f64_eq => try codegenBinaryOp(context, .f64_eq),
-                .f32_eq => try codegenBinaryOp(context, .f32_eq),
-                .i64_ne => try codegenBinaryOp(context, .i64_ne),
-                .i32_ne => try codegenBinaryOp(context, .i32_ne),
-                .f64_ne => try codegenBinaryOp(context, .f64_ne),
-                .f32_ne => try codegenBinaryOp(context, .f32_ne),
-                .i64_or => try codegenBinaryOp(context, .i64_or),
-                .i32_or => try codegenBinaryOp(context, .i32_or),
-                .i64_and => try codegenBinaryOp(context, .i64_and),
-                .i32_and => try codegenBinaryOp(context, .i32_and),
-                .i64_shl => try codegenBinaryOp(context, .i64_shl),
-                .i32_shl => try codegenBinaryOp(context, .i32_shl),
-                .u64_shl => try codegenBinaryOp(context, .u64_shl),
-                .u32_shl => try codegenBinaryOp(context, .u32_shl),
-                .i64_shr => try codegenBinaryOp(context, .i64_shr),
-                .i32_shr => try codegenBinaryOp(context, .i32_shr),
-                .u64_shr => try codegenBinaryOp(context, .u64_shr),
-                .u32_shr => try codegenBinaryOp(context, .u32_shr),
-                .i64_rem => try codegenBinaryOp(context, .i64_rem),
-                .i32_rem => try codegenBinaryOp(context, .i32_rem),
-                .u64_rem => try codegenBinaryOp(context, .u64_rem),
-                .u32_rem => try codegenBinaryOp(context, .u32_rem),
-                .i64_xor => try codegenBinaryOp(context, .i64_xor),
-                .i32_xor => try codegenBinaryOp(context, .i32_xor),
-                .call => try codegenCall(context, ir_instruction),
-                .get_local => try codegenGetLocal(context, ir_instruction),
-                .set_local => try codegenSetLocal(context, ir_instruction),
-                .if_ => try codegenIf(context, ir_instruction),
-            }
+            try codegenInstruction(context, ir_instruction);
         }
         _ = try function.set(.{ wasm_instructions, locals });
     }
@@ -630,5 +656,77 @@ test "codegen int literal add through variable" {
         try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
         const result = i64_const.get(components.Result).entity;
         try expectEqualStrings(literalOf(result), "42");
+    }
+}
+
+test "codegen if then else" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{"I64"};
+    const builtins = codebase.get(components.Builtins);
+    for (types) |type_| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  conditional: I32 = 1
+            \\  if conditional then
+            \\    x: {s} = 20
+            \\    x
+            \\  else
+            \\    y: {s} = 30
+            \\    y
+            \\  end
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try lower(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 12);
+        {
+            const i32_const = start_instructions[0];
+            try expectEqual(i32_const.get(components.WasmInstructionKind), .i32_const);
+            const result = i32_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "1");
+            const set_local = start_instructions[1];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            const get_local = start_instructions[2];
+            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, result);
+        }
+        const if_ = start_instructions[3];
+        try expectEqual(if_.get(components.WasmInstructionKind), .if_);
+        try expectEqual(typeOf(if_.get(components.Result).entity), builtins.I64);
+        {
+            const i64_const = start_instructions[4];
+            try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+            const result = i64_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "20");
+            const set_local = start_instructions[5];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            const get_local = start_instructions[6];
+            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, result);
+        }
+        const else_ = start_instructions[7];
+        try expectEqual(else_.get(components.WasmInstructionKind), .else_);
+        {
+            const i64_const = start_instructions[8];
+            try expectEqual(i64_const.get(components.WasmInstructionKind), .i64_const);
+            const result = i64_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "30");
+            const set_local = start_instructions[9];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            const get_local = start_instructions[10];
+            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, result);
+        }
+        const end = start_instructions[11];
+        try expectEqual(end.get(components.WasmInstructionKind), .end);
     }
 }
