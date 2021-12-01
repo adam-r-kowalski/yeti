@@ -410,7 +410,7 @@ fn Context(comptime FileSystem: type) type {
 
         const Self = @This();
 
-        fn lowerResultInstruction(self: Self, result: Entity, kind: components.IrInstructionKind) !Entity {
+        fn lowerResultInstruction(self: *Self, result: Entity, kind: components.IrInstructionKind) !Entity {
             const instructions = self.basic_block.getPtr(components.IrInstructions);
             const instruction = try self.codebase.createEntity(.{
                 kind,
@@ -420,7 +420,7 @@ fn Context(comptime FileSystem: type) type {
             return result;
         }
 
-        fn lowerSymbol(self: Self, entity: Entity) !Entity {
+        fn lowerSymbol(self: *Self, entity: Entity) !Entity {
             const literal = entity.get(components.Literal);
             const local_scope = self.basic_block.get(components.Scope);
             if (local_scope.hasLiteral(literal)) |local| {
@@ -451,13 +451,13 @@ fn Context(comptime FileSystem: type) type {
             panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
-        fn lowerDot(self: Self, entity: Entity) !Entity {
+        fn lowerDot(self: *Self, entity: Entity) !Entity {
             const dot_arguments = entity.get(components.Arguments).slice();
             const module = try self.lowerExpression(dot_arguments[0]);
             assert(eql(typeOf(module), self.codebase.get(components.Builtins).Module));
             const call = dot_arguments[1];
             assert(call.get(components.AstKind) == .call);
-            const context = Self{
+            var context = Self{
                 .allocator = self.allocator,
                 .codebase = self.codebase,
                 .file_system = self.file_system,
@@ -468,7 +468,7 @@ fn Context(comptime FileSystem: type) type {
             return try context.lowerCall(call);
         }
 
-        fn lowerArithmeticBinaryOp(self: Self, entity: Entity, ops: ArithmeticBinaryOps) !Entity {
+        fn lowerArithmeticBinaryOp(self: *Self, entity: Entity, ops: ArithmeticBinaryOps) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.lowerExpression(arguments[0]);
             const rhs = try self.lowerExpression(arguments[1]);
@@ -574,7 +574,7 @@ fn Context(comptime FileSystem: type) type {
             panic("\nlower arithmetic binary op failed for {s} and {s}\n", .{ literalOf(lhs_type), literalOf(rhs_type) });
         }
 
-        fn lowerComparisonBinaryOp(self: Self, entity: Entity, ops: ComparisonBinaryOps) !Entity {
+        fn lowerComparisonBinaryOp(self: *Self, entity: Entity, ops: ComparisonBinaryOps) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.lowerExpression(arguments[0]);
             const rhs = try self.lowerExpression(arguments[1]);
@@ -680,7 +680,7 @@ fn Context(comptime FileSystem: type) type {
             panic("\nlower comparison binary op failed for {s} and {s}\n", .{ literalOf(lhs_type), literalOf(rhs_type) });
         }
 
-        fn lowerIntBinaryOp(self: Self, entity: Entity, ops: IntBinaryOps) !Entity {
+        fn lowerIntBinaryOp(self: *Self, entity: Entity, ops: IntBinaryOps) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.lowerExpression(arguments[0]);
             const rhs = try self.lowerExpression(arguments[1]);
@@ -728,7 +728,7 @@ fn Context(comptime FileSystem: type) type {
             panic("\nlower int binary op failed for {s} and {s}\n", .{ literalOf(lhs_type), literalOf(rhs_type) });
         }
 
-        fn lowerBinaryOp(self: Self, entity: Entity) !Entity {
+        fn lowerBinaryOp(self: *Self, entity: Entity) !Entity {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
                 .dot => self.lowerDot(entity),
@@ -757,7 +757,7 @@ fn Context(comptime FileSystem: type) type {
             exact,
         };
 
-        fn bestOverload(self: Self, callable: Entity, arguments: []const Entity) !Entity {
+        fn bestOverload(self: *Self, callable: Entity, arguments: []const Entity) !Entity {
             const top_level = self.module.get(components.TopLevel);
             const literal = callable.get(components.Literal);
             var best_overload: Entity = undefined;
@@ -772,7 +772,7 @@ fn Context(comptime FileSystem: type) type {
                     });
                     _ = try basic_blocks.append(basic_block);
                     _ = try overload.set(.{basic_blocks});
-                    const context = Self{
+                    var context = Self{
                         .allocator = self.allocator,
                         .codebase = self.codebase,
                         .file_system = self.file_system,
@@ -821,7 +821,7 @@ fn Context(comptime FileSystem: type) type {
             return best_overload;
         }
 
-        fn lowerCall(self: Self, call: Entity) !Entity {
+        fn lowerCall(self: *Self, call: Entity) !Entity {
             const callable = call.get(components.Callable).entity;
             const call_arguments = call.get(components.Arguments).slice();
             var function_arguments = try components.Arguments.withCapacity(self.allocator, call_arguments.len);
@@ -831,7 +831,7 @@ fn Context(comptime FileSystem: type) type {
             const function = try self.bestOverload(callable, function_arguments.slice());
             if (!function.contains(components.LoweredBody)) {
                 const basic_block = function.get(components.BasicBlocks).slice()[0];
-                const context = Self{
+                var context = Self{
                     .allocator = self.allocator,
                     .codebase = self.codebase,
                     .file_system = self.file_system,
@@ -858,7 +858,7 @@ fn Context(comptime FileSystem: type) type {
             return result;
         }
 
-        fn lowerDefine(self: Self, define: Entity) !Entity {
+        fn lowerDefine(self: *Self, define: Entity) !Entity {
             const scope = self.basic_block.getPtr(components.Scope);
             const value = try self.lowerExpression(define.get(components.Value).entity);
             if (define.has(components.TypeAst)) |type_ast| {
@@ -872,7 +872,64 @@ fn Context(comptime FileSystem: type) type {
             return self.codebase.get(components.Builtins).Void;
         }
 
-        fn lowerExpression(self: Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile }!Entity {
+        fn lowerIf(self: *Self, entity: Entity) !Entity {
+            _ = try self.lowerExpression(entity.get(components.Conditional).entity);
+            // const conditional = try self.lowerExpression(entity.get(components.Conditional).entity);
+
+            const basic_blocks = self.function.getPtr(components.BasicBlocks);
+            const then_entity = blk: {
+                const basic_block = try self.codebase.createEntity(.{
+                    components.IrInstructions.init(self.allocator),
+                    components.Scope.init(self.allocator, self.codebase.getPtr(Strings)),
+                });
+                _ = try basic_blocks.append(basic_block);
+                var context = Self{
+                    .allocator = self.allocator,
+                    .codebase = self.codebase,
+                    .file_system = self.file_system,
+                    .module = self.module,
+                    .function = self.function,
+                    .basic_block = basic_block,
+                };
+                const then = entity.get(components.Then).slice();
+                var then_entity: Entity = undefined;
+                for (then) |expression| {
+                    then_entity = try context.lowerExpression(expression);
+                }
+                break :blk then_entity;
+            };
+            const else_entity = blk: {
+                const basic_block = try self.codebase.createEntity(.{
+                    components.IrInstructions.init(self.allocator),
+                    components.Scope.init(self.allocator, self.codebase.getPtr(Strings)),
+                });
+                _ = try basic_blocks.append(basic_block);
+                var context = Self{
+                    .allocator = self.allocator,
+                    .codebase = self.codebase,
+                    .file_system = self.file_system,
+                    .module = self.module,
+                    .function = self.function,
+                    .basic_block = basic_block,
+                };
+                const else_ = entity.get(components.Else).slice();
+                var else_entity: Entity = undefined;
+                for (else_) |expression| {
+                    else_entity = try context.lowerExpression(expression);
+                }
+                break :blk else_entity;
+            };
+            assert(eql(typeOf(then_entity), typeOf(else_entity)));
+            const basic_block = try self.codebase.createEntity(.{
+                components.IrInstructions.init(self.allocator),
+                components.Scope.init(self.allocator, self.codebase.getPtr(Strings)),
+            });
+            _ = try basic_blocks.append(basic_block);
+            self.basic_block = basic_block;
+            return then_entity;
+        }
+
+        fn lowerExpression(self: *Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile }!Entity {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
                 .symbol => try self.lowerSymbol(entity),
@@ -881,11 +938,12 @@ fn Context(comptime FileSystem: type) type {
                 .binary_op => try self.lowerBinaryOp(entity),
                 .call => try self.lowerCall(entity),
                 .define => try self.lowerDefine(entity),
+                .if_ => try self.lowerIf(entity),
                 else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
             };
         }
 
-        fn lowerFunctionParameters(self: Self) !void {
+        fn lowerFunctionParameters(self: *Self) !void {
             const scope = self.basic_block.getPtr(components.Scope);
             const parameters = self.function.get(components.Parameters).slice();
             for (parameters) |parameter| {
@@ -899,13 +957,13 @@ fn Context(comptime FileSystem: type) type {
             _ = try self.function.set(.{components.LoweredParameters{ .value = true }});
         }
 
-        fn lowerFunctionReturnType(self: Self) !Entity {
+        fn lowerFunctionReturnType(self: *Self) !Entity {
             const return_type = try self.lowerExpression(self.function.get(components.ReturnTypeAst).entity);
             _ = try self.function.set(.{components.ReturnType.init(return_type)});
             return return_type;
         }
 
-        fn lowerFunctionBody(self: Self) !Entity {
+        fn lowerFunctionBody(self: *Self) !Entity {
             const body = self.function.get(components.Body).slice();
             var return_entity: Entity = undefined;
             for (body) |expression| {
@@ -914,7 +972,7 @@ fn Context(comptime FileSystem: type) type {
             return return_entity;
         }
 
-        fn lowerFunction(self: Self) !void {
+        fn lowerFunction(self: *Self) !void {
             _ = try self.function.set(.{components.Module.init(self.module)});
             _ = try self.codebase.getPtr(components.Functions).append(self.function);
             if (!self.function.contains(components.LoweredParameters)) {
@@ -948,7 +1006,7 @@ pub fn lower(codebase: *ECS, file_system: anytype, module_name: []const u8, func
     _ = try basic_blocks.append(basic_block);
     const function = overloads[0];
     _ = try function.set(.{basic_blocks});
-    const context = Context(@TypeOf(file_system)){
+    var context = Context(@TypeOf(file_system)){
         .allocator = allocator,
         .codebase = codebase,
         .file_system = file_system,
@@ -2477,5 +2535,75 @@ test "lower int binary op two of same type" {
             const result = add.get(components.Result).entity;
             try expectEqual(typeOf(result), builtin_types[i]);
         }
+    }
+}
+
+test "lower if then else" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{"I64"};
+    const builtin_types = [_]Entity{builtins.I64};
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  if 10 > 5 then
+            \\    x: {s} = 20
+            \\    x
+            \\  else
+            \\    y: {s} = 30
+            \\    y
+            \\  end
+            \\end
+        , .{ type_, type_, type_ }));
+        const ir = try lower(codebase, fs, "foo.yeti", "start");
+        const top_level = ir.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 4);
+        // const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        // try expectEqual(basic_block.len, 7);
+        // const x = blk: {
+        //     const int_const = basic_block[0];
+        //     try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        //     const result = int_const.get(components.Result).entity;
+        //     try expectEqualStrings(literalOf(result), "10");
+        //     try expectEqual(typeOf(result), builtin_types[i]);
+        //     const set_local = basic_block[1];
+        //     try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        //     try expectEqual(set_local.get(components.Result).entity, result);
+        //     break :blk result;
+        // };
+        // const y = blk: {
+        //     const int_const = basic_block[2];
+        //     try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+        //     const result = int_const.get(components.Result).entity;
+        //     try expectEqualStrings(literalOf(result), "32");
+        //     try expectEqual(typeOf(result), builtin_types[i]);
+        //     const set_local = basic_block[3];
+        //     try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+        //     try expectEqual(set_local.get(components.Result).entity, result);
+        //     break :blk result;
+        // };
+        // {
+        //     const get_local = basic_block[4];
+        //     try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        //     try expectEqual(get_local.get(components.Result).entity, x);
+        // }
+        // {
+        //     const get_local = basic_block[5];
+        //     try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+        //     try expectEqual(get_local.get(components.Result).entity, y);
+        // }
+        // const add = basic_block[6];
+        // try expectEqual(add.get(components.IrInstructionKind), kinds[i]);
+        // const result = add.get(components.Result).entity;
+        // try expectEqual(typeOf(result), builtin_types[i]);
     }
 }
