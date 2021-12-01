@@ -227,6 +227,9 @@ pub const Locals = DistinctEntitySet("Locals");
 pub const Conditional = DistinctEntity("Conditional");
 pub const Then = DistinctEntities("Then");
 pub const Else = DistinctEntities("Else");
+pub const ThenBlock = DistinctEntity("Then Block");
+pub const ElseBlock = DistinctEntity("Else Block");
+pub const FinallyBlock = DistinctEntity("Finally Block");
 
 pub const AstKind = enum(u8) {
     symbol,
@@ -338,6 +341,7 @@ pub const IrInstructionKind = enum(u8) {
     call,
     get_local,
     set_local,
+    if_,
 };
 
 pub const WasmInstructionKind = enum(u8) {
