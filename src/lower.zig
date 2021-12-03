@@ -372,31 +372,53 @@ fn f64Of(entity: Entity) !f64 {
     }
 }
 
+fn commonType(t1: Entity, t2: Entity) ?Entity {
+    if (eql(t1, t2)) return t1;
+    const b = t1.ecs.get(components.Builtins);
+    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+    const float_builtins = [_]Entity{ b.F64, b.F32 };
+    if (eql(t1, b.IntLiteral)) {
+        for (builtins) |builtin| {
+            if (eql(t2, builtin)) return builtin;
+        }
+        return null;
+    }
+    if (eql(t2, b.IntLiteral)) {
+        for (builtins) |builtin| {
+            if (eql(t1, builtin)) return builtin;
+        }
+        return null;
+    }
+    if (eql(t1, b.FloatLiteral)) {
+        for (float_builtins) |builtin| {
+            if (eql(t2, builtin)) return builtin;
+        }
+        return null;
+    }
+    if (eql(t2, b.FloatLiteral)) {
+        for (float_builtins) |builtin| {
+            if (eql(t1, builtin)) return builtin;
+        }
+        return null;
+    }
+    return null;
+}
+
 fn implicitTypeConversion(value: Entity, expected_type: Entity) !void {
     const actual_type = typeOf(value);
-    const builtins = value.ecs.get(components.Builtins);
-    if (eql(actual_type, builtins.IntLiteral)) {
-        for ([_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 }) |builtin| {
-            if (eql(expected_type, builtin)) continue;
-            _ = try value.set(.{components.Type.init(expected_type)});
-            return;
-        }
-        panic("\ncannot implicitly convert {s} to {s}\n", .{
-            literalOf(actual_type),
-            literalOf(expected_type),
-        });
-    } else if (eql(actual_type, builtins.FloatLiteral)) {
-        if (eql(expected_type, builtins.F64) or eql(expected_type, builtins.F32)) {
-            _ = try value.set(.{components.Type.init(expected_type)});
-        } else {
-            panic("\ncannot implicitly convert {s} to {s}\n", .{
-                literalOf(actual_type),
-                literalOf(expected_type),
-            });
-        }
-    } else {
-        assert(eql(expected_type, actual_type));
+    const common_type = commonType(actual_type, expected_type).?;
+    _ = try value.set(.{components.Type.init(common_type)});
+}
+
+fn unifyTypes(e1: Entity, e2: Entity) !Entity {
+    const t1 = typeOf(e1);
+    const t2 = typeOf(e2);
+    if (commonType(t1, t2)) |common_type| {
+        _ = try e1.set(.{components.Type.init(common_type)});
+        _ = try e2.set(.{components.Type.init(common_type)});
+        return common_type;
     }
+    return error.CannotUnifyTypes;
 }
 
 fn Context(comptime FileSystem: type) type {
@@ -942,8 +964,7 @@ fn Context(comptime FileSystem: type) type {
                 }
                 break :blk else_entity;
             };
-            const return_type = typeOf(then_entity);
-            assert(eql(return_type, typeOf(else_entity)));
+            const return_type = try unifyTypes(then_entity, else_entity);
             const result = try self.codebase.createEntity(.{components.Type.init(return_type)});
             _ = try instruction.set(.{components.Result.init(result)});
             const instructions = self.basic_block.getPtr(components.IrInstructions);
@@ -958,7 +979,7 @@ fn Context(comptime FileSystem: type) type {
             return result;
         }
 
-        fn lowerExpression(self: *Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile }!Entity {
+        fn lowerExpression(self: *Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes }!Entity {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
                 .symbol => try self.lowerSymbol(entity),
@@ -2752,5 +2773,82 @@ test "lower if then else conditional is int literal is false" {
         const get_local = basic_block[3];
         try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
         try expectEqual(get_local.get(components.Result).entity, result);
+    }
+}
+
+test "lower if then else then branch is int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{"I64"};
+    const builtin_types = [_]Entity{builtins.I64};
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: I32 = 1
+            \\  if x then
+            \\    20
+            \\  else
+            \\    y: {s} = 30
+            \\    y
+            \\  end
+            \\end
+        , .{ type_, type_ }));
+        const ir = try lower(codebase, fs, "foo.yeti", "start");
+        const top_level = ir.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 4);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 4);
+        {
+            const int_const = basic_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "1");
+            try expectEqual(typeOf(result), builtins.I32);
+            const set_local = basic_block[1];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            const get_local = basic_block[2];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, result);
+        }
+        const if_ = basic_block[3];
+        try expectEqual(if_.get(components.IrInstructionKind), .if_);
+        const then_block = if_.get(components.ThenBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(then_block.len, 1);
+        {
+            const int_const = then_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "20");
+            try expectEqual(typeOf(result), builtin_types[i]);
+        }
+        const else_block = if_.get(components.ElseBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(else_block.len, 3);
+        {
+            const int_const = else_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "30");
+            try expectEqual(typeOf(result), builtin_types[i]);
+            const set_local = else_block[1];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            const get_local = else_block[2];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, result);
+        }
+        const finally_block = if_.get(components.FinallyBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(finally_block.len, 0);
+        const result = if_.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtin_types[i]);
     }
 }
