@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const eql = std.meta.eql;
+const panic = std.debug.panic;
 
 const strings_module = @import("strings.zig");
 const Strings = strings_module.Strings;
@@ -22,40 +23,40 @@ pub fn DistinctEntity(comptime unique_id: []const u8) type {
     };
 }
 
-pub fn DistinctEntities(comptime unique_id: []const u8) type {
+pub fn DistinctList(comptime unique_id: []const u8, comptime T: type) type {
     assert(unique_id.len > 0);
     return struct {
-        entities: List(Entity, .{}),
+        entities: List(T, .{}),
 
         const Self = @This();
 
         pub fn init(allocator: *Allocator) Self {
-            return Self{ .entities = List(Entity, .{}).init(allocator) };
+            return Self{ .entities = List(T, .{}).init(allocator) };
         }
 
-        pub fn fromSlice(allocator: *Allocator, entities: []Entity) !Self {
-            const list = try List(Entity, .{}).fromSlice(allocator, entities);
+        pub fn fromSlice(allocator: *Allocator, entities: []T) !Self {
+            const list = try List(T, .{}).fromSlice(allocator, entities);
             return Self{ .entities = list };
         }
 
         pub fn withCapacity(allocator: *Allocator, capacity: u64) !Self {
-            const list = try List(Entity, .{}).withCapacity(allocator, capacity);
+            const list = try List(T, .{}).withCapacity(allocator, capacity);
             return Self{ .entities = list };
         }
 
-        pub fn append(self: *Self, entity: Entity) !void {
+        pub fn append(self: *Self, entity: T) !void {
             try self.entities.append(entity);
         }
 
-        pub fn appendAssumeCapacity(self: *Self, entity: Entity) void {
+        pub fn appendAssumeCapacity(self: *Self, entity: T) void {
             self.entities.appendAssumeCapacity(entity);
         }
 
-        pub fn slice(self: Self) []const Entity {
+        pub fn slice(self: Self) []const T {
             return self.entities.slice();
         }
 
-        pub fn last(self: Self) Entity {
+        pub fn last(self: Self) T {
             return self.entities.last();
         }
 
@@ -84,6 +85,10 @@ pub fn DistinctEntityMap(comptime unique_id: []const u8) type {
             try self.map.putNoClobber(interned, entity);
         }
 
+        pub fn putName(self: *Self, value: Name, entity: Entity) !void {
+            try self.map.putNoClobber(value.entity.get(Literal).interned, entity);
+        }
+
         pub fn findString(self: Self, string: []const u8) Entity {
             const interned = self.strings.lookup.get(string).?;
             return self.map.get(interned).?;
@@ -108,10 +113,6 @@ pub fn DistinctEntityMap(comptime unique_id: []const u8) type {
         pub fn hasName(self: Self, name: Name) ?Entity {
             const interned = name.entity.get(Literal).interned;
             return self.map.get(interned);
-        }
-
-        pub fn putName(self: *Self, value: Name, entity: Entity) !void {
-            try self.map.putNoClobber(value.entity.get(Literal).interned, entity);
         }
     };
 }
@@ -210,26 +211,26 @@ pub const Value = DistinctEntity("Value");
 pub const Callable = DistinctEntity("Callable");
 pub const TypeAst = DistinctEntity("Type Ast");
 pub const Type = DistinctEntity("Type");
-pub const Parameters = DistinctEntities("Parameters");
-pub const Body = DistinctEntities("Body");
-pub const Arguments = DistinctEntities("Arguments");
-pub const Overloads = DistinctEntities("Overloads");
+pub const Parameters = DistinctList("Parameters", Entity);
+pub const Body = DistinctList("Body", Entity);
+pub const Arguments = DistinctList("Arguments", Entity);
+pub const Overloads = DistinctList("Overloads", Entity);
 pub const TopLevel = DistinctEntityMap("Top Level");
 pub const Path = DistinctEntity("Path");
-pub const Scope = DistinctEntityMap("Scope");
-pub const BasicBlocks = DistinctEntities("Basic Blocks");
-pub const IrInstructions = DistinctEntities("Ir Instructions");
+pub const BasicBlocks = DistinctList("Basic Blocks", Entity);
+pub const IrInstructions = DistinctList("Ir Instructions", Entity);
 pub const Result = DistinctEntity("Result");
 pub const Module = DistinctEntity("Module");
-pub const Functions = DistinctEntities("Functions");
-pub const WasmInstructions = DistinctEntities("Wasm Instructions");
+pub const Functions = DistinctList("Functions", Entity);
+pub const WasmInstructions = DistinctList("Wasm Instructions", Entity);
 pub const Locals = DistinctEntitySet("Locals");
 pub const Conditional = DistinctEntity("Conditional");
-pub const Then = DistinctEntities("Then");
-pub const Else = DistinctEntities("Else");
+pub const Then = DistinctList("Then", Entity);
+pub const Else = DistinctList("Else", Entity);
 pub const ThenBlock = DistinctEntity("Then Block");
 pub const ElseBlock = DistinctEntity("Else Block");
 pub const FinallyBlock = DistinctEntity("Finally Block");
+pub const DependentEntities = DistinctList("Dependent Entities", Entity);
 
 pub const AstKind = enum(u8) {
     symbol,
@@ -446,4 +447,81 @@ pub const Error = struct {
     span: Span,
     hint: []const u8,
     module: Entity,
+};
+
+pub const Scope = DistinctEntityMap("Scope");
+
+pub const ActiveScopes = DistinctList("Active Scopes", u64);
+
+pub const Scopes = struct {
+    const Map = std.AutoHashMap(InternedString, Entity);
+    const Self = @This();
+
+    scopes: List(Map, .{}),
+    strings: *Strings,
+    allocator: *Allocator,
+
+    pub fn init(allocator: *Allocator, strings: *Strings) Self {
+        return Self{
+            .scopes = List(Map, .{}).init(allocator),
+            .strings = strings,
+            .allocator = allocator,
+        };
+    }
+
+    pub fn pushScope(self: *Self) !u64 {
+        const index = self.scopes.len;
+        try self.scopes.append(Map.init(self.allocator));
+        return index;
+    }
+
+    pub fn putInterned(self: *Self, interned: InternedString, entity: Entity) !void {
+        assert(self.scopes.len > 0);
+        const scopes = self.scopes.mutSlice();
+        try scopes[scopes.len - 1].putNoClobber(interned, entity);
+    }
+
+    pub fn putName(self: *Self, value: Name, entity: Entity) !void {
+        try self.putInterned(value.entity.get(Literal).interned, entity);
+    }
+
+    pub fn putLiteral(self: *Self, literal: Literal, entity: Entity) !void {
+        try self.putInterned(literal.interned, entity);
+    }
+
+    pub fn findString(self: Self, string: []const u8) Entity {
+        const interned = self.strings.lookup.get(string).?;
+        const scopes = self.scopes.mutSlice();
+        var i: usize = scopes.len;
+        while (i > 0) : (i -= 1) {
+            if (scopes[i - 1].get(interned)) |entity| {
+                return entity;
+            }
+        }
+        panic("\nscopes could not find string {s}\n", .{string});
+    }
+
+    pub fn findLiteral(self: Self, literal: Literal) Entity {
+        return self.hasLiteral(literal).?;
+    }
+
+    pub fn findName(self: Self, name: Name) Entity {
+        return self.hasName(name).?;
+    }
+
+    pub fn hasLiteral(self: Self, literal: Literal) ?Entity {
+        const interned = literal.interned;
+        const scopes = self.scopes.mutSlice();
+        var i: usize = scopes.len;
+        while (i > 0) : (i -= 1) {
+            if (scopes[i - 1].get(interned)) |entity| {
+                return entity;
+            }
+        }
+        return null;
+    }
+
+    pub fn hasName(self: Self, name: Name) ?Entity {
+        return self.hasLiteral(name.entity.get(Literal));
+    }
 };

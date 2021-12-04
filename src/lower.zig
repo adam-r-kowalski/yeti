@@ -404,10 +404,15 @@ fn commonType(t1: Entity, t2: Entity) ?Entity {
     return null;
 }
 
-fn implicitTypeConversion(value: Entity, expected_type: Entity) !void {
+fn implicitTypeConversion(value: Entity, expected_type: Entity) error{OutOfMemory}!void {
     const actual_type = typeOf(value);
     const common_type = commonType(actual_type, expected_type).?;
     _ = try value.set(.{components.Type.init(common_type)});
+    if (value.has(components.DependentEntities)) |dependent_entities| {
+        for (dependent_entities.slice()) |entity| {
+            try implicitTypeConversion(entity, expected_type);
+        }
+    }
 }
 
 fn unifyTypes(e1: Entity, e2: Entity) !Entity {
@@ -444,8 +449,8 @@ fn Context(comptime FileSystem: type) type {
 
         fn lowerSymbol(self: *Self, entity: Entity) !Entity {
             const literal = entity.get(components.Literal);
-            const local_scope = self.basic_block.get(components.Scope);
-            if (local_scope.hasLiteral(literal)) |local| {
+            const scopes = self.function.get(components.Scopes);
+            if (scopes.hasLiteral(literal)) |local| {
                 return self.lowerResultInstruction(local, .get_local);
             }
             const global_scope = self.codebase.get(components.Scope);
@@ -787,13 +792,15 @@ fn Context(comptime FileSystem: type) type {
             const builtins = self.codebase.get(components.Builtins);
             for (top_level.findLiteral(literal).get(components.Overloads).slice()) |overload| {
                 if (!overload.contains(components.LoweredParameters)) {
+                    var scopes = components.Scopes.init(self.allocator, self.codebase.getPtr(Strings));
+                    const scope = try scopes.pushScope();
                     var basic_blocks = components.BasicBlocks.init(self.allocator);
                     const basic_block = try self.codebase.createEntity(.{
                         components.IrInstructions.init(self.allocator),
-                        components.Scope.init(self.allocator, self.codebase.getPtr(Strings)),
+                        try components.ActiveScopes.fromSlice(self.allocator, &.{scope}),
                     });
                     _ = try basic_blocks.append(basic_block);
-                    _ = try overload.set(.{basic_blocks});
+                    _ = try overload.set(.{ basic_blocks, scopes });
                     var context = Self{
                         .allocator = self.allocator,
                         .codebase = self.codebase,
@@ -881,7 +888,7 @@ fn Context(comptime FileSystem: type) type {
         }
 
         fn lowerDefine(self: *Self, define: Entity) !Entity {
-            const scope = self.basic_block.getPtr(components.Scope);
+            const scopes = self.function.getPtr(components.Scopes);
             const value = try self.lowerExpression(define.get(components.Value).entity);
             if (define.has(components.TypeAst)) |type_ast| {
                 const explicit_type = try lowerExpression(self, type_ast.entity);
@@ -890,7 +897,7 @@ fn Context(comptime FileSystem: type) type {
             _ = try self.lowerResultInstruction(value, .set_local);
             const name = define.get(components.Name);
             _ = try value.set(.{name});
-            try scope.putName(name, value);
+            try scopes.putName(name, value);
             return self.codebase.get(components.Builtins).Void;
         }
 
@@ -920,10 +927,17 @@ fn Context(comptime FileSystem: type) type {
                 components.Conditional.init(conditional),
             });
             const basic_blocks = self.function.getPtr(components.BasicBlocks);
+            const scopes = self.function.getPtr(components.Scopes);
+            const current_active_scopes = self.basic_block.get(components.ActiveScopes).slice();
             const then_entity = blk: {
+                var active_scopes = try components.ActiveScopes.withCapacity(self.allocator, current_active_scopes.len + 1);
+                for (current_active_scopes) |scope| {
+                    try active_scopes.append(scope);
+                }
+                try active_scopes.append(try scopes.pushScope());
                 const basic_block = try self.codebase.createEntity(.{
                     components.IrInstructions.init(self.allocator),
-                    components.Scope.init(self.allocator, self.codebase.getPtr(Strings)),
+                    active_scopes,
                 });
                 _ = try instruction.set(.{components.ThenBlock.init(basic_block)});
                 _ = try basic_blocks.append(basic_block);
@@ -943,9 +957,14 @@ fn Context(comptime FileSystem: type) type {
                 break :blk then_entity;
             };
             const else_entity = blk: {
+                var active_scopes = try components.ActiveScopes.withCapacity(self.allocator, current_active_scopes.len + 1);
+                for (current_active_scopes) |scope| {
+                    try active_scopes.append(scope);
+                }
+                try active_scopes.append(try scopes.pushScope());
                 const basic_block = try self.codebase.createEntity(.{
                     components.IrInstructions.init(self.allocator),
-                    components.Scope.init(self.allocator, self.codebase.getPtr(Strings)),
+                    active_scopes,
                 });
                 _ = try instruction.set(.{components.ElseBlock.init(basic_block)});
                 _ = try basic_blocks.append(basic_block);
@@ -966,12 +985,22 @@ fn Context(comptime FileSystem: type) type {
             };
             const return_type = try unifyTypes(then_entity, else_entity);
             const result = try self.codebase.createEntity(.{components.Type.init(return_type)});
+            if (eql(return_type, builtins.IntLiteral)) {
+                _ = try result.set(.{
+                    try components.DependentEntities.fromSlice(self.allocator, &.{ then_entity, else_entity }),
+                });
+            }
             _ = try instruction.set(.{components.Result.init(result)});
             const instructions = self.basic_block.getPtr(components.IrInstructions);
             try instructions.append(instruction);
+            var active_scopes = try components.ActiveScopes.withCapacity(self.allocator, current_active_scopes.len + 1);
+            for (current_active_scopes) |scope| {
+                try active_scopes.append(scope);
+            }
+            try active_scopes.append(try scopes.pushScope());
             const basic_block = try self.codebase.createEntity(.{
                 components.IrInstructions.init(self.allocator),
-                components.Scope.init(self.allocator, self.codebase.getPtr(Strings)),
+                active_scopes,
             });
             _ = try instruction.set(.{components.FinallyBlock.init(basic_block)});
             _ = try basic_blocks.append(basic_block);
@@ -994,7 +1023,7 @@ fn Context(comptime FileSystem: type) type {
         }
 
         fn lowerFunctionParameters(self: *Self) !void {
-            const scope = self.basic_block.getPtr(components.Scope);
+            const scopes = self.function.getPtr(components.Scopes);
             const parameters = self.function.get(components.Parameters).slice();
             for (parameters) |parameter| {
                 const parameter_type = try lowerExpression(self, parameter.get(components.TypeAst).entity);
@@ -1002,7 +1031,7 @@ fn Context(comptime FileSystem: type) type {
                     components.Type.init(parameter_type),
                     components.Name.init(parameter),
                 });
-                try scope.putLiteral(parameter.get(components.Literal), parameter);
+                try scopes.putLiteral(parameter.get(components.Literal), parameter);
             }
             _ = try self.function.set(.{components.LoweredParameters{ .value = true }});
         }
@@ -1048,14 +1077,16 @@ pub fn lower(codebase: *ECS, file_system: anytype, module_name: []const u8, func
     const overloads = top_level.findString(function_name).get(components.Overloads).slice();
     assert(overloads.len == 1);
     const allocator = &codebase.arena.allocator;
+    var scopes = components.Scopes.init(allocator, codebase.getPtr(Strings));
+    const scope = try scopes.pushScope();
     var basic_blocks = components.BasicBlocks.init(allocator);
     const basic_block = try codebase.createEntity(.{
         components.IrInstructions.init(allocator),
-        components.Scope.init(allocator, codebase.getPtr(Strings)),
+        try components.ActiveScopes.fromSlice(allocator, &.{scope}),
     });
     _ = try basic_blocks.append(basic_block);
     const function = overloads[0];
-    _ = try function.set(.{basic_blocks});
+    _ = try function.set(.{ basic_blocks, scopes });
     var context = Context(@TypeOf(file_system)){
         .allocator = allocator,
         .codebase = codebase,
@@ -2845,6 +2876,161 @@ test "lower if then else then branch is int literal" {
             const get_local = else_block[2];
             try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
             try expectEqual(get_local.get(components.Result).entity, result);
+        }
+        const finally_block = if_.get(components.FinallyBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(finally_block.len, 0);
+        const result = if_.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtin_types[i]);
+    }
+}
+
+test "lower if then else both branches are int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{"I64"};
+    const builtin_types = [_]Entity{builtins.I64};
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: I32 = 1
+            \\  if x then
+            \\    20
+            \\  else
+            \\    30
+            \\  end
+            \\end
+        , .{type_}));
+        const ir = try lower(codebase, fs, "foo.yeti", "start");
+        const top_level = ir.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 4);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 4);
+        {
+            const int_const = basic_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "1");
+            try expectEqual(typeOf(result), builtins.I32);
+            const set_local = basic_block[1];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            const get_local = basic_block[2];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, result);
+        }
+        const if_ = basic_block[3];
+        try expectEqual(if_.get(components.IrInstructionKind), .if_);
+        const then_block = if_.get(components.ThenBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(then_block.len, 1);
+        {
+            const int_const = then_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "20");
+            try expectEqual(typeOf(result), builtin_types[i]);
+        }
+        const else_block = if_.get(components.ElseBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(else_block.len, 1);
+        {
+            const int_const = else_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "30");
+            try expectEqual(typeOf(result), builtin_types[i]);
+        }
+        const finally_block = if_.get(components.FinallyBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(finally_block.len, 0);
+        const result = if_.get(components.Result).entity;
+        try expectEqual(typeOf(result), builtin_types[i]);
+    }
+}
+
+test "lower variables persist through nested scopes" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "I64", "I32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.F64, builtins.F32 };
+    const less_thans = [_]components.IrInstructionKind{ .i64_lt, .i32_lt, .f64_lt, .f32_lt };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  y: {s} = 20
+            \\  if x < y then x else y end
+            \\end
+        , .{ type_, type_, type_ }));
+        const ir = try lower(codebase, fs, "foo.yeti", "start");
+        const top_level = ir.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const basic_blocks = start.get(components.BasicBlocks).slice();
+        try expectEqual(basic_blocks.len, 4);
+        const basic_block = basic_blocks[0].get(components.IrInstructions).slice();
+        try expectEqual(basic_block.len, 8);
+        const x = blk: {
+            const int_const = basic_block[0];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "10");
+            try expectEqual(typeOf(result), builtin_types[i]);
+            const set_local = basic_block[1];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            break :blk result;
+        };
+        const y = blk: {
+            const int_const = basic_block[2];
+            try expectEqual(int_const.get(components.IrInstructionKind), .int_const);
+            const result = int_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "20");
+            try expectEqual(typeOf(result), builtin_types[i]);
+            const set_local = basic_block[3];
+            try expectEqual(set_local.get(components.IrInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            break :blk result;
+        };
+        {
+            const get_local = basic_block[4];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, x);
+        }
+        {
+            const get_local = basic_block[5];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, y);
+        }
+        const less_than = basic_block[6];
+        try expectEqual(less_than.get(components.IrInstructionKind), less_thans[i]);
+        const if_ = basic_block[7];
+        try expectEqual(if_.get(components.IrInstructionKind), .if_);
+        const then_block = if_.get(components.ThenBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(then_block.len, 1);
+        {
+            const get_local = then_block[0];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, x);
+        }
+        const else_block = if_.get(components.ElseBlock).entity.get(components.IrInstructions).slice();
+        try expectEqual(else_block.len, 1);
+        {
+            const get_local = else_block[0];
+            try expectEqual(get_local.get(components.IrInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, y);
         }
         const finally_block = if_.get(components.FinallyBlock).entity.get(components.IrInstructions).slice();
         try expectEqual(finally_block.len, 0);
