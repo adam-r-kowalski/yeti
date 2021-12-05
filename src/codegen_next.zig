@@ -42,7 +42,7 @@ fn codegenNumber(context: Context, entity: Entity) !void {
         if (!eql(type_, builtin)) continue;
         const wasm_instruction = try context.codebase.createEntity(.{
             kinds[i],
-            components.Result.init(entity),
+            components.Constant.init(entity),
         });
         _ = try context.wasm_instructions.append(wasm_instruction);
         return;
@@ -57,11 +57,44 @@ fn codegenCall(context: Context, entity: Entity) !void {
     _ = try context.wasm_instructions.append(wasm_instruction);
 }
 
-fn codegenEntity(context: Context, entity: Entity) !void {
+fn codegenDefine(context: Context, entity: Entity) !void {
+    const type_of = typeOf(entity);
+    const b = context.builtins;
+    for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
+        if (!eql(type_of, builtin)) continue;
+        return;
+    }
+    try codegenEntity(context, entity.get(components.Value).entity);
+    const wasm_instruction = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.set_local,
+        components.Local.init(entity),
+    });
+    _ = try context.wasm_instructions.append(wasm_instruction);
+    try context.locals.put(entity);
+    return;
+}
+
+fn codegenLocal(context: Context, entity: Entity) !void {
+    const type_of = typeOf(entity);
+    const b = context.builtins;
+    for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
+        if (!eql(type_of, builtin)) continue;
+        return;
+    }
+    const wasm_instruction = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.get_local,
+        entity.get(components.Local),
+    });
+    _ = try context.wasm_instructions.append(wasm_instruction);
+}
+
+fn codegenEntity(context: Context, entity: Entity) error{OutOfMemory}!void {
     const kind = entity.get(components.AstKind);
     switch (kind) {
         .int, .float => try codegenNumber(context, entity),
         .call => try codegenCall(context, entity),
+        .define => try codegenDefine(context, entity),
+        .local => try codegenLocal(context, entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }
 }
@@ -109,11 +142,11 @@ test "codegen int literal" {
         try expectEqual(wasm_instructions.len, 1);
         const constant = wasm_instructions[0];
         try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
-        try expectEqualStrings(literalOf(constant.get(components.Result).entity), "5");
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "5");
     }
 }
 
-test "codegen int literal" {
+test "codegen float literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -134,7 +167,7 @@ test "codegen int literal" {
         try expectEqual(wasm_instructions.len, 1);
         const constant = wasm_instructions[0];
         try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
-        try expectEqualStrings(literalOf(constant.get(components.Result).entity), "5");
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "5");
     }
 }
 
@@ -168,6 +201,96 @@ test "codegen call local function" {
         try expectEqual(baz_instructions.len, 1);
         const constant = baz_instructions[0];
         try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
-        try expectEqualStrings(literalOf(constant.get(components.Result).entity), "10");
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
+    }
+}
+
+test "codegen define" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  x
+            \\end
+        , .{ type_, type_ }));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 3);
+        const i64_const = start_instructions[0];
+        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+        const x = i64_const.get(components.Constant).entity;
+        try expectEqualStrings(literalOf(x), "10");
+        const set_local = start_instructions[1];
+        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+        const local = set_local.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
+        const get_local = start_instructions[2];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        try expectEqual(get_local.get(components.Local).entity, local);
+    }
+}
+
+test "codegen add" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const add_kinds = [_]components.WasmInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  y: {s} = 32
+            \\  x + y
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 7);
+        const x = blk: {
+            const i64_const = start_instructions[0];
+            try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+            const result = i64_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "10");
+            const set_local = start_instructions[1];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            break :blk result;
+        };
+        const y = blk: {
+            const i64_const = start_instructions[2];
+            try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
+            const result = i64_const.get(components.Result).entity;
+            try expectEqualStrings(literalOf(result), "32");
+            const set_local = start_instructions[3];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            try expectEqual(set_local.get(components.Result).entity, result);
+            break :blk result;
+        };
+        {
+            const get_local = start_instructions[4];
+            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, x);
+        }
+        {
+            const get_local = start_instructions[5];
+            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(get_local.get(components.Result).entity, y);
+        }
+        try expectEqual(start_instructions[6].get(components.WasmInstructionKind), add_kinds[i]);
     }
 }

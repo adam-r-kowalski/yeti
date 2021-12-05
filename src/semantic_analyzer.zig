@@ -45,7 +45,7 @@ fn Context(comptime FileSystem: type) type {
             exact,
         };
 
-        fn implicitlyConvertibleTo(self: *Self, to: Entity, from: Entity) Match {
+        fn convertibleTo(self: *Self, to: Entity, from: Entity) Match {
             if (eql(to, from)) return .exact;
             const b = self.builtins;
             const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
@@ -67,7 +67,7 @@ fn Context(comptime FileSystem: type) type {
 
         fn implicitTypeConversion(self: *Self, value: Entity, expected_type: Entity) error{OutOfMemory}!void {
             const actual_type = typeOf(value);
-            assert(self.implicitlyConvertibleTo(expected_type, actual_type) != .no);
+            assert(self.convertibleTo(expected_type, actual_type) != .no);
             _ = try value.set(.{components.Type.init(expected_type)});
             if (value.has(components.DependentEntities)) |dependent_entities| {
                 for (dependent_entities.slice()) |entity| {
@@ -140,7 +140,7 @@ fn Context(comptime FileSystem: type) type {
                 for (parameters) |parameter, i| {
                     const parameter_type = typeOf(parameter);
                     const argument_type = typeOf(arguments[i]);
-                    switch (self.implicitlyConvertibleTo(parameter_type, argument_type)) {
+                    switch (self.convertibleTo(parameter_type, argument_type)) {
                         .exact => continue,
                         .implict_conversion => if (match == .exact) {
                             match = .implict_conversion;
@@ -216,10 +216,37 @@ fn Context(comptime FileSystem: type) type {
             return try context.analyzeCall(call);
         }
 
+        fn analyzeIntrinsic(self: *Self, entity: Entity, intrinsic: components.Intrinsic) !Entity {
+            const arguments = entity.get(components.Arguments).slice();
+            const lhs = try self.analyzeExpression(arguments[0]);
+            const rhs = try self.analyzeExpression(arguments[1]);
+            const lhs_type = typeOf(lhs);
+            const rhs_type = typeOf(rhs);
+            const b = self.builtins;
+            const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32, b.IntLiteral, b.FloatLiteral };
+            for (builtins) |builtin| {
+                if (!eql(lhs_type, builtin)) continue;
+                assert(self.convertibleTo(lhs_type, rhs_type) != .no);
+                const type_ = components.Type.init(lhs_type);
+                _ = try rhs.set(.{type_});
+                return try self.codebase.createEntity(.{
+                    components.AstKind.intrinsic,
+                    intrinsic,
+                    try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
+                    type_,
+                });
+            }
+            panic("\noperator overloading not yet implemented\n", .{});
+        }
+
         fn analyzeBinaryOp(self: *Self, entity: Entity) !Entity {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
                 .dot => self.analyzeDot(entity),
+                .add => self.analyzeIntrinsic(entity, .add),
+                .subtract => self.analyzeIntrinsic(entity, .subtract),
+                .multiply => self.analyzeIntrinsic(entity, .multiply),
+                .divide => self.analyzeIntrinsic(entity, .divide),
                 else => panic("\nanalyze binary op unsupported {}\n", .{binary_op}),
             };
         }
@@ -728,5 +755,59 @@ test "analyze semantics function call twice" {
         try expectEqual(local.get(components.AstKind), .local);
         try expectEqual(typeOf(local), builtin_types[i]);
         try expectEqual(local.get(components.Local).entity, x);
+    }
+}
+
+test "analyze semantics binary op two of the same type" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    const op_strings = [_][]const u8{ "+", "-", "*", "/" };
+    const intrinsics = [_]components.Intrinsic{ .add, .subtract, .multiply, .divide };
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): {s}
+                \\  x: {s} = 10
+                \\  y: {s} = 32
+                \\  x {s} y
+                \\end
+            , .{ type_, type_, type_, op_string }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const top_level = module.get(components.TopLevel);
+            const start = top_level.findString("start").get(components.Overloads).slice()[0];
+            try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+            try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+            try expectEqual(start.get(components.Parameters).len(), 0);
+            try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+            const body = start.get(components.AnalyzedBody).slice();
+            try expectEqual(body.len, 3);
+            const x = body[0];
+            try expectEqual(x.get(components.AstKind), .define);
+            try expectEqual(typeOf(x), builtin_types[i]);
+            try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+            try expectEqualStrings(literalOf(x.get(components.Value).entity), "10");
+            const y = body[1];
+            try expectEqual(y.get(components.AstKind), .define);
+            try expectEqual(typeOf(y), builtin_types[i]);
+            try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
+            try expectEqualStrings(literalOf(y.get(components.Value).entity), "32");
+            const intrinsic = body[2];
+            try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
+            try expectEqual(intrinsic.get(components.Intrinsic), intrinsics[op_index]);
+            try expectEqual(typeOf(intrinsic), builtin_types[i]);
+            const arguments = intrinsic.get(components.Arguments).slice();
+            try expectEqual(arguments.len, 2);
+            const lhs = arguments[0];
+            try expectEqual(lhs.get(components.AstKind), .local);
+            try expectEqual(lhs.get(components.Local).entity, x);
+            const rhs = arguments[1];
+            try expectEqual(rhs.get(components.AstKind), .local);
+            try expectEqual(rhs.get(components.Local).entity, y);
+        }
     }
 }

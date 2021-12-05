@@ -244,6 +244,7 @@ pub const AstKind = enum(u8) {
     overload_set,
     if_,
     local,
+    intrinsic,
 };
 
 pub const BinaryOp = enum(u8) {
@@ -266,12 +267,20 @@ pub const BinaryOp = enum(u8) {
     dot,
 };
 
+pub const Intrinsic = enum(u8) {
+    add,
+    subtract,
+    multiply,
+    divide,
+};
+
 pub const LoweredParameters = struct { value: bool };
 pub const LoweredBody = struct { value: bool };
 
 pub const AnalyzedParameters = struct { value: bool };
 pub const AnalyzedBody = DistinctList("Analyzed Body", Entity);
 pub const Local = DistinctEntity("Local");
+pub const Constant = DistinctEntity("Constant");
 
 pub const IrInstructionKind = enum(u8) {
     int_const,
