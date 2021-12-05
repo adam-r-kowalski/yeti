@@ -491,8 +491,8 @@ test "analyze semantics define" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "F64", "F32" };
-    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
@@ -519,5 +519,145 @@ test "analyze semantics define" {
         try expectEqual(local.get(components.AstKind), .local);
         try expectEqual(local.get(components.Local).entity, define);
         try expectEqual(typeOf(local), builtin_types[i]);
+    }
+}
+
+test "analyze semantics two defines" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x = 10
+            \\  y = 15
+            \\  x
+            \\end
+        , .{type_}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const body = start.get(components.AnalyzedBody).slice();
+        try expectEqual(body.len, 3);
+        const x = body[0];
+        try expectEqual(x.get(components.AstKind), .define);
+        try expectEqual(typeOf(x), builtin_types[i]);
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+        try expectEqualStrings(literalOf(x.get(components.Value).entity), "10");
+        const y = body[1];
+        try expectEqual(y.get(components.AstKind), .define);
+        try expectEqual(typeOf(y), builtins.IntLiteral);
+        try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
+        try expectEqualStrings(literalOf(y.get(components.Value).entity), "15");
+        const local = body[2];
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqual(local.get(components.Local).entity, x);
+        try expectEqual(typeOf(local), builtin_types[i]);
+    }
+}
+
+test "analyze semantics define with explicit float type" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  x
+            \\end
+        , .{ type_, type_ }));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const body = start.get(components.AnalyzedBody).slice();
+        try expectEqual(body.len, 2);
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtin_types[i]);
+        try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+        const local = body[1];
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqual(local.get(components.Local).entity, define);
+        try expectEqual(typeOf(local), builtin_types[i]);
+    }
+}
+
+test "analyze semantics function with argument" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  id(x)
+            \\end
+            \\
+            \\id = function(x: {s}): {s}
+            \\  x
+            \\end
+        , .{ type_, type_, type_, type_ }));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const id = blk: {
+            const body = start.get(components.AnalyzedBody).slice();
+            try expectEqual(body.len, 2);
+            const define = body[0];
+            try expectEqual(define.get(components.AstKind), .define);
+            try expectEqual(typeOf(define), builtin_types[i]);
+            try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+            try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+            const call = body[1];
+            try expectEqual(call.get(components.AstKind), .call);
+            try expectEqual(typeOf(call), builtin_types[i]);
+            const arguments = call.get(components.Arguments).slice();
+            try expectEqual(arguments.len, 1);
+            const argument = arguments[0];
+            try expectEqual(argument.get(components.AstKind), .local);
+            try expectEqual(typeOf(argument), builtin_types[i]);
+            try expectEqual(argument.get(components.Local).entity, define);
+
+            break :blk call.get(components.Callable).entity;
+        };
+        try expectEqualStrings(literalOf(id.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
+        const parameters = id.get(components.Parameters).slice();
+        try expectEqual(parameters.len, 1);
+        const x = parameters[0];
+        try expectEqual(typeOf(x), builtin_types[i]);
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+        const body = id.get(components.AnalyzedBody).slice();
+        try expectEqual(body.len, 1);
+        const local = body[0];
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqual(typeOf(local), builtin_types[i]);
+        try expectEqual(local.get(components.Local).entity, x);
     }
 }
