@@ -267,6 +267,8 @@ pub const BinaryOp = enum(u8) {
 
 pub const LoweredParameters = struct { value: bool };
 pub const LoweredBody = struct { value: bool };
+pub const AnalyzedParameters = struct { value: bool };
+pub const AnalyzedBody = DistinctList("Analyzed Body", Entity);
 
 pub const IrInstructionKind = enum(u8) {
     int_const,
@@ -523,5 +525,9 @@ pub const Scopes = struct {
 
     pub fn hasName(self: Self, name: Name) ?Entity {
         return self.hasLiteral(name.entity.get(Literal));
+    }
+
+    pub fn slice(self: Self) []const Map {
+        return self.scopes.slice();
     }
 };

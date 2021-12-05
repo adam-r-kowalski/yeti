@@ -1274,7 +1274,7 @@ test "call function from import" {
     }
 }
 
-test "lower assignment" {
+test "lower define" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
