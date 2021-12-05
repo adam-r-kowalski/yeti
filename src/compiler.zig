@@ -6,6 +6,7 @@ pub const ECS = @import("ecs.zig").ECS;
 pub const FileSystem = @import("file_system.zig").FileSystem;
 pub const List = @import("list.zig").List;
 pub const lower = @import("lower.zig").lower;
+pub const analyzeSemantics = @import("semantic_analyzer.zig").analyzeSemantics;
 pub const parse = @import("parser.zig").parse;
 pub const Strings = @import("strings.zig").Strings;
 pub const tokenize = @import("tokenizer.zig").tokenize;

@@ -80,7 +80,12 @@ fn Context(comptime FileSystem: type) type {
             const literal = entity.get(components.Literal);
             const scopes = self.function.get(components.Scopes);
             if (scopes.hasLiteral(literal)) |local| {
-                return local;
+                return try self.codebase.createEntity(.{
+                    components.AstKind.local,
+                    components.Local.init(local),
+                    local.get(components.Type),
+                    try components.DependentEntities.fromSlice(self.allocator, &.{local}),
+                });
             }
             const global_scope = self.codebase.get(components.Scope);
             if (global_scope.hasLiteral(literal)) |global| {
@@ -219,6 +224,24 @@ fn Context(comptime FileSystem: type) type {
             };
         }
 
+        fn analyzeDefine(self: *Self, define: Entity) !Entity {
+            const scopes = self.function.getPtr(components.Scopes);
+            const value = try self.analyzeExpression(define.get(components.Value).entity);
+            if (define.has(components.TypeAst)) |type_ast| {
+                const explicit_type = try analyzeExpression(self, type_ast.entity);
+                try self.implicitTypeConversion(value, explicit_type);
+            }
+            const name = define.get(components.Name);
+            const analyzed_define = try self.codebase.createEntity(.{
+                components.AstKind.define,
+                components.Value.init(value),
+                name,
+                value.get(components.Type),
+            });
+            try scopes.putName(name, analyzed_define);
+            return analyzed_define;
+        }
+
         fn analyzeExpression(self: *Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes }!Entity {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
@@ -226,6 +249,7 @@ fn Context(comptime FileSystem: type) type {
                 .int, .float => entity,
                 .call => try self.analyzeCall(entity),
                 .binary_op => try self.analyzeBinaryOp(entity),
+                .define => try self.analyzeDefine(entity),
                 else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
             };
         }
@@ -485,10 +509,15 @@ test "analyze semantics define" {
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
         const body = start.get(components.AnalyzedBody).slice();
-        try expectEqual(body.len, 1);
-        const float_literal = body[0];
-        try expectEqual(float_literal.get(components.AstKind), .float);
-        try expectEqual(typeOf(float_literal), builtin_types[i]);
-        try expectEqualStrings(literalOf(float_literal), "5.3");
+        try expectEqual(body.len, 2);
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtin_types[i]);
+        try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+        const local = body[1];
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqual(local.get(components.Local).entity, define);
+        try expectEqual(typeOf(local), builtin_types[i]);
     }
 }
