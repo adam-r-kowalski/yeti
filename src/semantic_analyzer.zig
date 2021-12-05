@@ -118,7 +118,7 @@ fn Context(comptime FileSystem: type) type {
             var best_overload: Entity = undefined;
             var best_match = Match.no;
             for (top_level.findLiteral(literal).get(components.Overloads).slice()) |overload| {
-                if (!overload.contains(components.LoweredParameters)) {
+                if (!overload.contains(components.AnalyzedParameters)) {
                     var scopes = components.Scopes.init(self.allocator, self.codebase.getPtr(Strings));
                     const scope = try scopes.pushScope();
                     _ = try overload.set(.{scopes});
@@ -170,7 +170,7 @@ fn Context(comptime FileSystem: type) type {
                 analyzed_arguments.appendAssumeCapacity(try self.analyzeExpression(argument));
             }
             const overload = try self.bestOverload(callable, analyzed_arguments.slice());
-            if (!overload.contains(components.LoweredBody)) {
+            if (!overload.contains(components.AnalyzedBody)) {
                 const scopes = overload.getPtr(components.Scopes).slice();
                 assert(scopes.len == 1);
                 const active_scopes = [_]u64{0};
@@ -646,6 +646,75 @@ test "analyze semantics function with argument" {
 
             break :blk call.get(components.Callable).entity;
         };
+        try expectEqualStrings(literalOf(id.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
+        const parameters = id.get(components.Parameters).slice();
+        try expectEqual(parameters.len, 1);
+        const x = parameters[0];
+        try expectEqual(typeOf(x), builtin_types[i]);
+        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+        const body = id.get(components.AnalyzedBody).slice();
+        try expectEqual(body.len, 1);
+        const local = body[0];
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqual(typeOf(local), builtin_types[i]);
+        try expectEqual(local.get(components.Local).entity, x);
+    }
+}
+
+test "analyze semantics function call twice" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x = id(10)
+            \\  id(25)
+            \\end
+            \\
+            \\id = function(x: {s}): {s}
+            \\  x
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const start_body = start.get(components.AnalyzedBody).slice();
+        try expectEqual(start_body.len, 2);
+        const id = blk: {
+            const define = start_body[0];
+            try expectEqual(define.get(components.AstKind), .define);
+            try expectEqual(typeOf(define), builtin_types[i]);
+            try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+            const call = define.get(components.Value).entity;
+            try expectEqual(call.get(components.AstKind), .call);
+            const arguments = call.get(components.Arguments).slice();
+            try expectEqual(arguments.len, 1);
+            const argument = arguments[0];
+            try expectEqual(argument.get(components.AstKind), .int);
+            try expectEqual(typeOf(argument), builtin_types[i]);
+            try expectEqualStrings(literalOf(argument), "10");
+            break :blk call.get(components.Callable).entity;
+        };
+        const call = start_body[1];
+        try expectEqual(call.get(components.AstKind), .call);
+        try expectEqual(typeOf(call), builtin_types[i]);
+        const arguments = call.get(components.Arguments).slice();
+        try expectEqual(arguments.len, 1);
+        const argument = arguments[0];
+        try expectEqual(argument.get(components.AstKind), .int);
+        try expectEqual(typeOf(argument), builtin_types[i]);
+        try expectEqualStrings(literalOf(argument), "25");
+        try expectEqual(call.get(components.Callable).entity, id);
         try expectEqualStrings(literalOf(id.get(components.Module).entity), "foo");
         try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
         const parameters = id.get(components.Parameters).slice();
