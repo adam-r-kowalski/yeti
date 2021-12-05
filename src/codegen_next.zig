@@ -71,7 +71,6 @@ pub fn codegen(module: Entity) !void {
     const allocator = &codebase.arena.allocator;
     const builtins = codebase.get(components.Builtins);
     for (module.ecs.get(components.Functions).slice()) |function| {
-        std.debug.print("\ncodegen function {s}\n", .{literalOf(function.get(components.Name).entity)});
         var locals = components.Locals.init(allocator);
         var wasm_instructions = components.WasmInstructions.init(allocator);
         const context = Context{
@@ -81,7 +80,7 @@ pub fn codegen(module: Entity) !void {
             .allocator = allocator,
             .builtins = builtins,
         };
-        const body = function.get(components.Body).slice();
+        const body = function.get(components.AnalyzedBody).slice();
         for (body) |entity| {
             try codegenEntity(context, entity);
         }
@@ -143,10 +142,9 @@ test "codegen call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{"I64"};
-    // const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
-    // const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
-    for (types) |type_| {
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
@@ -165,11 +163,11 @@ test "codegen call local function" {
         try expectEqual(start_instructions.len, 1);
         const call = start_instructions[0];
         try expectEqual(call.get(components.WasmInstructionKind), .call);
-        // const baz = call.get(components.Callable).entity;
-        // const baz_instructions = baz.get(components.WasmInstructions).slice();
-        // try expectEqual(baz_instructions.len, 1);
-        // const i64_const = baz_instructions[0];
-        // try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
-        // try expectEqualStrings(literalOf(i64_const.get(components.Result).entity), "10");
+        const baz = call.get(components.Callable).entity;
+        const baz_instructions = baz.get(components.WasmInstructions).slice();
+        try expectEqual(baz_instructions.len, 1);
+        const constant = baz_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(constant.get(components.Result).entity), "10");
     }
 }
