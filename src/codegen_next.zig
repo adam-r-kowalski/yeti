@@ -19,6 +19,7 @@ const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
 const typeOf = test_utils.typeOf;
 const List = @import("list.zig").List;
+const Strings = @import("strings.zig").Strings;
 
 const Context = struct {
     codebase: *ECS,
@@ -64,7 +65,17 @@ fn codegenDefine(context: Context, entity: Entity) !void {
         if (!eql(type_of, builtin)) continue;
         return;
     }
-    try codegenEntity(context, entity.get(components.Value).entity);
+    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+    const types = [_]type{ i64, i32, u64, u32, f64, f32 };
+    const value = entity.get(components.Value).entity;
+    inline for (&types) |T, i| {
+        if (eql(builtins[i], type_of)) {
+            if (try valueOf(T, value)) |_| {
+                return;
+            }
+        }
+    }
+    try codegenEntity(context, value);
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.set_local,
         components.Local.init(entity),
@@ -81,20 +92,113 @@ fn codegenLocal(context: Context, entity: Entity) !void {
         if (!eql(type_of, builtin)) continue;
         return;
     }
+    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+    const types = [_]type{ i64, i32, u64, u32, f64, f32 };
+    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const local = entity.get(components.Local).entity;
+    const value = local.get(components.Value).entity;
+    inline for (&types) |T, i| {
+        if (eql(builtins[i], type_of)) {
+            if (try valueOf(T, value)) |_| {
+                const wasm_instruction = try context.codebase.createEntity(.{
+                    kinds[i],
+                    components.Constant.init(value),
+                });
+                _ = try context.wasm_instructions.append(wasm_instruction);
+                return;
+            }
+        }
+    }
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.get_local,
-        entity.get(components.Local),
+        local,
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
 }
 
-fn codegenEntity(context: Context, entity: Entity) error{OutOfMemory}!void {
+fn valueOf(comptime T: type, entity: Entity) !?T {
+    if (entity.has(T)) |value| {
+        return value;
+    }
+    if (entity.has(components.Literal)) |literal| {
+        const string = entity.ecs.get(Strings).get(literal.interned);
+        const types = [_]type{ i64, i32, u64, u32 };
+        inline for (&types) |E| {
+            if (T == E) {
+                const value = try std.fmt.parseInt(T, string, 10);
+                _ = try entity.set(.{value});
+                return value;
+            }
+        }
+        const float_types = [_]type{ f64, f32 };
+        inline for (&float_types) |E| {
+            if (T == E) {
+                const value = try std.fmt.parseFloat(T, string);
+                _ = try entity.set(.{value});
+                return value;
+            }
+        }
+        panic("\nvalue of unsupported type {s}\n", .{@typeName(T)});
+    }
+    return null;
+}
+
+fn codegenAdd(context: Context, entity: Entity) !void {
+    const arguments = entity.get(components.Arguments).slice();
+    try codegenEntity(context, arguments[0]);
+    try codegenEntity(context, arguments[1]);
+    const type_of = typeOf(entity);
+    const b = context.builtins;
+    const types = [_]type{ i64, i32, u64, u32, f64, f32 };
+    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    inline for (&types) |T, i| {
+        if (eql(type_of, builtins[i])) {
+            const instructions = context.wasm_instructions.mutSlice();
+            const rhs = instructions[instructions.len - 1];
+            const lhs = instructions[instructions.len - 2];
+            const lhs_kind = lhs.get(components.WasmInstructionKind);
+            const rhs_kind = rhs.get(components.WasmInstructionKind);
+            const kind = kinds[i];
+            if (lhs_kind == kind and rhs_kind == kind) {
+                const lhs_value = (try valueOf(T, lhs.get(components.Constant).entity)).?;
+                const rhs_value = (try valueOf(T, rhs.get(components.Constant).entity)).?;
+                const result_value = lhs_value + rhs_value;
+                const result_literal = try std.fmt.allocPrint(context.allocator, "{}", .{result_value});
+                const interned = try context.codebase.getPtr(Strings).intern(result_literal);
+                const result = try context.codebase.createEntity(.{
+                    components.Type.init(type_of),
+                    components.Literal.init(interned),
+                    result_value,
+                });
+                instructions[instructions.len - 2] = try context.codebase.createEntity(.{
+                    kind,
+                    components.Constant.init(result),
+                });
+                context.wasm_instructions.shrink(1);
+                return;
+            }
+        }
+    }
+    panic("\ncodegen add :)\n", .{});
+}
+
+fn codegenIntrinsic(context: Context, entity: Entity) !void {
+    const intrinsic = entity.get(components.Intrinsic);
+    switch (intrinsic) {
+        .add => try codegenAdd(context, entity),
+        else => panic("\ncodegen intrinsic {} not implmented\n", .{intrinsic}),
+    }
+}
+
+fn codegenEntity(context: Context, entity: Entity) error{ OutOfMemory, Overflow, InvalidCharacter }!void {
     const kind = entity.get(components.AstKind);
     switch (kind) {
         .int, .float => try codegenNumber(context, entity),
         .call => try codegenCall(context, entity),
         .define => try codegenDefine(context, entity),
         .local => try codegenLocal(context, entity),
+        .intrinsic => try codegenIntrinsic(context, entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }
 }
@@ -224,34 +328,52 @@ test "codegen define" {
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         const start_instructions = start.get(components.WasmInstructions).slice();
-        try expectEqual(start_instructions.len, 3);
-        const i64_const = start_instructions[0];
-        try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
-        const x = i64_const.get(components.Constant).entity;
-        try expectEqualStrings(literalOf(x), "10");
-        const set_local = start_instructions[1];
-        try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-        const local = set_local.get(components.Local).entity;
-        try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
-        const get_local = start_instructions[2];
-        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-        try expectEqual(get_local.get(components.Local).entity, local);
+        try expectEqual(start_instructions.len, 1);
+        const constant = start_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
     }
 }
 
-test "codegen add" {
+test "codegen add two int literals" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
-    const add_kinds = [_]components.WasmInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add };
+    const results = [_][]const u8{ "10", "10", "10", "10", "1.0e+01", "1.0e+01" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
-            \\  x: {s} = 10
-            \\  y: {s} = 32
+            \\  8 + 2
+            \\end
+        , .{type_}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 1);
+        const constant = start_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), results[i]);
+    }
+}
+
+test "codegen add two local constants" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const results = [_][]const u8{ "10", "10", "10", "10", "1.0e+01", "1.0e+01" };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 8
+            \\  y: {s} = 2
             \\  x + y
             \\end
         , .{ type_, type_, type_ }));
@@ -260,37 +382,9 @@ test "codegen add" {
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         const start_instructions = start.get(components.WasmInstructions).slice();
-        try expectEqual(start_instructions.len, 7);
-        const x = blk: {
-            const i64_const = start_instructions[0];
-            try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
-            const result = i64_const.get(components.Result).entity;
-            try expectEqualStrings(literalOf(result), "10");
-            const set_local = start_instructions[1];
-            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-            try expectEqual(set_local.get(components.Result).entity, result);
-            break :blk result;
-        };
-        const y = blk: {
-            const i64_const = start_instructions[2];
-            try expectEqual(i64_const.get(components.WasmInstructionKind), const_kinds[i]);
-            const result = i64_const.get(components.Result).entity;
-            try expectEqualStrings(literalOf(result), "32");
-            const set_local = start_instructions[3];
-            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-            try expectEqual(set_local.get(components.Result).entity, result);
-            break :blk result;
-        };
-        {
-            const get_local = start_instructions[4];
-            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-            try expectEqual(get_local.get(components.Result).entity, x);
-        }
-        {
-            const get_local = start_instructions[5];
-            try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-            try expectEqual(get_local.get(components.Result).entity, y);
-        }
-        try expectEqual(start_instructions[6].get(components.WasmInstructionKind), add_kinds[i]);
+        try expectEqual(start_instructions.len, 1);
+        const constant = start_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), results[i]);
     }
 }

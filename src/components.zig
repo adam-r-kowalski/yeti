@@ -26,42 +26,50 @@ pub fn DistinctEntity(comptime unique_id: []const u8) type {
 pub fn DistinctList(comptime unique_id: []const u8, comptime T: type) type {
     assert(unique_id.len > 0);
     return struct {
-        entities: List(T, .{}),
+        values: List(T, .{}),
 
         const Self = @This();
 
         pub fn init(allocator: *Allocator) Self {
-            return Self{ .entities = List(T, .{}).init(allocator) };
+            return Self{ .values = List(T, .{}).init(allocator) };
         }
 
-        pub fn fromSlice(allocator: *Allocator, entities: []T) !Self {
-            const list = try List(T, .{}).fromSlice(allocator, entities);
-            return Self{ .entities = list };
+        pub fn fromSlice(allocator: *Allocator, values: []T) !Self {
+            const list = try List(T, .{}).fromSlice(allocator, values);
+            return Self{ .values = list };
         }
 
         pub fn withCapacity(allocator: *Allocator, capacity: u64) !Self {
             const list = try List(T, .{}).withCapacity(allocator, capacity);
-            return Self{ .entities = list };
+            return Self{ .values = list };
         }
 
         pub fn append(self: *Self, entity: T) !void {
-            try self.entities.append(entity);
+            try self.values.append(entity);
         }
 
         pub fn appendAssumeCapacity(self: *Self, entity: T) void {
-            self.entities.appendAssumeCapacity(entity);
+            self.values.appendAssumeCapacity(entity);
         }
 
         pub fn slice(self: Self) []const T {
-            return self.entities.slice();
+            return self.values.slice();
+        }
+
+        pub fn mutSlice(self: Self) []T {
+            return self.values.mutSlice();
+        }
+
+        pub fn shrink(self: *Self, n: u64) void {
+            self.values.len -= n;
         }
 
         pub fn last(self: Self) T {
-            return self.entities.last();
+            return self.values.last();
         }
 
         pub fn len(self: Self) u64 {
-            return self.entities.len;
+            return self.values.len;
         }
     };
 }

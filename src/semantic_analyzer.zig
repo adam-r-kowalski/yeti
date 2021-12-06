@@ -229,12 +229,18 @@ fn Context(comptime FileSystem: type) type {
                 assert(self.convertibleTo(lhs_type, rhs_type) != .no);
                 const type_ = components.Type.init(lhs_type);
                 _ = try rhs.set(.{type_});
-                return try self.codebase.createEntity(.{
+                const result = try self.codebase.createEntity(.{
                     components.AstKind.intrinsic,
                     intrinsic,
                     try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
                     type_,
                 });
+                if (eql(builtin, b.IntLiteral) or eql(builtin, b.FloatLiteral)) {
+                    _ = try result.set(.{
+                        try components.DependentEntities.fromSlice(self.allocator, &.{ lhs, rhs }),
+                    });
+                }
+                return result;
             }
             panic("\noperator overloading not yet implemented\n", .{});
         }

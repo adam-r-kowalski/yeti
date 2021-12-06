@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub const codegen = @import("codegen.zig").codegen;
+pub const codegen_next = @import("codegen_next.zig").codegen;
 pub const initCodebase = @import("init_codebase.zig").initCodebase;
 pub const ECS = @import("ecs.zig").ECS;
 pub const FileSystem = @import("file_system.zig").FileSystem;
