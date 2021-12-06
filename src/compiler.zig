@@ -13,6 +13,7 @@ pub const Strings = @import("strings.zig").Strings;
 pub const tokenize = @import("tokenizer.zig").tokenize;
 pub const typeid = @import("typeid.zig").typeid;
 pub const wasmString = @import("wasm_string.zig").wasmString;
+pub const printWasm = @import("wasm_printer.zig").printWasm;
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
