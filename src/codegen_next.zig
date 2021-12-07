@@ -30,17 +30,17 @@ const Context = struct {
 };
 
 fn codegenNumber(context: Context, entity: Entity) !void {
-    const type_ = typeOf(entity);
+    const type_of = typeOf(entity);
     const b = context.builtins;
     for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
-        if (eql(type_, builtin)) {
+        if (eql(type_of, builtin)) {
             return;
         }
     }
     const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
     const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (builtins) |builtin, i| {
-        if (!eql(type_, builtin)) continue;
+        if (!eql(type_of, builtin)) continue;
         const wasm_instruction = try context.codebase.createEntity(.{
             kinds[i],
             components.Constant.init(entity),
@@ -51,6 +51,9 @@ fn codegenNumber(context: Context, entity: Entity) !void {
 }
 
 fn codegenCall(context: Context, entity: Entity) !void {
+    for (entity.get(components.Arguments).slice()) |argument| {
+        try codegenEntity(context, argument);
+    }
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.call,
         entity.get(components.Callable),
@@ -96,16 +99,18 @@ fn codegenLocal(context: Context, entity: Entity) !void {
     const types = [_]type{ i64, i32, u64, u32, f64, f32 };
     const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     const local = entity.get(components.Local).entity;
-    const value = local.get(components.Value).entity;
-    inline for (&types) |T, i| {
-        if (eql(builtins[i], type_of)) {
-            if (try valueOf(T, value)) |_| {
-                const wasm_instruction = try context.codebase.createEntity(.{
-                    kinds[i],
-                    components.Constant.init(value),
-                });
-                _ = try context.wasm_instructions.append(wasm_instruction);
-                return;
+    if (local.has(components.Value)) |value_component| {
+        const value = value_component.entity;
+        inline for (&types) |T, i| {
+            if (eql(builtins[i], type_of)) {
+                if (try valueOf(T, value)) |_| {
+                    const wasm_instruction = try context.codebase.createEntity(.{
+                        kinds[i],
+                        components.Constant.init(value),
+                    });
+                    _ = try context.wasm_instructions.append(wasm_instruction);
+                    return;
+                }
             }
         }
     }
@@ -151,7 +156,8 @@ fn codegenAdd(context: Context, entity: Entity) !void {
     const b = context.builtins;
     const types = [_]type{ i64, i32, u64, u32, f64, f32 };
     const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
-    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const constant_kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const add_kinds = &[_]components.WasmInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add };
     inline for (&types) |T, i| {
         if (eql(type_of, builtins[i])) {
             const instructions = context.wasm_instructions.mutSlice();
@@ -159,7 +165,7 @@ fn codegenAdd(context: Context, entity: Entity) !void {
             const lhs = instructions[instructions.len - 2];
             const lhs_kind = lhs.get(components.WasmInstructionKind);
             const rhs_kind = rhs.get(components.WasmInstructionKind);
-            const kind = kinds[i];
+            const kind = constant_kinds[i];
             if (lhs_kind == kind and rhs_kind == kind) {
                 const lhs_value = (try valueOf(T, lhs.get(components.Constant).entity)).?;
                 const rhs_value = (try valueOf(T, rhs.get(components.Constant).entity)).?;
@@ -178,9 +184,12 @@ fn codegenAdd(context: Context, entity: Entity) !void {
                 context.wasm_instructions.shrink(1);
                 return;
             }
+            const instruction = try context.codebase.createEntity(.{add_kinds[i]});
+            try context.wasm_instructions.append(instruction);
+            return;
         }
     }
-    panic("\ncodegen add :)\n", .{});
+    panic("\ncodegen add unspported type {s}\n", .{literalOf(type_of)});
 }
 
 fn codegenIntrinsic(context: Context, entity: Entity) !void {
@@ -386,5 +395,53 @@ test "codegen add two local constants" {
         const constant = start_instructions[0];
         try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
         try expectEqualStrings(literalOf(constant.get(components.Constant).entity), results[i]);
+    }
+}
+
+test "codegen add through two function calls" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const add_kinds = [_]components.WasmInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  id(10) + id(25)
+            \\end
+            \\
+            \\id = function(x: {s}): {s}
+            \\  x
+            \\end
+        , .{ type_, type_, type_ }));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 5);
+        const id = blk: {
+            const constant = start_instructions[0];
+            try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+            try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
+            const call = start_instructions[1];
+            try expectEqual(call.get(components.WasmInstructionKind), .call);
+            const callable = call.get(components.Callable).entity;
+            try expectEqualStrings(literalOf(callable.get(components.Name).entity), "id");
+            break :blk callable;
+        };
+        {
+            const constant = start_instructions[2];
+            try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+            try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "25");
+            const call = start_instructions[3];
+            try expectEqual(call.get(components.WasmInstructionKind), .call);
+            const callable = call.get(components.Callable).entity;
+            try expectEqual(callable, id);
+        }
+        const add = start_instructions[4];
+        try expectEqual(add.get(components.WasmInstructionKind), add_kinds[i]);
     }
 }

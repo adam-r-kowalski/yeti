@@ -764,7 +764,7 @@ test "analyze semantics function call twice" {
     }
 }
 
-test "analyze semantics binary op two of the same type" {
+test "analyze semantics binary op two comptime known" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
