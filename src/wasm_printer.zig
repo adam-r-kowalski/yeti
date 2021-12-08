@@ -463,6 +463,53 @@ test "print wasm int binary op" {
     }
 }
 
+test "print wasm arithmetic binary op non constant" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const op_strings = [_][]const u8{ "+", "-", "*", "/" };
+    const instructions = [_][6][]const u8{
+        [_][]const u8{ "i64.add", "i32.add", "i64.add", "i32.add", "f64.add", "f32.add" },
+        [_][]const u8{ "i64.sub", "i32.sub", "i64.sub", "i32.sub", "f64.sub", "f32.sub" },
+        [_][]const u8{ "i64.mul", "i32.mul", "i64.mul", "i32.mul", "f64.mul", "f32.mul" },
+        [_][]const u8{ "i64.div_s", "i32.div_s", "i64.div_u", "i32.div_u", "f64.div", "f32.div" },
+    };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): {s}
+                \\  id(10) {s} id(25)
+                \\end
+                \\
+                \\id = function(x: {s}): {s}
+                \\  x
+                \\end
+            , .{ type_, op_string, type_, type_ }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            try codegen(module);
+            const wasm = try printWasm(module);
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+                \\(module
+                \\
+                \\  (func $foo/start (result {s})
+                \\    ({s}.const 10)
+                \\    (call $foo/id)
+                \\    ({s}.const 25)
+                \\    (call $foo/id)
+                \\    {s})
+                \\
+                \\  (func $foo/id (param $x {s}) (result {s})
+                \\    (get_local $x))
+                \\
+                \\(export "_start" (func $foo/start)))
+            , .{ wasm_types[i], wasm_types[i], wasm_types[i], instructions[op_index][i], wasm_types[i], wasm_types[i] }));
+        }
+    }
+}
+
 test "print wasm int binary op non constant" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
