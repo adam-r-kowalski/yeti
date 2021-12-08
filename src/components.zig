@@ -280,6 +280,7 @@ pub const Intrinsic = enum(u8) {
     subtract,
     multiply,
     divide,
+    remainder,
 };
 
 pub const LoweredParameters = struct { value: bool };

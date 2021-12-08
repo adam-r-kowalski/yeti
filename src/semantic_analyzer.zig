@@ -253,6 +253,7 @@ fn Context(comptime FileSystem: type) type {
                 .subtract => self.analyzeIntrinsic(entity, .subtract),
                 .multiply => self.analyzeIntrinsic(entity, .multiply),
                 .divide => self.analyzeIntrinsic(entity, .divide),
+                .remainder => self.analyzeIntrinsic(entity, .remainder),
                 else => panic("\nanalyze binary op unsupported {}\n", .{binary_op}),
             };
         }

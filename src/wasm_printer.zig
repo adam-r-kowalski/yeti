@@ -385,32 +385,75 @@ test "print wasm assignment" {
     }
 }
 
-test "print wasm add" {
+test "print wasm arithmetic binary op" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
-    const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
-    const answers = [_][]const u8{ "42", "42", "4.2e+01" };
-    for (types) |type_, i| {
-        var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
-            \\start = function(): {s}
-            \\  x: {s} = 10
-            \\  y: {s} = 32
-            \\  x + y
-            \\end
-        , .{ type_, type_, type_ }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
-        try codegen(module);
-        const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
-            \\(module
-            \\
-            \\  (func $foo/start (result {s})
-            \\    ({s}.const {s}))
-            \\
-            \\(export "_start" (func $foo/start)))
-        , .{ wasm_types[i], wasm_types[i], answers[i] }));
+    const op_strings = [_][]const u8{ "+", "-", "*", "/" };
+    const results = [_][6][]const u8{
+        [_][]const u8{ "10", "10", "10", "10", "1.0e+01", "1.0e+01" },
+        [_][]const u8{ "6", "6", "6", "6", "6.0e+00", "6.0e+00" },
+        [_][]const u8{ "16", "16", "16", "16", "1.6e+01", "1.6e+01" },
+        [_][]const u8{ "4", "4", "4", "4", "4.0e+00", "4.0e+00" },
+    };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): {s}
+                \\  x: {s} = 8
+                \\  y: {s} = 2
+                \\  x {s} y
+                \\end
+            , .{ type_, type_, type_, op_string }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            try codegen(module);
+            const wasm = try printWasm(module);
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+                \\(module
+                \\
+                \\  (func $foo/start (result {s})
+                \\    ({s}.const {s}))
+                \\
+                \\(export "_start" (func $foo/start)))
+            , .{ wasm_types[i], wasm_types[i], results[op_index][i] }));
+        }
+    }
+}
+
+test "print wasm int binary op" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const op_strings = [_][]const u8{"%"};
+    const results = [_][4][]const u8{
+        [_][]const u8{ "0", "0", "0", "0" },
+    };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32" };
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): {s}
+                \\  x: {s} = 8
+                \\  y: {s} = 2
+                \\  x {s} y
+                \\end
+            , .{ type_, type_, type_, op_string }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            try codegen(module);
+            const wasm = try printWasm(module);
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+                \\(module
+                \\
+                \\  (func $foo/start (result {s})
+                \\    ({s}.const {s}))
+                \\
+                \\(export "_start" (func $foo/start)))
+            , .{ wasm_types[i], wasm_types[i], results[op_index][i] }));
+        }
     }
 }

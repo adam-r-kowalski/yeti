@@ -186,7 +186,7 @@ const InfixParser = union(enum) {
 };
 
 fn parseBinaryOp(codebase: *ECS, tokens: *Tokens, left: Entity, op: components.BinaryOp, precedence: u64) !Entity {
-    const right = try parseExpression(codebase, tokens, precedence);
+    const right = try parseExpression(codebase, tokens, precedence + 1);
     const arguments = try components.Arguments.fromSlice(&codebase.arena.allocator, &.{ left, right });
     return try codebase.createEntity(.{
         components.AstKind.binary_op,
