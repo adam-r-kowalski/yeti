@@ -283,6 +283,9 @@ pub const Intrinsic = enum(u8) {
     remainder,
     bit_and,
     bit_or,
+    bit_xor,
+    left_shift,
+    right_shift,
 };
 
 pub const LoweredParameters = struct { value: bool };

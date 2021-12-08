@@ -256,6 +256,9 @@ fn Context(comptime FileSystem: type) type {
                 .remainder => self.analyzeIntrinsic(entity, .remainder),
                 .bit_and => self.analyzeIntrinsic(entity, .bit_and),
                 .bit_or => self.analyzeIntrinsic(entity, .bit_or),
+                .bit_xor => self.analyzeIntrinsic(entity, .bit_xor),
+                .left_shift => self.analyzeIntrinsic(entity, .left_shift),
+                .right_shift => self.analyzeIntrinsic(entity, .right_shift),
                 else => panic("\nanalyze binary op unsupported {}\n", .{binary_op}),
             };
         }

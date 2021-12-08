@@ -110,74 +110,74 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
             try wasm.appendSlice(literalOf(wasm_instruction.get(components.Constant).entity));
             try wasm.append(')');
         },
-        .i64_add => try wasm.appendSlice("\n    (i64.add)"),
-        .i32_add => try wasm.appendSlice("\n    (i32.add)"),
-        .f64_add => try wasm.appendSlice("\n    (f64.add)"),
-        .f32_add => try wasm.appendSlice("\n    (f32.add)"),
-        .i64_sub => try wasm.appendSlice("\n    (i64.sub)"),
-        .i32_sub => try wasm.appendSlice("\n    (i32.sub)"),
-        .f64_sub => try wasm.appendSlice("\n    (f64.sub)"),
-        .f32_sub => try wasm.appendSlice("\n    (f32.sub)"),
-        .i64_mul => try wasm.appendSlice("\n    (i64.mul)"),
-        .i32_mul => try wasm.appendSlice("\n    (i32.mul)"),
-        .f64_mul => try wasm.appendSlice("\n    (f64.mul)"),
-        .f32_mul => try wasm.appendSlice("\n    (f32.mul)"),
-        .i64_div => try wasm.appendSlice("\n    (i64.div_s)"),
-        .i32_div => try wasm.appendSlice("\n    (i32.div_s)"),
-        .u64_div => try wasm.appendSlice("\n    (i64.div_u)"),
-        .u32_div => try wasm.appendSlice("\n    (i32.div_u)"),
-        .f64_div => try wasm.appendSlice("\n    (f64.div)"),
-        .f32_div => try wasm.appendSlice("\n    (f32.div)"),
-        .i64_lt => try wasm.appendSlice("\n    (i64.lt_s)"),
-        .i32_lt => try wasm.appendSlice("\n    (i32.lt_s)"),
-        .u64_lt => try wasm.appendSlice("\n    (i64.lt_u)"),
-        .u32_lt => try wasm.appendSlice("\n    (i32.lt_u)"),
-        .f64_lt => try wasm.appendSlice("\n    (f64.lt)"),
-        .f32_lt => try wasm.appendSlice("\n    (f32.lt)"),
-        .i64_le => try wasm.appendSlice("\n    (i64.le_s)"),
-        .i32_le => try wasm.appendSlice("\n    (i32.le_s)"),
-        .u64_le => try wasm.appendSlice("\n    (i64.le_u)"),
-        .u32_le => try wasm.appendSlice("\n    (i32.le_u)"),
-        .f64_le => try wasm.appendSlice("\n    (f64.le)"),
-        .f32_le => try wasm.appendSlice("\n    (f32.le)"),
-        .i64_gt => try wasm.appendSlice("\n    (i64.gt_s)"),
-        .i32_gt => try wasm.appendSlice("\n    (i32.gt_s)"),
-        .u64_gt => try wasm.appendSlice("\n    (i64.gt_u)"),
-        .u32_gt => try wasm.appendSlice("\n    (i32.gt_u)"),
-        .f64_gt => try wasm.appendSlice("\n    (f64.gt)"),
-        .f32_gt => try wasm.appendSlice("\n    (f32.gt)"),
-        .i64_ge => try wasm.appendSlice("\n    (i64.ge_s)"),
-        .i32_ge => try wasm.appendSlice("\n    (i32.ge_s)"),
-        .u64_ge => try wasm.appendSlice("\n    (i64.ge_u)"),
-        .u32_ge => try wasm.appendSlice("\n    (i32.ge_u)"),
-        .f64_ge => try wasm.appendSlice("\n    (f64.ge)"),
-        .f32_ge => try wasm.appendSlice("\n    (f32.ge)"),
-        .i64_eq => try wasm.appendSlice("\n    (i64.eq)"),
-        .i32_eq => try wasm.appendSlice("\n    (i32.eq)"),
-        .f64_eq => try wasm.appendSlice("\n    (f64.eq)"),
-        .f32_eq => try wasm.appendSlice("\n    (f32.eq)"),
-        .i64_ne => try wasm.appendSlice("\n    (i64.ne)"),
-        .i32_ne => try wasm.appendSlice("\n    (i32.ne)"),
-        .f64_ne => try wasm.appendSlice("\n    (f64.ne)"),
-        .f32_ne => try wasm.appendSlice("\n    (f32.ne)"),
-        .i64_or => try wasm.appendSlice("\n    (i64.or)"),
-        .i32_or => try wasm.appendSlice("\n    (i32.or)"),
-        .i64_and => try wasm.appendSlice("\n    (i64.and)"),
-        .i32_and => try wasm.appendSlice("\n    (i32.and)"),
-        .i64_shl => try wasm.appendSlice("\n    (i64.shl)"),
-        .i32_shl => try wasm.appendSlice("\n    (i32.shl)"),
-        .u64_shl => try wasm.appendSlice("\n    (i64.shl)"),
-        .u32_shl => try wasm.appendSlice("\n    (i32.shl)"),
-        .i64_shr => try wasm.appendSlice("\n    (i64.shr_s)"),
-        .i32_shr => try wasm.appendSlice("\n    (i32.shr_s)"),
-        .u64_shr => try wasm.appendSlice("\n    (i64.shr_u)"),
-        .u32_shr => try wasm.appendSlice("\n    (i32.shr_u)"),
-        .i64_rem => try wasm.appendSlice("\n    (i64.rem_s)"),
-        .i32_rem => try wasm.appendSlice("\n    (i32.rem_s)"),
-        .u64_rem => try wasm.appendSlice("\n    (i64.rem_u)"),
-        .u32_rem => try wasm.appendSlice("\n    (i32.rem_u)"),
-        .i64_xor => try wasm.appendSlice("\n    (i64.xor)"),
-        .i32_xor => try wasm.appendSlice("\n    (i32.xor)"),
+        .i64_add => try wasm.appendSlice("\n    i64.add"),
+        .i32_add => try wasm.appendSlice("\n    i32.add"),
+        .f64_add => try wasm.appendSlice("\n    f64.add"),
+        .f32_add => try wasm.appendSlice("\n    f32.add"),
+        .i64_sub => try wasm.appendSlice("\n    i64.sub"),
+        .i32_sub => try wasm.appendSlice("\n    i32.sub"),
+        .f64_sub => try wasm.appendSlice("\n    f64.sub"),
+        .f32_sub => try wasm.appendSlice("\n    f32.sub"),
+        .i64_mul => try wasm.appendSlice("\n    i64.mul"),
+        .i32_mul => try wasm.appendSlice("\n    i32.mul"),
+        .f64_mul => try wasm.appendSlice("\n    f64.mul"),
+        .f32_mul => try wasm.appendSlice("\n    f32.mul"),
+        .i64_div => try wasm.appendSlice("\n    i64.div_s"),
+        .i32_div => try wasm.appendSlice("\n    i32.div_s"),
+        .u64_div => try wasm.appendSlice("\n    i64.div_u"),
+        .u32_div => try wasm.appendSlice("\n    i32.div_u"),
+        .f64_div => try wasm.appendSlice("\n    f64.div"),
+        .f32_div => try wasm.appendSlice("\n    f32.div"),
+        .i64_lt => try wasm.appendSlice("\n    i64.lt_s"),
+        .i32_lt => try wasm.appendSlice("\n    i32.lt_s"),
+        .u64_lt => try wasm.appendSlice("\n    i64.lt_u"),
+        .u32_lt => try wasm.appendSlice("\n    i32.lt_u"),
+        .f64_lt => try wasm.appendSlice("\n    f64.lt"),
+        .f32_lt => try wasm.appendSlice("\n    f32.lt"),
+        .i64_le => try wasm.appendSlice("\n    i64.le_s"),
+        .i32_le => try wasm.appendSlice("\n    i32.le_s"),
+        .u64_le => try wasm.appendSlice("\n    i64.le_u"),
+        .u32_le => try wasm.appendSlice("\n    i32.le_u"),
+        .f64_le => try wasm.appendSlice("\n    f64.le"),
+        .f32_le => try wasm.appendSlice("\n    f32.le"),
+        .i64_gt => try wasm.appendSlice("\n    i64.gt_s"),
+        .i32_gt => try wasm.appendSlice("\n    i32.gt_s"),
+        .u64_gt => try wasm.appendSlice("\n    i64.gt_u"),
+        .u32_gt => try wasm.appendSlice("\n    i32.gt_u"),
+        .f64_gt => try wasm.appendSlice("\n    f64.gt"),
+        .f32_gt => try wasm.appendSlice("\n    f32.gt"),
+        .i64_ge => try wasm.appendSlice("\n    i64.ge_s"),
+        .i32_ge => try wasm.appendSlice("\n    i32.ge_s"),
+        .u64_ge => try wasm.appendSlice("\n    i64.ge_u"),
+        .u32_ge => try wasm.appendSlice("\n    i32.ge_u"),
+        .f64_ge => try wasm.appendSlice("\n    f64.ge"),
+        .f32_ge => try wasm.appendSlice("\n    f32.ge"),
+        .i64_eq => try wasm.appendSlice("\n    i64.eq"),
+        .i32_eq => try wasm.appendSlice("\n    i32.eq"),
+        .f64_eq => try wasm.appendSlice("\n    f64.eq"),
+        .f32_eq => try wasm.appendSlice("\n    f32.eq"),
+        .i64_ne => try wasm.appendSlice("\n    i64.ne"),
+        .i32_ne => try wasm.appendSlice("\n    i32.ne"),
+        .f64_ne => try wasm.appendSlice("\n    f64.ne"),
+        .f32_ne => try wasm.appendSlice("\n    f32.ne"),
+        .i64_or => try wasm.appendSlice("\n    i64.or"),
+        .i32_or => try wasm.appendSlice("\n    i32.or"),
+        .i64_and => try wasm.appendSlice("\n    i64.and"),
+        .i32_and => try wasm.appendSlice("\n    i32.and"),
+        .i64_shl => try wasm.appendSlice("\n    i64.shl"),
+        .i32_shl => try wasm.appendSlice("\n    i32.shl"),
+        .u64_shl => try wasm.appendSlice("\n    i64.shl"),
+        .u32_shl => try wasm.appendSlice("\n    i32.shl"),
+        .i64_shr => try wasm.appendSlice("\n    i64.shr_s"),
+        .i32_shr => try wasm.appendSlice("\n    i32.shr_s"),
+        .u64_shr => try wasm.appendSlice("\n    i64.shr_u"),
+        .u32_shr => try wasm.appendSlice("\n    i32.shr_u"),
+        .i64_rem => try wasm.appendSlice("\n    i64.rem_s"),
+        .i32_rem => try wasm.appendSlice("\n    i32.rem_s"),
+        .u64_rem => try wasm.appendSlice("\n    i64.rem_u"),
+        .u32_rem => try wasm.appendSlice("\n    i32.rem_u"),
+        .i64_xor => try wasm.appendSlice("\n    i64.xor"),
+        .i32_xor => try wasm.appendSlice("\n    i32.xor"),
         .call => {
             try wasm.appendSlice("\n    (call $");
             const callable = wasm_instruction.get(components.Callable).entity;
@@ -427,11 +427,14 @@ test "print wasm int binary op" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const op_strings = [_][]const u8{ "%", "&", "|" };
+    const op_strings = [_][]const u8{ "%", "&", "|", "^", "<<", ">>" };
     const results = [_][4][]const u8{
         [_][]const u8{ "0", "0", "0", "0" },
         [_][]const u8{ "0", "0", "0", "0" },
         [_][]const u8{ "10", "10", "10", "10" },
+        [_][]const u8{ "10", "10", "10", "10" },
+        [_][]const u8{ "32", "32", "32", "32" },
+        [_][]const u8{ "2", "2", "2", "2" },
     };
     const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32" };
@@ -456,6 +459,55 @@ test "print wasm int binary op" {
                 \\
                 \\(export "_start" (func $foo/start)))
             , .{ wasm_types[i], wasm_types[i], results[op_index][i] }));
+        }
+    }
+}
+
+test "print wasm int binary op non constant" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const op_strings = [_][]const u8{ "%", "&", "|", "^", "<<", ">>" };
+    const instructions = [_][4][]const u8{
+        [_][]const u8{ "i64.rem_s", "i32.rem_s", "i64.rem_u", "i32.rem_u" },
+        [_][]const u8{ "i64.and", "i32.and", "i64.and", "i32.and" },
+        [_][]const u8{ "i64.or", "i32.or", "i64.or", "i32.or" },
+        [_][]const u8{ "i64.xor", "i32.xor", "i64.xor", "i32.xor" },
+        [_][]const u8{ "i64.shl", "i32.shl", "i64.shl", "i32.shl" },
+        [_][]const u8{ "i64.shr_s", "i32.shr_s", "i64.shr_u", "i32.shr_u" },
+    };
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32" };
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): {s}
+                \\  id(10) {s} id(25)
+                \\end
+                \\
+                \\id = function(x: {s}): {s}
+                \\  x
+                \\end
+            , .{ type_, op_string, type_, type_ }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            try codegen(module);
+            const wasm = try printWasm(module);
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+                \\(module
+                \\
+                \\  (func $foo/start (result {s})
+                \\    ({s}.const 10)
+                \\    (call $foo/id)
+                \\    ({s}.const 25)
+                \\    (call $foo/id)
+                \\    {s})
+                \\
+                \\  (func $foo/id (param $x {s}) (result {s})
+                \\    (get_local $x))
+                \\
+                \\(export "_start" (func $foo/start)))
+            , .{ wasm_types[i], wasm_types[i], wasm_types[i], instructions[op_index][i], wasm_types[i], wasm_types[i] }));
         }
     }
 }
