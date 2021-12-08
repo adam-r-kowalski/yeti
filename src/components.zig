@@ -281,6 +281,8 @@ pub const Intrinsic = enum(u8) {
     multiply,
     divide,
     remainder,
+    bit_and,
+    bit_or,
 };
 
 pub const LoweredParameters = struct { value: bool };

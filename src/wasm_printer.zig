@@ -427,9 +427,11 @@ test "print wasm int binary op" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const op_strings = [_][]const u8{"%"};
+    const op_strings = [_][]const u8{ "%", "&", "|" };
     const results = [_][4][]const u8{
         [_][]const u8{ "0", "0", "0", "0" },
+        [_][]const u8{ "0", "0", "0", "0" },
+        [_][]const u8{ "10", "10", "10", "10" },
     };
     const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32" };

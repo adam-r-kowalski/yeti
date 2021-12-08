@@ -213,7 +213,7 @@ fn addFn(comptime T: type) fn (T, T) T {
     }.f;
 }
 
-const addArithmeticBinaryOps = ArithmeticBinaryOps{
+const addOps = ArithmeticBinaryOps{
     .i64_fn = addFn(i64),
     .i32_fn = addFn(i32),
     .u64_fn = addFn(u64),
@@ -238,7 +238,7 @@ fn subtractFn(comptime T: type) fn (T, T) T {
     }.f;
 }
 
-const subtractArithmeticBinaryOps = ArithmeticBinaryOps{
+const subtractOps = ArithmeticBinaryOps{
     .i64_fn = subtractFn(i64),
     .i32_fn = subtractFn(i32),
     .u64_fn = subtractFn(u64),
@@ -263,7 +263,7 @@ fn multiplyFn(comptime T: type) fn (T, T) T {
     }.f;
 }
 
-const multiplyArithmeticBinaryOps = ArithmeticBinaryOps{
+const multiplyOps = ArithmeticBinaryOps{
     .i64_fn = multiplyFn(i64),
     .i32_fn = multiplyFn(i32),
     .u64_fn = multiplyFn(u64),
@@ -291,7 +291,7 @@ fn divideFn(comptime T: type) fn (T, T) T {
     }.f;
 }
 
-const divideArithmeticBinaryOps = ArithmeticBinaryOps{
+const divideOps = ArithmeticBinaryOps{
     .i64_fn = divideFn(i64),
     .i32_fn = divideFn(i32),
     .u64_fn = divideFn(u64),
@@ -316,7 +316,7 @@ fn remainderFn(comptime T: type) fn (T, T) T {
     }.f;
 }
 
-const remainderArithmeticBinaryOps = IntBinaryOps{
+const remainderOps = IntBinaryOps{
     .i64_fn = remainderFn(i64),
     .i32_fn = remainderFn(i32),
     .u64_fn = remainderFn(u64),
@@ -326,6 +326,48 @@ const remainderArithmeticBinaryOps = IntBinaryOps{
         .i32_rem,
         .u64_rem,
         .u32_rem,
+    },
+};
+
+fn bitAndFn(comptime T: type) fn (T, T) T {
+    return struct {
+        fn f(lhs: T, rhs: T) T {
+            return lhs & rhs;
+        }
+    }.f;
+}
+
+const bitAndOps = IntBinaryOps{
+    .i64_fn = bitAndFn(i64),
+    .i32_fn = bitAndFn(i32),
+    .u64_fn = bitAndFn(u64),
+    .u32_fn = bitAndFn(u32),
+    .kinds = [_]components.WasmInstructionKind{
+        .i64_and,
+        .i32_and,
+        .i64_and,
+        .i32_and,
+    },
+};
+
+fn bitOrFn(comptime T: type) fn (T, T) T {
+    return struct {
+        fn f(lhs: T, rhs: T) T {
+            return lhs | rhs;
+        }
+    }.f;
+}
+
+const bitOrOps = IntBinaryOps{
+    .i64_fn = bitOrFn(i64),
+    .i32_fn = bitOrFn(i32),
+    .u64_fn = bitOrFn(u64),
+    .u32_fn = bitOrFn(u32),
+    .kinds = [_]components.WasmInstructionKind{
+        .i64_or,
+        .i32_or,
+        .i64_or,
+        .i32_or,
     },
 };
 
@@ -373,11 +415,13 @@ fn codegenBinaryOp(context: Context, entity: Entity, comptime ops: anytype) !voi
 fn codegenIntrinsic(context: Context, entity: Entity) !void {
     const intrinsic = entity.get(components.Intrinsic);
     switch (intrinsic) {
-        .add => try codegenBinaryOp(context, entity, addArithmeticBinaryOps),
-        .subtract => try codegenBinaryOp(context, entity, subtractArithmeticBinaryOps),
-        .multiply => try codegenBinaryOp(context, entity, multiplyArithmeticBinaryOps),
-        .divide => try codegenBinaryOp(context, entity, divideArithmeticBinaryOps),
-        .remainder => try codegenBinaryOp(context, entity, remainderArithmeticBinaryOps),
+        .add => try codegenBinaryOp(context, entity, addOps),
+        .subtract => try codegenBinaryOp(context, entity, subtractOps),
+        .multiply => try codegenBinaryOp(context, entity, multiplyOps),
+        .divide => try codegenBinaryOp(context, entity, divideOps),
+        .remainder => try codegenBinaryOp(context, entity, remainderOps),
+        .bit_and => try codegenBinaryOp(context, entity, bitAndOps),
+        .bit_or => try codegenBinaryOp(context, entity, bitOrOps),
     }
 }
 
@@ -601,9 +645,11 @@ test "codegen int binary op two local constants" {
     var codebase = try initCodebase(&arena);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const };
-    const op_strings = [_][]const u8{"%"};
+    const op_strings = [_][]const u8{ "%", "&", "|" };
     const results = [_][4][]const u8{
         [_][]const u8{ "0", "0", "0", "0" },
+        [_][]const u8{ "0", "0", "0", "0" },
+        [_][]const u8{ "10", "10", "10", "10" },
     };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
