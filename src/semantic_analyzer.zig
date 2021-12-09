@@ -260,7 +260,11 @@ fn Context(comptime FileSystem: type) type {
                 .left_shift => self.analyzeIntrinsic(entity, .left_shift, false),
                 .right_shift => self.analyzeIntrinsic(entity, .right_shift, false),
                 .equal => self.analyzeIntrinsic(entity, .equal, true),
-                else => panic("\nanalyze binary op unsupported {}\n", .{binary_op}),
+                .not_equal => self.analyzeIntrinsic(entity, .not_equal, true),
+                .less_than => self.analyzeIntrinsic(entity, .less_than, true),
+                .less_equal => self.analyzeIntrinsic(entity, .less_equal, true),
+                .greater_than => self.analyzeIntrinsic(entity, .greater_than, true),
+                .greater_equal => self.analyzeIntrinsic(entity, .greater_equal, true),
             };
         }
 
@@ -832,8 +836,15 @@ test "analyze semantics comparison op two comptime known" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    const op_strings = [_][]const u8{"=="};
-    const intrinsics = [_]components.Intrinsic{.equal};
+    const op_strings = [_][]const u8{ "==", "!=", "<", "<=", ">", ">=" };
+    const intrinsics = [_]components.Intrinsic{
+        .equal,
+        .not_equal,
+        .less_than,
+        .less_equal,
+        .greater_than,
+        .greater_equal,
+    };
     for (op_strings) |op_string, op_index| {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);

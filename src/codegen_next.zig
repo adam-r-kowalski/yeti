@@ -517,6 +517,131 @@ const equalOps = ComparisonBinaryOps{
     },
 };
 
+fn notEqualFn(comptime T: type) fn (T, T) i32 {
+    return struct {
+        fn f(lhs: T, rhs: T) i32 {
+            return if (lhs != rhs) 1 else 0;
+        }
+    }.f;
+}
+
+const notEqualOps = ComparisonBinaryOps{
+    .i64_fn = notEqualFn(i64),
+    .i32_fn = notEqualFn(i32),
+    .u64_fn = notEqualFn(u64),
+    .u32_fn = notEqualFn(u32),
+    .f64_fn = notEqualFn(f64),
+    .f32_fn = notEqualFn(f32),
+    .kinds = [_]components.WasmInstructionKind{
+        .i64_ne,
+        .i32_ne,
+        .i64_ne,
+        .i32_ne,
+        .f64_ne,
+        .f32_ne,
+    },
+};
+
+fn lessThanFn(comptime T: type) fn (T, T) i32 {
+    return struct {
+        fn f(lhs: T, rhs: T) i32 {
+            return if (lhs < rhs) 1 else 0;
+        }
+    }.f;
+}
+
+const lessThanOps = ComparisonBinaryOps{
+    .i64_fn = lessThanFn(i64),
+    .i32_fn = lessThanFn(i32),
+    .u64_fn = lessThanFn(u64),
+    .u32_fn = lessThanFn(u32),
+    .f64_fn = lessThanFn(f64),
+    .f32_fn = lessThanFn(f32),
+    .kinds = [_]components.WasmInstructionKind{
+        .i64_lt,
+        .i32_lt,
+        .i64_lt,
+        .i32_lt,
+        .f64_lt,
+        .f32_lt,
+    },
+};
+
+fn lessEqualFn(comptime T: type) fn (T, T) i32 {
+    return struct {
+        fn f(lhs: T, rhs: T) i32 {
+            return if (lhs <= rhs) 1 else 0;
+        }
+    }.f;
+}
+
+const lessEqualOps = ComparisonBinaryOps{
+    .i64_fn = lessEqualFn(i64),
+    .i32_fn = lessEqualFn(i32),
+    .u64_fn = lessEqualFn(u64),
+    .u32_fn = lessEqualFn(u32),
+    .f64_fn = lessEqualFn(f64),
+    .f32_fn = lessEqualFn(f32),
+    .kinds = [_]components.WasmInstructionKind{
+        .i64_le,
+        .i32_le,
+        .i64_le,
+        .i32_le,
+        .f64_le,
+        .f32_le,
+    },
+};
+
+fn greaterThanFn(comptime T: type) fn (T, T) i32 {
+    return struct {
+        fn f(lhs: T, rhs: T) i32 {
+            return if (lhs > rhs) 1 else 0;
+        }
+    }.f;
+}
+
+const greaterThanOps = ComparisonBinaryOps{
+    .i64_fn = greaterThanFn(i64),
+    .i32_fn = greaterThanFn(i32),
+    .u64_fn = greaterThanFn(u64),
+    .u32_fn = greaterThanFn(u32),
+    .f64_fn = greaterThanFn(f64),
+    .f32_fn = greaterThanFn(f32),
+    .kinds = [_]components.WasmInstructionKind{
+        .i64_gt,
+        .i32_gt,
+        .i64_gt,
+        .i32_gt,
+        .f64_gt,
+        .f32_gt,
+    },
+};
+
+fn greaterEqualFn(comptime T: type) fn (T, T) i32 {
+    return struct {
+        fn f(lhs: T, rhs: T) i32 {
+            return if (lhs >= rhs) 1 else 0;
+        }
+    }.f;
+}
+
+const greaterEqualOps = ComparisonBinaryOps{
+    .i64_fn = greaterEqualFn(i64),
+    .i32_fn = greaterEqualFn(i32),
+    .u64_fn = greaterEqualFn(u64),
+    .u32_fn = greaterEqualFn(u32),
+    .f64_fn = greaterEqualFn(f64),
+    .f32_fn = greaterEqualFn(f32),
+    .kinds = [_]components.WasmInstructionKind{
+        .i64_ge,
+        .i32_ge,
+        .i64_ge,
+        .i32_ge,
+        .f64_ge,
+        .f32_ge,
+    },
+};
+
 fn codegenBinaryOp(context: Context, entity: Entity, comptime ops: anytype) !void {
     const arguments = entity.get(components.Arguments).slice();
     try codegenEntity(context, arguments[0]);
@@ -572,6 +697,11 @@ fn codegenIntrinsic(context: Context, entity: Entity) !void {
         .left_shift => try codegenBinaryOp(context, entity, leftShiftOps),
         .right_shift => try codegenBinaryOp(context, entity, rightShiftOps),
         .equal => try codegenBinaryOp(context, entity, equalOps),
+        .not_equal => try codegenBinaryOp(context, entity, notEqualOps),
+        .less_than => try codegenBinaryOp(context, entity, lessThanOps),
+        .less_equal => try codegenBinaryOp(context, entity, lessEqualOps),
+        .greater_than => try codegenBinaryOp(context, entity, greaterThanOps),
+        .greater_equal => try codegenBinaryOp(context, entity, greaterEqualOps),
     }
 }
 
@@ -833,9 +963,14 @@ test "codegen int comparison op two local constants" {
     var codebase = try initCodebase(&arena);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i32_const, .i32_const, .i32_const, .i32_const, .i32_const, .i32_const };
-    const op_strings = [_][]const u8{"=="};
+    const op_strings = [_][]const u8{ "==", "!=", "<", "<=", ">", ">=" };
     const results = [_][6][]const u8{
         [_][]const u8{ "0", "0", "0", "0", "0", "0" },
+        [_][]const u8{ "1", "1", "1", "1", "1", "1" },
+        [_][]const u8{ "0", "0", "0", "0", "0", "0" },
+        [_][]const u8{ "0", "0", "0", "0", "0", "0" },
+        [_][]const u8{ "1", "1", "1", "1", "1", "1" },
+        [_][]const u8{ "1", "1", "1", "1", "1", "1" },
     };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
@@ -992,8 +1127,13 @@ test "codegen comparison binary op non constant" {
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     const op_kinds = [_][6]components.WasmInstructionKind{
         [_]components.WasmInstructionKind{ .i64_eq, .i32_eq, .i64_eq, .i32_eq, .f64_eq, .f32_eq },
+        [_]components.WasmInstructionKind{ .i64_ne, .i32_ne, .i64_ne, .i32_ne, .f64_ne, .f32_ne },
+        [_]components.WasmInstructionKind{ .i64_lt, .i32_lt, .i64_lt, .i32_lt, .f64_lt, .f32_lt },
+        [_]components.WasmInstructionKind{ .i64_le, .i32_le, .i64_le, .i32_le, .f64_le, .f32_le },
+        [_]components.WasmInstructionKind{ .i64_gt, .i32_gt, .i64_gt, .i32_gt, .f64_gt, .f32_gt },
+        [_]components.WasmInstructionKind{ .i64_ge, .i32_ge, .i64_ge, .i32_ge, .f64_ge, .f32_ge },
     };
-    const op_strings = [_][]const u8{"=="};
+    const op_strings = [_][]const u8{ "==", "!=", "<", "<=", ">", ">=" };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
