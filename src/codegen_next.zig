@@ -156,9 +156,16 @@ const ArithmeticBinaryOps = struct {
     f64_fn: fn (lhs: f64, rhs: f64) f64,
     f32_fn: fn (lhs: f32, rhs: f32) f32,
     kinds: [6]components.WasmInstructionKind,
-
     types: [6]type = .{ i64, i32, u64, u32, f64, f32 },
-    constant_kinds: [6]components.WasmInstructionKind = .{
+    argument_kinds: [6]components.WasmInstructionKind = .{
+        .i64_const,
+        .i32_const,
+        .i64_const,
+        .i32_const,
+        .f64_const,
+        .f32_const,
+    },
+    result_kinds: [6]components.WasmInstructionKind = .{
         .i64_const,
         .i32_const,
         .i64_const,
@@ -188,9 +195,19 @@ const IntBinaryOps = struct {
     u64_fn: fn (lhs: u64, rhs: u64) u64,
     u32_fn: fn (lhs: u32, rhs: u32) u32,
     kinds: [4]components.WasmInstructionKind,
-
     types: [4]type = .{ i64, i32, u64, u32 },
-    constant_kinds: [4]components.WasmInstructionKind = .{ .i64_const, .i32_const, .i64_const, .i32_const },
+    argument_kinds: [4]components.WasmInstructionKind = .{
+        .i64_const,
+        .i32_const,
+        .i64_const,
+        .i32_const,
+    },
+    result_kinds: [4]components.WasmInstructionKind = .{
+        .i64_const,
+        .i32_const,
+        .i64_const,
+        .i32_const,
+    },
 
     const Self = @This();
 
@@ -200,6 +217,47 @@ const IntBinaryOps = struct {
             i32 => self.i32_fn(lhs, rhs),
             u64 => self.u64_fn(lhs, rhs),
             u32 => self.u32_fn(lhs, rhs),
+            else => panic("\nunsupported type {s}\n", .{@typeName(T)}),
+        };
+    }
+};
+
+const ComparisonBinaryOps = struct {
+    i64_fn: fn (lhs: i64, rhs: i64) i32,
+    i32_fn: fn (lhs: i32, rhs: i32) i32,
+    u64_fn: fn (lhs: u64, rhs: u64) i32,
+    u32_fn: fn (lhs: u32, rhs: u32) i32,
+    f64_fn: fn (lhs: f64, rhs: f64) i32,
+    f32_fn: fn (lhs: f32, rhs: f32) i32,
+    kinds: [6]components.WasmInstructionKind,
+    types: [6]type = .{ i64, i32, u64, u32, f64, f32 },
+    argument_kinds: [6]components.WasmInstructionKind = .{
+        .i64_const,
+        .i32_const,
+        .i64_const,
+        .i32_const,
+        .f64_const,
+        .f32_const,
+    },
+    result_kinds: [6]components.WasmInstructionKind = .{
+        .i32_const,
+        .i32_const,
+        .i32_const,
+        .i32_const,
+        .i32_const,
+        .i32_const,
+    },
+
+    const Self = @This();
+
+    fn call(comptime self: Self, comptime T: type, lhs: T, rhs: T) i32 {
+        return switch (T) {
+            i64 => self.i64_fn(lhs, rhs),
+            i32 => self.i32_fn(lhs, rhs),
+            u64 => self.u64_fn(lhs, rhs),
+            u32 => self.u32_fn(lhs, rhs),
+            f64 => self.f64_fn(lhs, rhs),
+            f32 => self.f32_fn(lhs, rhs),
             else => panic("\nunsupported type {s}\n", .{@typeName(T)}),
         };
     }
@@ -434,11 +492,36 @@ const rightShiftOps = IntBinaryOps{
     },
 };
 
+fn equalFn(comptime T: type) fn (T, T) i32 {
+    return struct {
+        fn f(lhs: T, rhs: T) i32 {
+            return if (lhs == rhs) 1 else 0;
+        }
+    }.f;
+}
+
+const equalOps = ComparisonBinaryOps{
+    .i64_fn = equalFn(i64),
+    .i32_fn = equalFn(i32),
+    .u64_fn = equalFn(u64),
+    .u32_fn = equalFn(u32),
+    .f64_fn = equalFn(f64),
+    .f32_fn = equalFn(f32),
+    .kinds = [_]components.WasmInstructionKind{
+        .i64_eq,
+        .i32_eq,
+        .i64_eq,
+        .i32_eq,
+        .f64_eq,
+        .f32_eq,
+    },
+};
+
 fn codegenBinaryOp(context: Context, entity: Entity, comptime ops: anytype) !void {
     const arguments = entity.get(components.Arguments).slice();
     try codegenEntity(context, arguments[0]);
     try codegenEntity(context, arguments[1]);
-    const type_of = typeOf(entity);
+    const type_of = typeOf(arguments[0]);
     const b = context.builtins;
     const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
     inline for (&ops.types) |T, i| {
@@ -448,7 +531,7 @@ fn codegenBinaryOp(context: Context, entity: Entity, comptime ops: anytype) !voi
             const lhs = instructions[instructions.len - 2];
             const lhs_kind = lhs.get(components.WasmInstructionKind);
             const rhs_kind = rhs.get(components.WasmInstructionKind);
-            const kind = ops.constant_kinds[i];
+            const kind = ops.argument_kinds[i];
             if (lhs_kind == kind and rhs_kind == kind) {
                 const lhs_value = (try valueOf(T, lhs.get(components.Constant).entity)).?;
                 const rhs_value = (try valueOf(T, rhs.get(components.Constant).entity)).?;
@@ -456,12 +539,12 @@ fn codegenBinaryOp(context: Context, entity: Entity, comptime ops: anytype) !voi
                 const result_literal = try std.fmt.allocPrint(context.allocator, "{}", .{result_value});
                 const interned = try context.codebase.getPtr(Strings).intern(result_literal);
                 const result = try context.codebase.createEntity(.{
-                    components.Type.init(type_of),
+                    entity.get(components.Type),
                     components.Literal.init(interned),
                     result_value,
                 });
                 instructions[instructions.len - 2] = try context.codebase.createEntity(.{
-                    kind,
+                    ops.result_kinds[i],
                     components.Constant.init(result),
                 });
                 context.wasm_instructions.shrink(1);
@@ -488,6 +571,7 @@ fn codegenIntrinsic(context: Context, entity: Entity) !void {
         .bit_xor => try codegenBinaryOp(context, entity, bitXorOps),
         .left_shift => try codegenBinaryOp(context, entity, leftShiftOps),
         .right_shift => try codegenBinaryOp(context, entity, rightShiftOps),
+        .equal => try codegenBinaryOp(context, entity, equalOps),
     }
 }
 
@@ -743,6 +827,39 @@ test "codegen int binary op two local constants" {
     }
 }
 
+test "codegen int comparison op two local constants" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i32_const, .i32_const, .i32_const, .i32_const, .i32_const, .i32_const };
+    const op_strings = [_][]const u8{"=="};
+    const results = [_][6][]const u8{
+        [_][]const u8{ "0", "0", "0", "0", "0", "0" },
+    };
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): I32
+                \\  x: {s} = 8
+                \\  y: {s} = 2
+                \\  x {s} y
+                \\end
+            , .{ type_, type_, op_string }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            try codegen(module);
+            const top_level = module.get(components.TopLevel);
+            const start = top_level.findString("start").get(components.Overloads).slice()[0];
+            const start_instructions = start.get(components.WasmInstructions).slice();
+            try expectEqual(start_instructions.len, 1);
+            const constant = start_instructions[0];
+            try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+            try expectEqualStrings(literalOf(constant.get(components.Constant).entity), results[op_index][i]);
+        }
+    }
+}
+
 test "codegen arithmethic binary op non constant" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -831,6 +948,64 @@ test "codegen int binary op non constant" {
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            try codegen(module);
+            const top_level = module.get(components.TopLevel);
+            const start = top_level.findString("start").get(components.Overloads).slice()[0];
+            const start_instructions = start.get(components.WasmInstructions).slice();
+            try expectEqual(start_instructions.len, 5);
+            const id = blk: {
+                const constant = start_instructions[0];
+                try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+                try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
+                const call = start_instructions[1];
+                try expectEqual(call.get(components.WasmInstructionKind), .call);
+                const callable = call.get(components.Callable).entity;
+                try expectEqualStrings(literalOf(callable.get(components.Name).entity), "id");
+                break :blk callable;
+            };
+            {
+                const constant = start_instructions[2];
+                try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+                try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "25");
+                const call = start_instructions[3];
+                try expectEqual(call.get(components.WasmInstructionKind), .call);
+                const callable = call.get(components.Callable).entity;
+                try expectEqual(callable, id);
+            }
+            const op = start_instructions[4];
+            try expectEqual(op.get(components.WasmInstructionKind), op_kinds[op_index][i]);
+            const id_instructions = id.get(components.WasmInstructions).slice();
+            try expectEqual(id_instructions.len, 1);
+            const local = id_instructions[0];
+            try expectEqual(local.get(components.WasmInstructionKind), .get_local);
+            try expectEqualStrings(literalOf(local.get(components.Local).entity), "x");
+        }
+    }
+}
+
+test "codegen comparison binary op non constant" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const op_kinds = [_][6]components.WasmInstructionKind{
+        [_]components.WasmInstructionKind{ .i64_eq, .i32_eq, .i64_eq, .i32_eq, .f64_eq, .f32_eq },
+    };
+    const op_strings = [_][]const u8{"=="};
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): I32
+                \\  id(10) {s} id(25)
+                \\end
+                \\
+                \\id = function(x: {s}): {s}
+                \\  x
+                \\end
+            , .{ op_string, type_, type_ }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
             try codegen(module);
             const top_level = module.get(components.TopLevel);

@@ -286,6 +286,7 @@ pub const Intrinsic = enum(u8) {
     bit_xor,
     left_shift,
     right_shift,
+    equal,
 };
 
 pub const LoweredParameters = struct { value: bool };

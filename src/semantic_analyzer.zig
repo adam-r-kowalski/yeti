@@ -216,7 +216,7 @@ fn Context(comptime FileSystem: type) type {
             return try context.analyzeCall(call);
         }
 
-        fn analyzeIntrinsic(self: *Self, entity: Entity, intrinsic: components.Intrinsic) !Entity {
+        fn analyzeIntrinsic(self: *Self, entity: Entity, intrinsic: components.Intrinsic, result_is_i32: bool) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.analyzeExpression(arguments[0]);
             const rhs = try self.analyzeExpression(arguments[1]);
@@ -227,13 +227,13 @@ fn Context(comptime FileSystem: type) type {
             for (builtins) |builtin| {
                 if (!eql(lhs_type, builtin)) continue;
                 assert(self.convertibleTo(lhs_type, rhs_type) != .no);
-                const type_ = components.Type.init(lhs_type);
-                _ = try rhs.set(.{type_});
+                _ = try rhs.set(.{components.Type.init(lhs_type)});
+                const type_of = components.Type.init(if (result_is_i32) b.I32 else lhs_type);
                 const result = try self.codebase.createEntity(.{
                     components.AstKind.intrinsic,
                     intrinsic,
                     try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
-                    type_,
+                    type_of,
                 });
                 if (eql(builtin, b.IntLiteral) or eql(builtin, b.FloatLiteral)) {
                     _ = try result.set(.{
@@ -249,16 +249,17 @@ fn Context(comptime FileSystem: type) type {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
                 .dot => self.analyzeDot(entity),
-                .add => self.analyzeIntrinsic(entity, .add),
-                .subtract => self.analyzeIntrinsic(entity, .subtract),
-                .multiply => self.analyzeIntrinsic(entity, .multiply),
-                .divide => self.analyzeIntrinsic(entity, .divide),
-                .remainder => self.analyzeIntrinsic(entity, .remainder),
-                .bit_and => self.analyzeIntrinsic(entity, .bit_and),
-                .bit_or => self.analyzeIntrinsic(entity, .bit_or),
-                .bit_xor => self.analyzeIntrinsic(entity, .bit_xor),
-                .left_shift => self.analyzeIntrinsic(entity, .left_shift),
-                .right_shift => self.analyzeIntrinsic(entity, .right_shift),
+                .add => self.analyzeIntrinsic(entity, .add, false),
+                .subtract => self.analyzeIntrinsic(entity, .subtract, false),
+                .multiply => self.analyzeIntrinsic(entity, .multiply, false),
+                .divide => self.analyzeIntrinsic(entity, .divide, false),
+                .remainder => self.analyzeIntrinsic(entity, .remainder, false),
+                .bit_and => self.analyzeIntrinsic(entity, .bit_and, false),
+                .bit_or => self.analyzeIntrinsic(entity, .bit_or, false),
+                .bit_xor => self.analyzeIntrinsic(entity, .bit_xor, false),
+                .left_shift => self.analyzeIntrinsic(entity, .left_shift, false),
+                .right_shift => self.analyzeIntrinsic(entity, .right_shift, false),
+                .equal => self.analyzeIntrinsic(entity, .equal, true),
                 else => panic("\nanalyze binary op unsupported {}\n", .{binary_op}),
             };
         }
@@ -375,13 +376,13 @@ test "analyze semantics int literal" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
             \\  5
             \\end
-        , .{type_}));
+        , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -405,13 +406,13 @@ test "analyze semantics float literal" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
             \\  5.3
             \\end
-        , .{type_}));
+        , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -435,7 +436,7 @@ test "analyze semantics call local function" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
@@ -445,7 +446,7 @@ test "analyze semantics call local function" {
             \\baz = function(): {s}
             \\  10
             \\end
-        , .{ type_, type_ }));
+        , .{ type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -482,7 +483,7 @@ test "analyze semantics call function import" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\bar = import("bar.yeti")
@@ -490,12 +491,12 @@ test "analyze semantics call function import" {
             \\start = function(): {s}
             \\  bar.baz()
             \\end
-        , .{type_}));
+        , .{type_of}));
         _ = try fs.newFile("bar.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\baz = function(): {s}
             \\  10
             \\end
-        , .{type_}));
+        , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -532,14 +533,14 @@ test "analyze semantics define" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
             \\  x = 10
             \\  x
             \\end
-        , .{type_}));
+        , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -568,7 +569,7 @@ test "analyze semantics two defines" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
@@ -576,7 +577,7 @@ test "analyze semantics two defines" {
             \\  y = 15
             \\  x
             \\end
-        , .{type_}));
+        , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -610,14 +611,14 @@ test "analyze semantics define with explicit float type" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
             \\  x: {s} = 10
             \\  x
             \\end
-        , .{ type_, type_ }));
+        , .{ type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -646,7 +647,7 @@ test "analyze semantics function with argument" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
@@ -657,7 +658,7 @@ test "analyze semantics function with argument" {
             \\id = function(x: {s}): {s}
             \\  x
             \\end
-        , .{ type_, type_, type_, type_ }));
+        , .{ type_of, type_of, type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -708,7 +709,7 @@ test "analyze semantics function call twice" {
     const builtins = codebase.get(components.Builtins);
     const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    for (types) |type_, i| {
+    for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
             \\start = function(): {s}
@@ -719,7 +720,7 @@ test "analyze semantics function call twice" {
             \\id = function(x: {s}): {s}
             \\  x
             \\end
-        , .{ type_, type_, type_ }));
+        , .{ type_of, type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -780,7 +781,7 @@ test "analyze semantics binary op two comptime known" {
     const op_strings = [_][]const u8{ "+", "-", "*", "/" };
     const intrinsics = [_]components.Intrinsic{ .add, .subtract, .multiply, .divide };
     for (op_strings) |op_string, op_index| {
-        for (types) |type_, i| {
+        for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
                 \\start = function(): {s}
@@ -788,7 +789,7 @@ test "analyze semantics binary op two comptime known" {
                 \\  y: {s} = 32
                 \\  x {s} y
                 \\end
-            , .{ type_, type_, type_, op_string }));
+            , .{ type_of, type_of, type_of, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -812,6 +813,60 @@ test "analyze semantics binary op two comptime known" {
             try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
             try expectEqual(intrinsic.get(components.Intrinsic), intrinsics[op_index]);
             try expectEqual(typeOf(intrinsic), builtin_types[i]);
+            const arguments = intrinsic.get(components.Arguments).slice();
+            try expectEqual(arguments.len, 2);
+            const lhs = arguments[0];
+            try expectEqual(lhs.get(components.AstKind), .local);
+            try expectEqual(lhs.get(components.Local).entity, x);
+            const rhs = arguments[1];
+            try expectEqual(rhs.get(components.AstKind), .local);
+            try expectEqual(rhs.get(components.Local).entity, y);
+        }
+    }
+}
+
+test "analyze semantics comparison op two comptime known" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    const op_strings = [_][]const u8{"=="};
+    const intrinsics = [_]components.Intrinsic{.equal};
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_of, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+                \\start = function(): I32
+                \\  x: {s} = 10
+                \\  y: {s} = 32
+                \\  x {s} y
+                \\end
+            , .{ type_of, type_of, op_string }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const top_level = module.get(components.TopLevel);
+            const start = top_level.findString("start").get(components.Overloads).slice()[0];
+            try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+            try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+            try expectEqual(start.get(components.Parameters).len(), 0);
+            try expectEqual(start.get(components.ReturnType).entity, builtins.I32);
+            const body = start.get(components.AnalyzedBody).slice();
+            try expectEqual(body.len, 3);
+            const x = body[0];
+            try expectEqual(x.get(components.AstKind), .define);
+            try expectEqual(typeOf(x), builtin_types[i]);
+            try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+            try expectEqualStrings(literalOf(x.get(components.Value).entity), "10");
+            const y = body[1];
+            try expectEqual(y.get(components.AstKind), .define);
+            try expectEqual(typeOf(y), builtin_types[i]);
+            try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
+            try expectEqualStrings(literalOf(y.get(components.Value).entity), "32");
+            const intrinsic = body[2];
+            try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
+            try expectEqual(intrinsic.get(components.Intrinsic), intrinsics[op_index]);
+            try expectEqual(typeOf(intrinsic), builtins.I32);
             const arguments = intrinsic.get(components.Arguments).slice();
             try expectEqual(arguments.len, 2);
             const lhs = arguments[0];
