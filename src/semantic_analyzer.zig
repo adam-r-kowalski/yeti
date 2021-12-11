@@ -106,10 +106,10 @@ fn Context(comptime FileSystem: type) type {
                         _ = try module.set(.{components.Literal.init(interned)});
                         return module;
                     },
-                    else => panic("\nlowerSumbol unspported top level kind {}\n", .{kind}),
+                    else => panic("\nanalyzeSumbol unspported top level kind {}\n", .{kind}),
                 }
             }
-            panic("\nlowerSymbol failed for symbol {s}\n", .{literalOf(entity)});
+            panic("\nanalyzeSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
         fn bestOverload(self: *Self, callable: Entity, arguments: []const Entity) !Entity {
@@ -286,6 +286,46 @@ fn Context(comptime FileSystem: type) type {
             return analyzed_define;
         }
 
+        fn analyzeIf(self: *Self, if_: Entity) !Entity {
+            const scopes = self.function.getPtr(components.Scopes);
+            const conditional = try self.analyzeExpression(if_.get(components.Conditional).entity);
+            try self.implicitTypeConversion(conditional, self.builtins.I32);
+            const active_scopes = self.active_scopes;
+            const then = if_.get(components.Then).slice();
+            assert(then.len > 0);
+            var then_entity: Entity = undefined;
+            const then_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
+            std.mem.copy(u64, then_scopes, active_scopes);
+            then_scopes[active_scopes.len] = try scopes.pushScope();
+            self.active_scopes = then_scopes;
+            for (then) |entity| {
+                then_entity = try self.analyzeExpression(entity);
+            }
+            const else_ = if_.get(components.Else).slice();
+            assert(else_.len > 0);
+            var else_entity: Entity = undefined;
+            const else_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
+            std.mem.copy(u64, else_scopes, active_scopes);
+            else_scopes[active_scopes.len] = try scopes.pushScope();
+            self.active_scopes = else_scopes;
+            for (else_) |entity| {
+                else_entity = try self.analyzeExpression(entity);
+            }
+            const type_of = typeOf(then_entity);
+            assert(eql(type_of, typeOf(else_entity)));
+            _ = try if_.set(.{components.Type.init(type_of)});
+            if (eql(type_of, self.builtins.IntLiteral) or eql(type_of, self.builtins.FloatLiteral)) {
+                _ = try if_.set(.{
+                    try components.DependentEntities.fromSlice(self.allocator, &.{ then_entity, else_entity }),
+                });
+            }
+            const finally_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
+            std.mem.copy(u64, finally_scopes, active_scopes);
+            finally_scopes[active_scopes.len] = try scopes.pushScope();
+            self.active_scopes = finally_scopes;
+            return if_;
+        }
+
         fn analyzeExpression(self: *Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes }!Entity {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
@@ -294,7 +334,8 @@ fn Context(comptime FileSystem: type) type {
                 .call => try self.analyzeCall(entity),
                 .binary_op => try self.analyzeBinaryOp(entity),
                 .define => try self.analyzeDefine(entity),
-                else => panic("\nlowerExpression unsupported kind {}\n", .{kind}),
+                .if_ => try self.analyzeIf(entity),
+                else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
             };
         }
 
@@ -887,5 +928,50 @@ test "analyze semantics comparison op two comptime known" {
             try expectEqual(rhs.get(components.AstKind), .local);
             try expectEqual(rhs.get(components.Local).entity, y);
         }
+    }
+}
+
+test "analyze semantics if then else" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{"I64"};
+    const builtin_types = [_]Entity{builtins.I64};
+    for (types) |type_of, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  if 1 then 20 else 30 end
+            \\end
+        , .{type_of}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const body = start.get(components.AnalyzedBody).slice();
+        try expectEqual(body.len, 1);
+        const if_ = body[0];
+        try expectEqual(if_.get(components.AstKind), .if_);
+        try expectEqual(typeOf(if_), builtin_types[i]);
+        const conditional = if_.get(components.Conditional).entity;
+        try expectEqual(conditional.get(components.AstKind), .int);
+        try expectEqualStrings(literalOf(conditional), "1");
+        try expectEqual(typeOf(conditional), builtins.I32);
+        const then = if_.get(components.Then).slice();
+        try expectEqual(then.len, 1);
+        const twenty = then[0];
+        try expectEqual(twenty.get(components.AstKind), .int);
+        try expectEqualStrings(literalOf(twenty), "20");
+        try expectEqual(typeOf(twenty), builtin_types[i]);
+        const else_ = if_.get(components.Else).slice();
+        try expectEqual(else_.len, 1);
+        const thirty = else_[0];
+        try expectEqual(thirty.get(components.AstKind), .int);
+        try expectEqualStrings(literalOf(thirty), "30");
+        try expectEqual(typeOf(thirty), builtin_types[i]);
     }
 }
