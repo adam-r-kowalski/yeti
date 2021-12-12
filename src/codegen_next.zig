@@ -97,7 +97,6 @@ fn codegenAssign(context: Context, entity: Entity) !void {
         components.Local.init(entity),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
-    try context.locals.put(entity);
     return;
 }
 
