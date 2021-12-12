@@ -62,22 +62,35 @@ fn codegenCall(context: Context, entity: Entity) !void {
 }
 
 fn codegenDefine(context: Context, entity: Entity) !void {
-    const type_of = typeOf(entity);
-    const b = context.builtins;
-    for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
-        if (!eql(type_of, builtin)) continue;
-        return;
-    }
-    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
-    const types = [_]type{ i64, i32, u64, u32, f64, f32 };
     const value = entity.get(components.Value).entity;
-    inline for (&types) |T, i| {
-        if (eql(builtins[i], type_of)) {
-            if (try valueOf(T, value)) |_| {
-                return;
+    if (!entity.contains(components.Mutable)) {
+        const type_of = typeOf(entity);
+        const b = context.builtins;
+        for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
+            if (!eql(type_of, builtin)) continue;
+            return;
+        }
+        const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+        const types = [_]type{ i64, i32, u64, u32, f64, f32 };
+        inline for (&types) |T, i| {
+            if (eql(builtins[i], type_of)) {
+                if (try valueOf(T, value)) |_| {
+                    return;
+                }
             }
         }
     }
+    try codegenEntity(context, value);
+    const wasm_instruction = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.set_local,
+        components.Local.init(entity),
+    });
+    _ = try context.wasm_instructions.append(wasm_instruction);
+    try context.locals.put(entity);
+}
+
+fn codegenAssign(context: Context, entity: Entity) !void {
+    const value = entity.get(components.Value).entity;
     try codegenEntity(context, value);
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.set_local,
@@ -89,27 +102,29 @@ fn codegenDefine(context: Context, entity: Entity) !void {
 }
 
 fn codegenLocal(context: Context, entity: Entity) !void {
-    const type_of = typeOf(entity);
-    const b = context.builtins;
-    for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
-        if (!eql(type_of, builtin)) continue;
-        return;
-    }
-    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
-    const types = [_]type{ i64, i32, u64, u32, f64, f32 };
-    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     const local = entity.get(components.Local);
-    if (local.entity.has(components.Value)) |value_component| {
-        const value = value_component.entity;
-        inline for (&types) |T, i| {
-            if (eql(builtins[i], type_of)) {
-                if (try valueOf(T, value)) |_| {
-                    const wasm_instruction = try context.codebase.createEntity(.{
-                        kinds[i],
-                        components.Constant.init(value),
-                    });
-                    _ = try context.wasm_instructions.append(wasm_instruction);
-                    return;
+    if (!local.entity.contains(components.Mutable)) {
+        const type_of = typeOf(entity);
+        const b = context.builtins;
+        for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
+            if (!eql(type_of, builtin)) continue;
+            return;
+        }
+        const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+        const types = [_]type{ i64, i32, u64, u32, f64, f32 };
+        const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+        if (local.entity.has(components.Value)) |value_component| {
+            const value = value_component.entity;
+            inline for (&types) |T, i| {
+                if (eql(builtins[i], type_of)) {
+                    if (try valueOf(T, value)) |_| {
+                        const wasm_instruction = try context.codebase.createEntity(.{
+                            kinds[i],
+                            components.Constant.init(value),
+                        });
+                        _ = try context.wasm_instructions.append(wasm_instruction);
+                        return;
+                    }
                 }
             }
         }
@@ -746,6 +761,7 @@ fn codegenEntity(context: Context, entity: Entity) error{ OutOfMemory, Overflow,
         .int, .float => try codegenNumber(context, entity),
         .call => try codegenCall(context, entity),
         .define => try codegenDefine(context, entity),
+        .assign => try codegenAssign(context, entity),
         .local => try codegenLocal(context, entity),
         .intrinsic => try codegenIntrinsic(context, entity),
         .if_ => try codegenIf(context, entity),
@@ -859,7 +875,7 @@ test "codegen call local function" {
     }
 }
 
-test "codegen define" {
+test "codegen assign" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -1339,5 +1355,55 @@ test "codegen if then else non const conditional" {
         const constant = f_instructions[0];
         try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
         try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "1");
+    }
+}
+
+test "codegen define" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    for (types) |type_, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  x := 3
+            \\  x
+            \\end
+        , .{ type_, type_ }));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 5);
+        {
+            const constant = start_instructions[0];
+            try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+            try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
+        }
+        {
+            const set_local = start_instructions[1];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            const local = set_local.get(components.Local).entity;
+            try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
+        }
+        {
+            const constant = start_instructions[2];
+            try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
+            try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "3");
+        }
+        {
+            const set_local = start_instructions[3];
+            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
+            const local = set_local.get(components.Local).entity;
+            try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
+        }
+        const get_local = start_instructions[4];
+        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
+        const local = get_local.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
     }
 }

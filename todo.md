@@ -5,10 +5,10 @@
 - [x] Can call the same function twice
 - [x] Int operators for primitive types (&, |, <<, >>, %, ^)
 - [x] Grouping
-- [ ] Comparison operators for primitive types (<, <=, >, >=, ==, !=)
-- [ ] If expressions
+- [x] Comparison operators for primitive types (<, <=, >, >=, ==, !=)
+- [x] If expressions
+- [x] Recursion
 - [ ] Assignment
 - [ ] Loops
 - [ ] Overloading
-- [ ] Recursion
 - [ ] Pipeline

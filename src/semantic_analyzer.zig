@@ -326,6 +326,22 @@ fn Context(comptime FileSystem: type) type {
             return analyzed_define;
         }
 
+        fn analyzeAssign(self: *Self, assign: Entity) !Entity {
+            const scopes = self.function.get(components.Scopes);
+            const value = try self.analyzeExpression(assign.get(components.Value).entity);
+            const name = assign.get(components.Name);
+            const define = scopes.findName(name);
+            _ = try define.set(.{components.Mutable{ .value = true }});
+            const type_of = define.get(components.Type);
+            try self.implicitTypeConversion(value, type_of.entity);
+            return try self.codebase.createEntity(.{
+                components.AstKind.assign,
+                components.Value.init(value),
+                name,
+                type_of,
+            });
+        }
+
         fn analyzeIf(self: *Self, if_: Entity) !Entity {
             const scopes = self.function.getPtr(components.Scopes);
             const conditional = try self.analyzeExpression(if_.get(components.Conditional).entity);
@@ -380,6 +396,7 @@ fn Context(comptime FileSystem: type) type {
                 .call => try self.analyzeCall(entity),
                 .binary_op => try self.analyzeBinaryOp(entity),
                 .define => try self.analyzeDefine(entity),
+                .assign => try self.analyzeAssign(entity),
                 .if_ => try self.analyzeIf(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
             };
@@ -1127,5 +1144,47 @@ test "analyze semantics if then else with different type branches" {
         try expectEqual(else_.len, 1);
         const call = else_[0];
         try expectEqual(call.get(components.AstKind), .call);
+    }
+}
+
+test "analyze semantics of assignment" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{"I64"};
+    const builtin_types = [_]Entity{builtins.I64};
+    for (types) |type_of, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  x: {s} = 10
+            \\  x := 3
+            \\  x
+            \\end
+        , .{ type_of, type_of }));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const body = start.get(components.AnalyzedBody).slice();
+        try expectEqual(body.len, 3);
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtin_types[i]);
+        try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+        const assign = body[1];
+        try expectEqual(assign.get(components.AstKind), .assign);
+        try expectEqual(typeOf(assign), builtin_types[i]);
+        try expectEqualStrings(literalOf(assign.get(components.Name).entity), "x");
+        try expectEqualStrings(literalOf(assign.get(components.Value).entity), "3");
+        const local = body[2];
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqual(local.get(components.Local).entity, define);
+        try expectEqual(typeOf(local), builtin_types[i]);
     }
 }

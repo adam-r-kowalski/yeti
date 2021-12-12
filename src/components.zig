@@ -247,6 +247,7 @@ pub const AstKind = enum(u8) {
     function,
     binary_op,
     define,
+    assign,
     call,
     import,
     overload_set,
@@ -297,6 +298,7 @@ pub const Intrinsic = enum(u8) {
 pub const LoweredParameters = struct { value: bool };
 pub const LoweredBody = struct { value: bool };
 
+pub const Mutable = struct { value: bool };
 pub const AnalyzedParameters = struct { value: bool };
 pub const AnalyzedBody = DistinctList("Analyzed Body", Entity);
 pub const AnalyzedConditional = DistinctEntity("Analyzed Conditional");
