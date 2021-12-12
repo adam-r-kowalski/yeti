@@ -8,7 +8,7 @@
 - [x] Comparison operators for primitive types (<, <=, >, >=, ==, !=)
 - [x] If expressions
 - [x] Recursion
-- [ ] Assignment
+- [x] Assignment
 - [ ] Loops
 - [ ] Overloading
 - [ ] Pipeline
