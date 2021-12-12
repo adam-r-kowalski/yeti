@@ -48,4 +48,9 @@ pub fn main() !void {
     try codegen(module);
     const wasm = try printWasm(module);
     try std.fs.cwd().writeFile(args[2], wasm);
+    const result = try std.ChildProcess.exec(.{
+        .allocator = &arena.allocator,
+        .argv = &.{ "wasmtime", args[2] },
+    });
+    std.debug.print("{s}", .{result.stdout});
 }
