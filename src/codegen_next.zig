@@ -706,23 +706,38 @@ fn codegenIntrinsic(context: Context, entity: Entity) !void {
 }
 
 fn codegenIf(context: Context, entity: Entity) !void {
-    const conditional = entity.get(components.Conditional).entity;
+    const conditional = entity.get(components.AnalyzedConditional).entity;
     try codegenEntity(context, conditional);
     const kind = context.wasm_instructions.last().get(components.WasmInstructionKind);
     if (kind == .i32_const) {
         context.wasm_instructions.shrink(1);
         if ((try valueOf(i32, conditional)).? != 0) {
-            for (entity.get(components.Then).slice()) |expression| {
+            for (entity.get(components.AnalyzedThen).slice()) |expression| {
                 try codegenEntity(context, expression);
             }
             return;
         }
-        for (entity.get(components.Else).slice()) |expression| {
+        for (entity.get(components.AnalyzedElse).slice()) |expression| {
             try codegenEntity(context, expression);
         }
         return;
     }
-    panic("\ncodegen if with non constant conditional unsupported\n", .{});
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.if_,
+        entity.get(components.Type),
+    }));
+    for (entity.get(components.AnalyzedThen).slice()) |expression| {
+        try codegenEntity(context, expression);
+    }
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.else_,
+    }));
+    for (entity.get(components.AnalyzedElse).slice()) |expression| {
+        try codegenEntity(context, expression);
+    }
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.end,
+    }));
 }
 
 fn codegenEntity(context: Context, entity: Entity) error{ OutOfMemory, Overflow, InvalidCharacter }!void {
@@ -1264,5 +1279,65 @@ test "codegen if then else where else branch taken statically" {
         const constant = start_instructions[0];
         try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
         try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "30");
+    }
+}
+
+test "codegen if then else non const conditional" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const b = codebase.get(components.Builtins);
+    const builtin_types = [_]Entity{
+        b.I64,
+        b.I32,
+        b.U64,
+        b.U32,
+        b.F64,
+        b.F32,
+    };
+    const const_kinds = [_]components.WasmInstructionKind{
+        .i64_const,
+        .i32_const,
+        .i64_const,
+        .i32_const,
+        .f64_const,
+        .f32_const,
+    };
+    for (types) |type_of, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  if f() then 20 else 30 end
+            \\end
+            \\
+            \\f = function(): I32 1 end
+        , .{type_of}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const start_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(start_instructions.len, 6);
+        const call = start_instructions[0];
+        try expectEqual(call.get(components.WasmInstructionKind), .call);
+        const f = call.get(components.Callable).entity;
+        const if_ = start_instructions[1];
+        try expectEqual(if_.get(components.WasmInstructionKind), .if_);
+        try expectEqual(if_.get(components.Type).entity, builtin_types[i]);
+        const twenty = start_instructions[2];
+        try expectEqual(twenty.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(twenty.get(components.Constant).entity), "20");
+        try expectEqual(start_instructions[3].get(components.WasmInstructionKind), .else_);
+        const thirty = start_instructions[4];
+        try expectEqual(thirty.get(components.WasmInstructionKind), const_kinds[i]);
+        try expectEqualStrings(literalOf(thirty.get(components.Constant).entity), "30");
+        try expectEqual(start_instructions[5].get(components.WasmInstructionKind), .end);
+        try expectEqualStrings(literalOf(f.get(components.Name).entity), "f");
+        const f_instructions = f.get(components.WasmInstructions).slice();
+        try expectEqual(f_instructions.len, 1);
+        const constant = f_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "1");
     }
 }

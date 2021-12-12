@@ -299,6 +299,9 @@ pub const LoweredBody = struct { value: bool };
 
 pub const AnalyzedParameters = struct { value: bool };
 pub const AnalyzedBody = DistinctList("Analyzed Body", Entity);
+pub const AnalyzedConditional = DistinctEntity("Analyzed Conditional");
+pub const AnalyzedThen = DistinctList("Analyzed Then", Entity);
+pub const AnalyzedElse = DistinctList("Analyzed Else", Entity);
 pub const Local = DistinctEntity("Local");
 pub const Constant = DistinctEntity("Constant");
 

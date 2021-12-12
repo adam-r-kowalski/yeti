@@ -293,27 +293,34 @@ fn Context(comptime FileSystem: type) type {
             const active_scopes = self.active_scopes;
             const then = if_.get(components.Then).slice();
             assert(then.len > 0);
-            var then_entity: Entity = undefined;
             const then_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
             std.mem.copy(u64, then_scopes, active_scopes);
             then_scopes[active_scopes.len] = try scopes.pushScope();
             self.active_scopes = then_scopes;
+            var analyzed_then = try components.AnalyzedThen.withCapacity(self.allocator, then.len);
             for (then) |entity| {
-                then_entity = try self.analyzeExpression(entity);
+                analyzed_then.appendAssumeCapacity(try self.analyzeExpression(entity));
             }
+            const then_entity = analyzed_then.last();
             const else_ = if_.get(components.Else).slice();
             assert(else_.len > 0);
-            var else_entity: Entity = undefined;
             const else_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
             std.mem.copy(u64, else_scopes, active_scopes);
             else_scopes[active_scopes.len] = try scopes.pushScope();
             self.active_scopes = else_scopes;
+            var analyzed_else = try components.AnalyzedElse.withCapacity(self.allocator, else_.len);
             for (else_) |entity| {
-                else_entity = try self.analyzeExpression(entity);
+                analyzed_else.appendAssumeCapacity(try self.analyzeExpression(entity));
             }
+            const else_entity = analyzed_else.last();
             const type_of = typeOf(then_entity);
             assert(eql(type_of, typeOf(else_entity)));
-            _ = try if_.set(.{components.Type.init(type_of)});
+            _ = try if_.set(.{
+                components.Type.init(type_of),
+                components.AnalyzedConditional.init(conditional),
+                analyzed_then,
+                analyzed_else,
+            });
             if (eql(type_of, self.builtins.IntLiteral) or eql(type_of, self.builtins.FloatLiteral)) {
                 _ = try if_.set(.{
                     try components.DependentEntities.fromSlice(self.allocator, &.{ then_entity, else_entity }),
@@ -957,21 +964,79 @@ test "analyze semantics if then else" {
         const if_ = body[0];
         try expectEqual(if_.get(components.AstKind), .if_);
         try expectEqual(typeOf(if_), builtin_types[i]);
-        const conditional = if_.get(components.Conditional).entity;
+        const conditional = if_.get(components.AnalyzedConditional).entity;
         try expectEqual(conditional.get(components.AstKind), .int);
         try expectEqualStrings(literalOf(conditional), "1");
         try expectEqual(typeOf(conditional), builtins.I32);
-        const then = if_.get(components.Then).slice();
+        const then = if_.get(components.AnalyzedThen).slice();
         try expectEqual(then.len, 1);
         const twenty = then[0];
         try expectEqual(twenty.get(components.AstKind), .int);
         try expectEqualStrings(literalOf(twenty), "20");
         try expectEqual(typeOf(twenty), builtin_types[i]);
-        const else_ = if_.get(components.Else).slice();
+        const else_ = if_.get(components.AnalyzedElse).slice();
         try expectEqual(else_.len, 1);
         const thirty = else_[0];
         try expectEqual(thirty.get(components.AstKind), .int);
         try expectEqualStrings(literalOf(thirty), "30");
         try expectEqual(typeOf(thirty), builtin_types[i]);
+    }
+}
+
+test "analyze semantics if then else non constant conditional" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    const types = [_][]const u8{"I64"};
+    const builtin_types = [_]Entity{builtins.I64};
+    for (types) |type_of, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  if f() then 20 else 30 end
+            \\end
+            \\
+            \\f = function(): I32
+            \\  1
+            \\end
+        , .{type_of}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+        try expectEqual(start.get(components.Parameters).len(), 0);
+        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
+        const f = blk: {
+            const body = start.get(components.AnalyzedBody).slice();
+            try expectEqual(body.len, 1);
+            const if_ = body[0];
+            try expectEqual(if_.get(components.AstKind), .if_);
+            try expectEqual(typeOf(if_), builtin_types[i]);
+            const conditional = if_.get(components.AnalyzedConditional).entity;
+            try expectEqual(conditional.get(components.AstKind), .call);
+            try expectEqual(typeOf(conditional), builtins.I32);
+            const f = conditional.get(components.Callable).entity;
+            const then = if_.get(components.AnalyzedThen).slice();
+            try expectEqual(then.len, 1);
+            const twenty = then[0];
+            try expectEqual(twenty.get(components.AstKind), .int);
+            try expectEqualStrings(literalOf(twenty), "20");
+            try expectEqual(typeOf(twenty), builtin_types[i]);
+            const else_ = if_.get(components.AnalyzedElse).slice();
+            try expectEqual(else_.len, 1);
+            const thirty = else_[0];
+            try expectEqual(thirty.get(components.AstKind), .int);
+            try expectEqualStrings(literalOf(thirty), "30");
+            try expectEqual(typeOf(thirty), builtin_types[i]);
+            break :blk f;
+        };
+        try expectEqualStrings(literalOf(f.get(components.Module).entity), "foo");
+        try expectEqualStrings(literalOf(f.get(components.Name).entity), "f");
+        try expectEqual(f.get(components.Parameters).len(), 0);
+        try expectEqual(f.get(components.ReturnType).entity, builtins.I32);
+        const body = f.get(components.AnalyzedBody).slice();
+        try expectEqual(body.len, 1);
     }
 }

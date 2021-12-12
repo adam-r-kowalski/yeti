@@ -200,8 +200,7 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         },
         .if_ => {
             try wasm.appendSlice("\n    if (result ");
-            const result = wasm_instruction.get(components.Result).entity;
-            try printWasmType(wasm, result.get(components.Type).entity);
+            try printWasmType(wasm, wasm_instruction.get(components.Type).entity);
             try wasm.append(')');
         },
         .else_ => try wasm.appendSlice("\n    else"),
@@ -556,5 +555,96 @@ test "print wasm int binary op non constant" {
                 \\(export "_start" (func $foo/start)))
             , .{ wasm_types[i], wasm_types[i], wasm_types[i], instructions[op_index][i], wasm_types[i], wasm_types[i] }));
         }
+    }
+}
+
+test "print wasm if then else where then branch taken statically" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
+    for (types) |type_of, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  if 1 then 20 else 30 end
+            \\end
+        , .{type_of}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm = try printWasm(module);
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    ({s}.const 20))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i] }));
+    }
+}
+
+test "print wasm if then else where else branch taken statically" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
+    for (types) |type_of, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  if 0 then 20 else 30 end
+            \\end
+        , .{type_of}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm = try printWasm(module);
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    ({s}.const 30))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i] }));
+    }
+}
+
+test "print wasm if then else non const conditional" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
+    for (types) |type_of, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            \\start = function(): {s}
+            \\  if f() then 20 else 30 end
+            \\end
+            \\
+            \\f = function(): I32 1 end
+        , .{type_of}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        try codegen(module);
+        const wasm = try printWasm(module);
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+            \\(module
+            \\
+            \\  (func $foo/start (result {s})
+            \\    (call $foo/f)
+            \\    if (result {s})
+            \\    ({s}.const 20)
+            \\    else
+            \\    ({s}.const 30)
+            \\    end)
+            \\
+            \\  (func $foo/f (result i32)
+            \\    (i32.const 1))
+            \\
+            \\(export "_start" (func $foo/start)))
+        , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
     }
 }
