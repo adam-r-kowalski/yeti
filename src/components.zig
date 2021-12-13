@@ -202,6 +202,7 @@ pub const TokenKind = enum(u8) {
     if_,
     then,
     else_,
+    while_,
 };
 
 pub const Literal = struct {
@@ -225,9 +226,6 @@ pub const Arguments = DistinctList("Arguments", Entity);
 pub const Overloads = DistinctList("Overloads", Entity);
 pub const TopLevel = DistinctEntityMap("Top Level");
 pub const Path = DistinctEntity("Path");
-pub const BasicBlocks = DistinctList("Basic Blocks", Entity);
-pub const IrInstructions = DistinctList("Ir Instructions", Entity);
-pub const Result = DistinctEntity("Result");
 pub const Module = DistinctEntity("Module");
 pub const Functions = DistinctList("Functions", Entity);
 pub const WasmInstructions = DistinctList("Wasm Instructions", Entity);
@@ -235,9 +233,6 @@ pub const Locals = DistinctEntitySet("Locals");
 pub const Conditional = DistinctEntity("Conditional");
 pub const Then = DistinctList("Then", Entity);
 pub const Else = DistinctList("Else", Entity);
-pub const ThenBlock = DistinctEntity("Then Block");
-pub const ElseBlock = DistinctEntity("Else Block");
-pub const FinallyBlock = DistinctEntity("Finally Block");
 pub const DependentEntities = DistinctList("Dependent Entities", Entity);
 
 pub const AstKind = enum(u8) {
@@ -252,6 +247,7 @@ pub const AstKind = enum(u8) {
     import,
     overload_set,
     if_,
+    while_,
     local,
     intrinsic,
 };
@@ -306,83 +302,6 @@ pub const AnalyzedThen = DistinctList("Analyzed Then", Entity);
 pub const AnalyzedElse = DistinctList("Analyzed Else", Entity);
 pub const Local = DistinctEntity("Local");
 pub const Constant = DistinctEntity("Constant");
-
-pub const IrInstructionKind = enum(u8) {
-    int_const,
-    float_const,
-    i64_add,
-    i32_add,
-    f64_add,
-    f32_add,
-    i64_sub,
-    i32_sub,
-    f64_sub,
-    f32_sub,
-    i64_mul,
-    i32_mul,
-    f64_mul,
-    f32_mul,
-    i64_div,
-    i32_div,
-    u64_div,
-    u32_div,
-    f64_div,
-    f32_div,
-    i64_lt,
-    i32_lt,
-    u64_lt,
-    u32_lt,
-    f64_lt,
-    f32_lt,
-    i64_le,
-    i32_le,
-    u64_le,
-    u32_le,
-    f64_le,
-    f32_le,
-    i64_gt,
-    i32_gt,
-    u64_gt,
-    u32_gt,
-    f64_gt,
-    f32_gt,
-    i64_ge,
-    i32_ge,
-    u64_ge,
-    u32_ge,
-    f64_ge,
-    f32_ge,
-    i64_eq,
-    i32_eq,
-    f64_eq,
-    f32_eq,
-    i64_ne,
-    i32_ne,
-    f64_ne,
-    f32_ne,
-    i64_or,
-    i32_or,
-    i64_xor,
-    i32_xor,
-    i64_and,
-    i32_and,
-    i64_shl,
-    i32_shl,
-    u64_shl,
-    u32_shl,
-    i64_shr,
-    i32_shr,
-    u64_shr,
-    u32_shr,
-    i64_rem,
-    i32_rem,
-    u64_rem,
-    u32_rem,
-    call,
-    get_local,
-    set_local,
-    if_,
-};
 
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
