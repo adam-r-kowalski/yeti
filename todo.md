@@ -9,12 +9,12 @@
 - [x] If expressions
 - [x] Recursion
 - [x] Assignment
-- [ ] While loop
 - [x] Remove redundant components
     - [x] AnalyzedBody
     - [x] AnalyzedConditional
     - [x] AnalyzedThen
     - [x] AnalyzedElse
-- [ ] Overloading
+- [ ] While loop
 - [ ] Pipeline
+- [ ] Overloading
 

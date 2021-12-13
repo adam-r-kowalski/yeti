@@ -88,6 +88,12 @@ fn printWasmFunctionLocals(wasm: *Wasm, function: Entity) !void {
     }
 }
 
+fn printWasmLabel(wasm: *Wasm, wasm_instruction: Entity) !void {
+    const label = wasm_instruction.get(components.Label).value;
+    const result = try std.fmt.allocPrint(wasm.allocator, "$.label.{}", .{label});
+    try wasm.appendSlice(result);
+}
+
 fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
     switch (wasm_instruction.get(components.WasmInstructionKind)) {
         .i64_const => {
@@ -178,6 +184,7 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         .u32_rem => try wasm.appendSlice("\n    i32.rem_u"),
         .i64_xor => try wasm.appendSlice("\n    i64.xor"),
         .i32_xor => try wasm.appendSlice("\n    i32.xor"),
+        .i32_eqz => try wasm.appendSlice("\n    i32.eqz"),
         .call => {
             try wasm.appendSlice("\n    (call $");
             const callable = wasm_instruction.get(components.Callable).entity;
@@ -204,7 +211,29 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
             try wasm.append(')');
         },
         .else_ => try wasm.appendSlice("\n    else"),
-        .end => try wasm.appendSlice("\n    end"),
+        .end => {
+            try wasm.appendSlice("\n    end");
+            if (wasm_instruction.contains(components.Label)) {
+                try wasm.append(' ');
+                try printWasmLabel(wasm, wasm_instruction);
+            }
+        },
+        .block => {
+            try wasm.appendSlice("\n    block ");
+            try printWasmLabel(wasm, wasm_instruction);
+        },
+        .loop => {
+            try wasm.appendSlice("\n    loop ");
+            try printWasmLabel(wasm, wasm_instruction);
+        },
+        .br_if => {
+            try wasm.appendSlice("\n    br_if ");
+            try printWasmLabel(wasm, wasm_instruction);
+        },
+        .br => {
+            try wasm.appendSlice("\n    br ");
+            try printWasmLabel(wasm, wasm_instruction);
+        },
     }
 }
 
@@ -681,4 +710,48 @@ test "print wasm assignment" {
             \\(export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
     }
+}
+
+test "print wasm while loop" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I32
+        \\  i = 0
+        \\  while i < 10
+        \\      i := i + 1
+        \\  end
+        \\  i
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32)
+        \\    (local $i i32)
+        \\    (i32.const 0)
+        \\    (set_local $i)
+        \\    block $.label.0
+        \\    loop $.label.1
+        \\    (get_local $i)
+        \\    (i32.const 10)
+        \\    i32.lt_s
+        \\    i32.eqz
+        \\    br_if $.label.0
+        \\    (get_local $i)
+        \\    (i32.const 1)
+        \\    i32.add
+        \\    (set_local $i)
+        \\    br $.label.1
+        \\    end $.label.1
+        \\    end $.label.0
+        \\    (get_local $i))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
 }

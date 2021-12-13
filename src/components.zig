@@ -213,33 +213,6 @@ pub const Literal = struct {
     }
 };
 
-pub const Name = DistinctEntity("Name");
-pub const ReturnTypeAst = DistinctEntity("Return Type Ast");
-pub const ReturnType = DistinctEntity("Return Type");
-pub const Value = DistinctEntity("Value");
-pub const Callable = DistinctEntity("Callable");
-pub const TypeAst = DistinctEntity("Type Ast");
-pub const Type = DistinctEntity("Type");
-pub const Parameters = DistinctList("Parameters", Entity);
-pub const Body = DistinctList("Body", Entity);
-pub const Arguments = DistinctList("Arguments", Entity);
-pub const Overloads = DistinctList("Overloads", Entity);
-pub const TopLevel = DistinctEntityMap("Top Level");
-pub const Path = DistinctEntity("Path");
-pub const Module = DistinctEntity("Module");
-pub const Functions = DistinctList("Functions", Entity);
-pub const WasmInstructions = DistinctList("Wasm Instructions", Entity);
-pub const Locals = DistinctEntitySet("Locals");
-pub const Conditional = DistinctEntity("Conditional");
-pub const Then = DistinctList("Then", Entity);
-pub const Else = DistinctList("Else", Entity);
-pub const DependentEntities = DistinctList("Dependent Entities", Entity);
-pub const Local = DistinctEntity("Local");
-pub const Constant = DistinctEntity("Constant");
-pub const Mutable = struct { value: bool };
-pub const AnalyzedParameters = struct { value: bool };
-pub const AnalyzedBody = struct { value: bool };
-
 pub const AstKind = enum(u8) {
     symbol,
     int,
@@ -369,12 +342,17 @@ pub const WasmInstructionKind = enum(u8) {
     i32_rem,
     u64_rem,
     u32_rem,
+    i32_eqz,
     call,
     get_local,
     set_local,
     if_,
     else_,
     end,
+    block,
+    loop,
+    br_if,
+    br,
 };
 
 pub const Builtins = struct {
@@ -399,10 +377,6 @@ pub const Error = struct {
     hint: []const u8,
     module: Entity,
 };
-
-pub const Scope = DistinctEntityMap("Scope");
-
-pub const ActiveScopes = DistinctList("Active Scopes", u64);
 
 pub const Scopes = struct {
     const Map = std.AutoHashMap(InternedString, Entity);
@@ -480,3 +454,33 @@ pub const Scopes = struct {
         return self.scopes.slice();
     }
 };
+
+pub const Name = DistinctEntity("Name");
+pub const ReturnTypeAst = DistinctEntity("Return Type Ast");
+pub const ReturnType = DistinctEntity("Return Type");
+pub const Value = DistinctEntity("Value");
+pub const Callable = DistinctEntity("Callable");
+pub const TypeAst = DistinctEntity("Type Ast");
+pub const Type = DistinctEntity("Type");
+pub const Parameters = DistinctList("Parameters", Entity);
+pub const Body = DistinctList("Body", Entity);
+pub const Arguments = DistinctList("Arguments", Entity);
+pub const Overloads = DistinctList("Overloads", Entity);
+pub const TopLevel = DistinctEntityMap("Top Level");
+pub const Path = DistinctEntity("Path");
+pub const Module = DistinctEntity("Module");
+pub const Functions = DistinctList("Functions", Entity);
+pub const WasmInstructions = DistinctList("Wasm Instructions", Entity);
+pub const Locals = DistinctEntitySet("Locals");
+pub const Conditional = DistinctEntity("Conditional");
+pub const Then = DistinctList("Then", Entity);
+pub const Else = DistinctList("Else", Entity);
+pub const DependentEntities = DistinctList("Dependent Entities", Entity);
+pub const Local = DistinctEntity("Local");
+pub const Constant = DistinctEntity("Constant");
+pub const Scope = DistinctEntityMap("Scope");
+pub const ActiveScopes = DistinctList("Active Scopes", u64);
+pub const Label = struct { value: u64 };
+pub const Mutable = struct { value: bool };
+pub const AnalyzedParameters = struct { value: bool };
+pub const AnalyzedBody = struct { value: bool };

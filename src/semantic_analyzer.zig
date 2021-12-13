@@ -320,6 +320,13 @@ fn Context(comptime FileSystem: type) type {
                 name,
                 value.get(components.Type),
             });
+            const type_of = typeOf(value);
+            const b = self.builtins;
+            if (eql(type_of, b.IntLiteral) or eql(type_of, b.FloatLiteral)) {
+                _ = try analyzed_define.set(.{
+                    try components.DependentEntities.fromSlice(self.allocator, &.{value}),
+                });
+            }
             try scopes.putName(name, analyzed_define);
             return analyzed_define;
         }
