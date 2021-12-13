@@ -208,9 +208,7 @@ fn Context(comptime FileSystem: type) type {
             }
             const overload = try self.bestOverload(callable, analyzed_arguments.slice());
             if (!overload.contains(components.AnalyzedBody)) {
-                _ = try overload.set(.{
-                    components.AnalyzedBody.init(self.allocator),
-                });
+                _ = try overload.set(.{components.AnalyzedBody{ .value = true }});
                 const scopes = overload.getPtr(components.Scopes).slice();
                 assert(scopes.len == 1);
                 const active_scopes = [_]u64{0};
@@ -353,7 +351,7 @@ fn Context(comptime FileSystem: type) type {
             std.mem.copy(u64, then_scopes, active_scopes);
             then_scopes[active_scopes.len] = try scopes.pushScope();
             self.active_scopes = then_scopes;
-            var analyzed_then = try components.AnalyzedThen.withCapacity(self.allocator, then.len);
+            var analyzed_then = try components.Then.withCapacity(self.allocator, then.len);
             for (then) |entity| {
                 analyzed_then.appendAssumeCapacity(try self.analyzeExpression(entity));
             }
@@ -364,20 +362,21 @@ fn Context(comptime FileSystem: type) type {
             std.mem.copy(u64, else_scopes, active_scopes);
             else_scopes[active_scopes.len] = try scopes.pushScope();
             self.active_scopes = else_scopes;
-            var analyzed_else = try components.AnalyzedElse.withCapacity(self.allocator, else_.len);
+            var analyzed_else = try components.Else.withCapacity(self.allocator, else_.len);
             for (else_) |entity| {
                 analyzed_else.appendAssumeCapacity(try self.analyzeExpression(entity));
             }
             const else_entity = analyzed_else.last();
             const type_of = try self.unifyTypes(then_entity, else_entity);
-            _ = try if_.set(.{
+            const result = try self.codebase.createEntity(.{
+                components.AstKind.if_,
                 components.Type.init(type_of),
-                components.AnalyzedConditional.init(conditional),
+                components.Conditional.init(conditional),
                 analyzed_then,
                 analyzed_else,
             });
             if (eql(type_of, self.builtins.IntLiteral) or eql(type_of, self.builtins.FloatLiteral)) {
-                _ = try if_.set(.{
+                _ = try result.set(.{
                     try components.DependentEntities.fromSlice(self.allocator, &.{ then_entity, else_entity }),
                 });
             }
@@ -385,7 +384,7 @@ fn Context(comptime FileSystem: type) type {
             std.mem.copy(u64, finally_scopes, active_scopes);
             finally_scopes[active_scopes.len] = try scopes.pushScope();
             self.active_scopes = finally_scopes;
-            return if_;
+            return result;
         }
 
         fn analyzeWhile(self: *Self, while_: Entity) !Entity {
@@ -399,20 +398,21 @@ fn Context(comptime FileSystem: type) type {
             std.mem.copy(u64, body_scopes, active_scopes);
             body_scopes[active_scopes.len] = try scopes.pushScope();
             self.active_scopes = body_scopes;
-            var analyzed_body = try components.AnalyzedBody.withCapacity(self.allocator, body.len);
+            var analyzed_body = try components.Body.withCapacity(self.allocator, body.len);
             for (body) |entity| {
                 analyzed_body.appendAssumeCapacity(try self.analyzeExpression(entity));
             }
-            _ = try while_.set(.{
+            const result = try self.codebase.createEntity(.{
+                components.AstKind.while_,
                 components.Type.init(self.builtins.Void),
-                components.AnalyzedConditional.init(conditional),
+                components.Conditional.init(conditional),
                 analyzed_body,
             });
             const finally_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
             std.mem.copy(u64, finally_scopes, active_scopes);
             finally_scopes[active_scopes.len] = try scopes.pushScope();
             self.active_scopes = finally_scopes;
-            return while_;
+            return result;
         }
 
         fn analyzeExpression(self: *Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes }!Entity {
@@ -451,8 +451,8 @@ fn Context(comptime FileSystem: type) type {
         }
 
         fn analyzeFunctionBody(self: *Self) !Entity {
-            var analyzed_body = self.function.getPtr(components.AnalyzedBody);
             const body = self.function.get(components.Body).slice();
+            var analyzed_body = try components.Body.withCapacity(self.allocator, body.len);
             for (body) |expression| {
                 try analyzed_body.append(try self.analyzeExpression(expression));
             }
@@ -490,10 +490,7 @@ pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []con
     var scopes = components.Scopes.init(allocator, codebase.getPtr(Strings));
     const scope = try scopes.pushScope();
     const function = overloads[0];
-    _ = try function.set(.{
-        scopes,
-        components.AnalyzedBody.init(allocator),
-    });
+    _ = try function.set(.{scopes});
     const active_scopes = [_]u64{scope};
     var context = Context(@TypeOf(file_system)){
         .allocator = allocator,
@@ -529,7 +526,7 @@ test "analyze semantics int literal" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.AnalyzedBody).slice();
+        const body = start.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const int_literal = body[0];
         try expectEqual(int_literal.get(components.AstKind), .int);
@@ -559,7 +556,7 @@ test "analyze semantics float literal" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.AnalyzedBody).slice();
+        const body = start.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const float_literal = body[0];
         try expectEqual(float_literal.get(components.AstKind), .float);
@@ -594,7 +591,7 @@ test "analyze semantics call local function" {
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
         const baz = blk: {
-            const body = start.get(components.AnalyzedBody).slice();
+            const body = start.get(components.Body).slice();
             try expectEqual(body.len, 1);
             const call = body[0];
             try expectEqual(call.get(components.AstKind), .call);
@@ -606,7 +603,7 @@ test "analyze semantics call local function" {
         try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
         try expectEqual(baz.get(components.Parameters).len(), 0);
         try expectEqual(baz.get(components.ReturnType).entity, builtin_types[i]);
-        const body = baz.get(components.AnalyzedBody).slice();
+        const body = baz.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const int_literal = body[0];
         try expectEqual(int_literal.get(components.AstKind), .int);
@@ -644,7 +641,7 @@ test "analyze semantics call function import" {
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
         const baz = blk: {
-            const body = start.get(components.AnalyzedBody).slice();
+            const body = start.get(components.Body).slice();
             try expectEqual(body.len, 1);
             const call = body[0];
             try expectEqual(call.get(components.AstKind), .call);
@@ -656,7 +653,7 @@ test "analyze semantics call function import" {
         try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
         try expectEqual(baz.get(components.Parameters).len(), 0);
         try expectEqual(baz.get(components.ReturnType).entity, builtin_types[i]);
-        const body = baz.get(components.AnalyzedBody).slice();
+        const body = baz.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const int_literal = body[0];
         try expectEqual(int_literal.get(components.AstKind), .int);
@@ -687,7 +684,7 @@ test "analyze semantics define" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.AnalyzedBody).slice();
+        const body = start.get(components.Body).slice();
         try expectEqual(body.len, 2);
         const define = body[0];
         try expectEqual(define.get(components.AstKind), .define);
@@ -724,7 +721,7 @@ test "analyze semantics two defines" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.AnalyzedBody).slice();
+        const body = start.get(components.Body).slice();
         try expectEqual(body.len, 3);
         const x = body[0];
         try expectEqual(x.get(components.AstKind), .define);
@@ -765,7 +762,7 @@ test "analyze semantics define with explicit float type" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.AnalyzedBody).slice();
+        const body = start.get(components.Body).slice();
         try expectEqual(body.len, 2);
         const define = body[0];
         try expectEqual(define.get(components.AstKind), .define);
@@ -806,7 +803,7 @@ test "analyze semantics function with argument" {
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
         const id = blk: {
-            const body = start.get(components.AnalyzedBody).slice();
+            const body = start.get(components.Body).slice();
             try expectEqual(body.len, 2);
             const define = body[0];
             try expectEqual(define.get(components.AstKind), .define);
@@ -832,7 +829,7 @@ test "analyze semantics function with argument" {
         const x = parameters[0];
         try expectEqual(typeOf(x), builtin_types[i]);
         try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-        const body = id.get(components.AnalyzedBody).slice();
+        const body = id.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const local = body[0];
         try expectEqual(local.get(components.AstKind), .local);
@@ -867,7 +864,7 @@ test "analyze semantics function call twice" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const start_body = start.get(components.AnalyzedBody).slice();
+        const start_body = start.get(components.Body).slice();
         try expectEqual(start_body.len, 2);
         const id = blk: {
             const define = start_body[0];
@@ -901,7 +898,7 @@ test "analyze semantics function call twice" {
         const x = parameters[0];
         try expectEqual(typeOf(x), builtin_types[i]);
         try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-        const body = id.get(components.AnalyzedBody).slice();
+        const body = id.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const local = body[0];
         try expectEqual(local.get(components.AstKind), .local);
@@ -936,7 +933,7 @@ test "analyze semantics binary op two comptime known" {
             try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
             try expectEqual(start.get(components.Parameters).len(), 0);
             try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-            const body = start.get(components.AnalyzedBody).slice();
+            const body = start.get(components.Body).slice();
             try expectEqual(body.len, 3);
             const x = body[0];
             try expectEqual(x.get(components.AstKind), .define);
@@ -997,7 +994,7 @@ test "analyze semantics comparison op two comptime known" {
             try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
             try expectEqual(start.get(components.Parameters).len(), 0);
             try expectEqual(start.get(components.ReturnType).entity, builtins.I32);
-            const body = start.get(components.AnalyzedBody).slice();
+            const body = start.get(components.Body).slice();
             try expectEqual(body.len, 3);
             const x = body[0];
             try expectEqual(x.get(components.AstKind), .define);
@@ -1046,22 +1043,22 @@ test "analyze semantics if then else" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.AnalyzedBody).slice();
+        const body = start.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const if_ = body[0];
         try expectEqual(if_.get(components.AstKind), .if_);
         try expectEqual(typeOf(if_), builtin_types[i]);
-        const conditional = if_.get(components.AnalyzedConditional).entity;
+        const conditional = if_.get(components.Conditional).entity;
         try expectEqual(conditional.get(components.AstKind), .int);
         try expectEqualStrings(literalOf(conditional), "1");
         try expectEqual(typeOf(conditional), builtins.I32);
-        const then = if_.get(components.AnalyzedThen).slice();
+        const then = if_.get(components.Then).slice();
         try expectEqual(then.len, 1);
         const twenty = then[0];
         try expectEqual(twenty.get(components.AstKind), .int);
         try expectEqualStrings(literalOf(twenty), "20");
         try expectEqual(typeOf(twenty), builtin_types[i]);
-        const else_ = if_.get(components.AnalyzedElse).slice();
+        const else_ = if_.get(components.Else).slice();
         try expectEqual(else_.len, 1);
         const thirty = else_[0];
         try expectEqual(thirty.get(components.AstKind), .int);
@@ -1096,22 +1093,22 @@ test "analyze semantics if then else non constant conditional" {
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
         const f = blk: {
-            const body = start.get(components.AnalyzedBody).slice();
+            const body = start.get(components.Body).slice();
             try expectEqual(body.len, 1);
             const if_ = body[0];
             try expectEqual(if_.get(components.AstKind), .if_);
             try expectEqual(typeOf(if_), builtin_types[i]);
-            const conditional = if_.get(components.AnalyzedConditional).entity;
+            const conditional = if_.get(components.Conditional).entity;
             try expectEqual(conditional.get(components.AstKind), .call);
             try expectEqual(typeOf(conditional), builtins.I32);
             const f = conditional.get(components.Callable).entity;
-            const then = if_.get(components.AnalyzedThen).slice();
+            const then = if_.get(components.Then).slice();
             try expectEqual(then.len, 1);
             const twenty = then[0];
             try expectEqual(twenty.get(components.AstKind), .int);
             try expectEqualStrings(literalOf(twenty), "20");
             try expectEqual(typeOf(twenty), builtin_types[i]);
-            const else_ = if_.get(components.AnalyzedElse).slice();
+            const else_ = if_.get(components.Else).slice();
             try expectEqual(else_.len, 1);
             const thirty = else_[0];
             try expectEqual(thirty.get(components.AstKind), .int);
@@ -1123,7 +1120,7 @@ test "analyze semantics if then else non constant conditional" {
         try expectEqualStrings(literalOf(f.get(components.Name).entity), "f");
         try expectEqual(f.get(components.Parameters).len(), 0);
         try expectEqual(f.get(components.ReturnType).entity, builtins.I32);
-        const body = f.get(components.AnalyzedBody).slice();
+        const body = f.get(components.Body).slice();
         try expectEqual(body.len, 1);
     }
 }
@@ -1153,22 +1150,22 @@ test "analyze semantics if then else with different type branches" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.AnalyzedBody).slice();
+        const body = start.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const if_ = body[0];
         try expectEqual(if_.get(components.AstKind), .if_);
         try expectEqual(typeOf(if_), builtin_types[i]);
-        const conditional = if_.get(components.AnalyzedConditional).entity;
+        const conditional = if_.get(components.Conditional).entity;
         try expectEqual(conditional.get(components.AstKind), .int);
         try expectEqualStrings(literalOf(conditional), "1");
         try expectEqual(typeOf(conditional), builtins.I32);
-        const then = if_.get(components.AnalyzedThen).slice();
+        const then = if_.get(components.Then).slice();
         try expectEqual(then.len, 1);
         const twenty = then[0];
         try expectEqual(twenty.get(components.AstKind), .int);
         try expectEqualStrings(literalOf(twenty), "20");
         try expectEqual(typeOf(twenty), builtin_types[i]);
-        const else_ = if_.get(components.AnalyzedElse).slice();
+        const else_ = if_.get(components.Else).slice();
         try expectEqual(else_.len, 1);
         const call = else_[0];
         try expectEqual(call.get(components.AstKind), .call);
@@ -1198,7 +1195,7 @@ test "analyze semantics of assignment" {
         try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
         try expectEqual(start.get(components.Parameters).len(), 0);
         try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.AnalyzedBody).slice();
+        const body = start.get(components.Body).slice();
         try expectEqual(body.len, 3);
         const define = body[0];
         try expectEqual(define.get(components.AstKind), .define);
@@ -1239,7 +1236,7 @@ test "analyze semantics of while loop" {
     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
     try expectEqual(start.get(components.Parameters).len(), 0);
     try expectEqual(start.get(components.ReturnType).entity, builtins.I32);
-    const body = start.get(components.AnalyzedBody).slice();
+    const body = start.get(components.Body).slice();
     try expectEqual(body.len, 3);
     const define = body[0];
     try expectEqual(define.get(components.AstKind), .define);
@@ -1249,10 +1246,10 @@ test "analyze semantics of while loop" {
     const while_ = body[1];
     try expectEqual(while_.get(components.AstKind), .while_);
     try expectEqual(typeOf(while_), builtins.Void);
-    const conditional = while_.get(components.AnalyzedConditional).entity;
+    const conditional = while_.get(components.Conditional).entity;
     try expectEqual(conditional.get(components.AstKind), .intrinsic);
     try expectEqual(typeOf(conditional), builtins.I32);
-    const while_body = while_.get(components.AnalyzedBody).slice();
+    const while_body = while_.get(components.Body).slice();
     try expectEqual(while_body.len, 1);
     const assign = while_body[0];
     try expectEqual(assign.get(components.AstKind), .assign);

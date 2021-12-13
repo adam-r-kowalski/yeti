@@ -720,18 +720,18 @@ fn codegenIntrinsic(context: Context, entity: Entity) !void {
 }
 
 fn codegenIf(context: Context, entity: Entity) !void {
-    const conditional = entity.get(components.AnalyzedConditional).entity;
+    const conditional = entity.get(components.Conditional).entity;
     try codegenEntity(context, conditional);
     const kind = context.wasm_instructions.last().get(components.WasmInstructionKind);
     if (kind == .i32_const) {
         context.wasm_instructions.shrink(1);
         if ((try valueOf(i32, conditional)).? != 0) {
-            for (entity.get(components.AnalyzedThen).slice()) |expression| {
+            for (entity.get(components.Then).slice()) |expression| {
                 try codegenEntity(context, expression);
             }
             return;
         }
-        for (entity.get(components.AnalyzedElse).slice()) |expression| {
+        for (entity.get(components.Else).slice()) |expression| {
             try codegenEntity(context, expression);
         }
         return;
@@ -740,13 +740,13 @@ fn codegenIf(context: Context, entity: Entity) !void {
         components.WasmInstructionKind.if_,
         entity.get(components.Type),
     }));
-    for (entity.get(components.AnalyzedThen).slice()) |expression| {
+    for (entity.get(components.Then).slice()) |expression| {
         try codegenEntity(context, expression);
     }
     try context.wasm_instructions.append(try context.codebase.createEntity(.{
         components.WasmInstructionKind.else_,
     }));
-    for (entity.get(components.AnalyzedElse).slice()) |expression| {
+    for (entity.get(components.Else).slice()) |expression| {
         try codegenEntity(context, expression);
     }
     try context.wasm_instructions.append(try context.codebase.createEntity(.{
@@ -782,7 +782,7 @@ pub fn codegen(module: Entity) !void {
             .allocator = allocator,
             .builtins = builtins,
         };
-        const body = function.get(components.AnalyzedBody).slice();
+        const body = function.get(components.Body).slice();
         for (body) |entity| {
             try codegenEntity(context, entity);
         }

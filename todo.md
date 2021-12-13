@@ -10,11 +10,11 @@
 - [x] Recursion
 - [x] Assignment
 - [ ] While loop
-- [ ] Remove redundant components
-    - [ ] AnalyzedBody
-    - [ ] AnalyzedConditional
-    - [ ] AnalyzedThen
-    - [ ] AnalyzedElse
+- [x] Remove redundant components
+    - [x] AnalyzedBody
+    - [x] AnalyzedConditional
+    - [x] AnalyzedThen
+    - [x] AnalyzedElse
 - [ ] Overloading
 - [ ] Pipeline
 

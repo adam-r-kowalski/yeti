@@ -234,14 +234,11 @@ pub const Conditional = DistinctEntity("Conditional");
 pub const Then = DistinctList("Then", Entity);
 pub const Else = DistinctList("Else", Entity);
 pub const DependentEntities = DistinctList("Dependent Entities", Entity);
-pub const Mutable = struct { value: bool };
-pub const AnalyzedParameters = struct { value: bool };
-pub const AnalyzedBody = DistinctList("Analyzed Body", Entity);
-pub const AnalyzedConditional = DistinctEntity("Analyzed Conditional");
-pub const AnalyzedThen = DistinctList("Analyzed Then", Entity);
-pub const AnalyzedElse = DistinctList("Analyzed Else", Entity);
 pub const Local = DistinctEntity("Local");
 pub const Constant = DistinctEntity("Constant");
+pub const Mutable = struct { value: bool };
+pub const AnalyzedParameters = struct { value: bool };
+pub const AnalyzedBody = struct { value: bool };
 
 pub const AstKind = enum(u8) {
     symbol,
