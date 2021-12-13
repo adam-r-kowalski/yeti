@@ -388,6 +388,33 @@ fn Context(comptime FileSystem: type) type {
             return if_;
         }
 
+        fn analyzeWhile(self: *Self, while_: Entity) !Entity {
+            const scopes = self.function.getPtr(components.Scopes);
+            const conditional = try self.analyzeExpression(while_.get(components.Conditional).entity);
+            try self.implicitTypeConversion(conditional, self.builtins.I32);
+            const active_scopes = self.active_scopes;
+            const body = while_.get(components.Body).slice();
+            assert(body.len > 0);
+            const body_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
+            std.mem.copy(u64, body_scopes, active_scopes);
+            body_scopes[active_scopes.len] = try scopes.pushScope();
+            self.active_scopes = body_scopes;
+            var analyzed_body = try components.AnalyzedBody.withCapacity(self.allocator, body.len);
+            for (body) |entity| {
+                analyzed_body.appendAssumeCapacity(try self.analyzeExpression(entity));
+            }
+            _ = try while_.set(.{
+                components.Type.init(self.builtins.Void),
+                components.AnalyzedConditional.init(conditional),
+                analyzed_body,
+            });
+            const finally_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
+            std.mem.copy(u64, finally_scopes, active_scopes);
+            finally_scopes[active_scopes.len] = try scopes.pushScope();
+            self.active_scopes = finally_scopes;
+            return while_;
+        }
+
         fn analyzeExpression(self: *Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes }!Entity {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
@@ -398,6 +425,7 @@ fn Context(comptime FileSystem: type) type {
                 .define => try self.analyzeDefine(entity),
                 .assign => try self.analyzeAssign(entity),
                 .if_ => try self.analyzeIf(entity),
+                .while_ => try self.analyzeWhile(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
             };
         }
@@ -1187,4 +1215,44 @@ test "analyze semantics of assignment" {
         try expectEqual(local.get(components.Local).entity, define);
         try expectEqual(typeOf(local), builtin_types[i]);
     }
+}
+
+test "analyze semantics of while loop" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I32
+        \\  i = 0
+        \\  while i < 10
+        \\      i := i + 1
+        \\  end
+        \\  i
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I32);
+    const body = start.get(components.AnalyzedBody).slice();
+    try expectEqual(body.len, 3);
+    // const define = body[0];
+    // try expectEqual(define.get(components.AstKind), .define);
+    // try expectEqual(typeOf(define), builtin_types[i]);
+    // try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+    // try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+    // const assign = body[1];
+    // try expectEqual(assign.get(components.AstKind), .assign);
+    // try expectEqual(typeOf(assign), builtin_types[i]);
+    // try expectEqualStrings(literalOf(assign.get(components.Name).entity), "x");
+    // try expectEqualStrings(literalOf(assign.get(components.Value).entity), "3");
+    // const local = body[2];
+    // try expectEqual(local.get(components.AstKind), .local);
+    // try expectEqual(local.get(components.Local).entity, define);
+    // try expectEqual(typeOf(local), builtin_types[i]);
 }

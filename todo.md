@@ -1,4 +1,4 @@
-# Sprint 1 - 11/26/2021 : 12/12/2021
+# Sprint 1
 
 - [x] Support primitive types (i64, i32, u64, u32, f64, f32)
 - [x] Binary operators for primitive types (+, -, *, /)
@@ -9,6 +9,12 @@
 - [x] If expressions
 - [x] Recursion
 - [x] Assignment
-- [ ] Loops
+- [ ] While loop
+- [ ] Remove redundant components
+    - [ ] AnalyzedBody
+    - [ ] AnalyzedConditional
+    - [ ] AnalyzedThen
+    - [ ] AnalyzedElse
 - [ ] Overloading
 - [ ] Pipeline
+

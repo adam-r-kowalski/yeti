@@ -234,6 +234,14 @@ pub const Conditional = DistinctEntity("Conditional");
 pub const Then = DistinctList("Then", Entity);
 pub const Else = DistinctList("Else", Entity);
 pub const DependentEntities = DistinctList("Dependent Entities", Entity);
+pub const Mutable = struct { value: bool };
+pub const AnalyzedParameters = struct { value: bool };
+pub const AnalyzedBody = DistinctList("Analyzed Body", Entity);
+pub const AnalyzedConditional = DistinctEntity("Analyzed Conditional");
+pub const AnalyzedThen = DistinctList("Analyzed Then", Entity);
+pub const AnalyzedElse = DistinctList("Analyzed Else", Entity);
+pub const Local = DistinctEntity("Local");
+pub const Constant = DistinctEntity("Constant");
 
 pub const AstKind = enum(u8) {
     symbol,
@@ -290,18 +298,6 @@ pub const Intrinsic = enum(u8) {
     greater_than,
     greater_equal,
 };
-
-pub const LoweredParameters = struct { value: bool };
-pub const LoweredBody = struct { value: bool };
-
-pub const Mutable = struct { value: bool };
-pub const AnalyzedParameters = struct { value: bool };
-pub const AnalyzedBody = DistinctList("Analyzed Body", Entity);
-pub const AnalyzedConditional = DistinctEntity("Analyzed Conditional");
-pub const AnalyzedThen = DistinctList("Analyzed Then", Entity);
-pub const AnalyzedElse = DistinctList("Analyzed Else", Entity);
-pub const Local = DistinctEntity("Local");
-pub const Constant = DistinctEntity("Constant");
 
 pub const WasmInstructionKind = enum(u8) {
     i64_const,
