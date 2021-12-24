@@ -14,7 +14,7 @@
     - [x] AnalyzedConditional
     - [x] AnalyzedThen
     - [x] AnalyzedElse
-- [ ] While loop
+- [x] While loop
 - [ ] Pipeline
 - [ ] Overloading
 

@@ -67,10 +67,13 @@ fn Context(comptime FileSystem: type) type {
 
         fn implicitTypeConversion(self: *Self, value: Entity, expected_type: Entity) error{OutOfMemory}!void {
             const actual_type = typeOf(value);
+            const b = self.builtins;
             assert(self.convertibleTo(expected_type, actual_type) != .no);
             _ = try value.set(.{components.Type.init(expected_type)});
             if (value.has(components.DependentEntities)) |dependent_entities| {
                 for (dependent_entities.slice()) |entity| {
+                    const t = typeOf(entity);
+                    if (!eql(t, b.IntLiteral) and !eql(t, b.FloatLiteral)) continue;
                     try self.implicitTypeConversion(entity, expected_type);
                 }
             }
@@ -339,12 +342,19 @@ fn Context(comptime FileSystem: type) type {
             _ = try define.set(.{components.Mutable{ .value = true }});
             const type_of = define.get(components.Type);
             try self.implicitTypeConversion(value, type_of.entity);
-            return try self.codebase.createEntity(.{
+            const result = try self.codebase.createEntity(.{
                 components.AstKind.assign,
                 components.Value.init(value),
                 name,
                 type_of,
             });
+            const b = self.builtins;
+            if (eql(type_of.entity, b.IntLiteral) or eql(type_of.entity, b.FloatLiteral)) {
+                const dependent_entities = define.getPtr(components.DependentEntities);
+                try dependent_entities.append(result);
+                try dependent_entities.append(value);
+            }
+            return result;
         }
 
         fn analyzeIf(self: *Self, if_: Entity) !Entity {
@@ -1268,4 +1278,53 @@ test "analyze semantics of while loop" {
     try expectEqual(local.get(components.AstKind), .local);
     try expectEqual(local.get(components.Local).entity, define);
     try expectEqual(typeOf(local), builtins.I32);
+}
+
+test "analyze semantics of increment" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = function(): I64
+        \\  x = 0
+        \\  x := x + 1
+        \\  x
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqual(typeOf(define), builtins.I64);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+    const assign = body[1];
+    try expectEqual(assign.get(components.AstKind), .assign);
+    try expectEqual(typeOf(assign), builtins.I64);
+    try expectEqualStrings(literalOf(assign.get(components.Name).entity), "x");
+    const intrinsic = assign.get(components.Value).entity;
+    try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
+    try expectEqual(intrinsic.get(components.Intrinsic), .add);
+    try expectEqual(typeOf(intrinsic), builtins.I64);
+    const arguments = intrinsic.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    const lhs = arguments[0];
+    try expectEqual(lhs.get(components.AstKind), .local);
+    try expectEqual(lhs.get(components.Local).entity, define);
+    const rhs = arguments[1];
+    try expectEqual(rhs.get(components.AstKind), .int);
+    try expectEqualStrings(literalOf(rhs), "1");
+    const local = body[2];
+    try expectEqual(local.get(components.AstKind), .local);
+    try expectEqual(local.get(components.Local).entity, define);
+    try expectEqual(typeOf(local), builtins.I64);
 }
