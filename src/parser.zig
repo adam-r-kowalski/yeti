@@ -123,7 +123,8 @@ const NEXT_PRECEDENCE: u64 = 10;
 const LOWEST: u64 = 0;
 const DEFINE: u64 = LOWEST;
 const ASSIGN: u64 = DEFINE;
-const LESS_THAN: u64 = DEFINE + NEXT_PRECEDENCE;
+const PIPELINE: u64 = DEFINE + NEXT_PRECEDENCE;
+const LESS_THAN: u64 = PIPELINE + NEXT_PRECEDENCE;
 const LESS_EQUAL: u64 = LESS_THAN;
 const GREATER_THAN: u64 = LESS_THAN;
 const GREATER_EQUAL: u64 = LESS_THAN;
@@ -169,6 +170,7 @@ const InfixParser = union(enum) {
                 .equal_equal => return InfixParser{ .binary_op = .{ .op = .equal, .precedence = EQUAL } },
                 .bang_equal => return InfixParser{ .binary_op = .{ .op = .not_equal, .precedence = NOT_EQUAL } },
                 .bar => return InfixParser{ .binary_op = .{ .op = .bit_or, .precedence = BIT_OR } },
+                .bar_greater => return InfixParser{ .binary_op = .{ .op = .pipeline, .precedence = PIPELINE } },
                 .caret => return InfixParser{ .binary_op = .{ .op = .bit_xor, .precedence = BIT_XOR } },
                 .ampersand => return InfixParser{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
                 .equal => return InfixParser.define_type_infer,
@@ -1087,4 +1089,36 @@ test "parse while" {
     const i = body[2];
     try expectEqual(i.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(i), "i");
+}
+
+test "parse pipeline" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = function(): I32
+        \\  5 |> square()
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const pipeline = body[0];
+    try expectEqual(pipeline.get(components.AstKind), .binary_op);
+    try expectEqual(pipeline.get(components.BinaryOp), .pipeline);
+    const pipeline_arguments = pipeline.get(components.Arguments).slice();
+    try expectEqual(pipeline_arguments.len, 2);
+    const five = pipeline_arguments[0];
+    try expectEqualStrings(literalOf(five), "5");
+    const square = pipeline_arguments[1];
+    try expectEqual(square.get(components.AstKind), .call);
+    try expectEqualStrings(literalOf(square.get(components.Callable).entity), "square");
+    const square_arguments = square.get(components.Arguments).slice();
+    try expectEqual(square_arguments.len, 0);
 }

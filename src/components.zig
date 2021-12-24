@@ -193,6 +193,7 @@ pub const TokenKind = enum(u8) {
     bang_equal,
     ampersand,
     bar,
+    bar_greater,
     percent,
     caret,
     comma,
@@ -248,6 +249,7 @@ pub const BinaryOp = enum(u8) {
     left_shift,
     right_shift,
     dot,
+    pipeline,
 };
 
 pub const Intrinsic = enum(u8) {
