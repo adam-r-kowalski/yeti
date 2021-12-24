@@ -1,4 +1,4 @@
-# Sprint 1
+# Todo
 
 - [x] Support primitive types (i64, i32, u64, u32, f64, f32)
 - [x] Binary operators for primitive types (+, -, *, /)
@@ -15,6 +15,14 @@
     - [x] AnalyzedThen
     - [x] AnalyzedElse
 - [x] While loop
-- [ ] Pipeline
+- [ ] Pipeline |> operator
 - [ ] Overloading
+- [ ] Error Messages
+    - [ ] Tokenizer
+    - [ ] Parser
+    - [ ] Semantic Analyzer
+    - [ ] Code Generator
+- [ ] Linear Memory
+- [ ] Foreign Imports
+- [ ] Foreign Exports
 
