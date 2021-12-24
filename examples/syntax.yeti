@@ -10,7 +10,7 @@ end
 
 while_loop = function(): Void
   i = 0
-  while i < 10
+  while i < 10 then
     print(i)
     i += 1
   end

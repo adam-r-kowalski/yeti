@@ -720,7 +720,7 @@ test "print wasm while loop" {
     _ = try fs.newFile("foo.yeti",
         \\start = function(): I32
         \\  i = 0
-        \\  while i < 10
+        \\  while i < 10 then
         \\      i := i + 1
         \\  end
         \\  i

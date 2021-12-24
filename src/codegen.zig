@@ -1453,12 +1453,11 @@ test "codegen while loop" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    // const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\start = function(): I32
         \\  i = 0
-        \\  while i < 10
+        \\  while i < 10 then
         \\      i := i + 1
         \\  end
         \\  i

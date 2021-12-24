@@ -78,6 +78,7 @@ fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
 fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
     const begin = while_.get(components.Span).begin;
     const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
+    _ = tokens.consume(.then);
     var body = components.Body.init(&codebase.arena.allocator);
     const result = try codebase.createEntity(.{
         components.AstKind.while_,
@@ -1052,7 +1053,7 @@ test "parse while" {
     const code =
         \\start = function(): I32
         \\  i = 0
-        \\  while i < 10
+        \\  while i < 10 then
         \\      i := i + 1
         \\  end
         \\  i
