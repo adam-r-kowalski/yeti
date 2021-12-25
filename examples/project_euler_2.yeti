@@ -1,0 +1,17 @@
+problem2 = function(upper_bound: I32): I32
+  previous = 1
+  current = 1
+  sum = 0
+  while current < upper_bound then
+    filter = current % 2 == 0
+    sum := sum + filter * current
+    next = current + previous
+    previous := current
+    current := next
+  end
+  sum
+end
+
+start = function(): I32
+  problem2(4000000)
+end

@@ -1,0 +1,14 @@
+problem1 = function(upper_bound: I32): I32
+  n = 0
+  sum = 0
+  while n < upper_bound then
+    filter = (n % 3 == 0) | (n % 5 == 0)
+    sum := sum + filter * n
+    n := n + 1
+  end
+  sum
+end
+
+start = function(): I32
+  problem1(1000)
+end
