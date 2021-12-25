@@ -257,6 +257,28 @@ fn Context(comptime FileSystem: type) type {
             return try context.analyzeCall(call);
         }
 
+        fn pipelineArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
+            const arguments = call.get(components.Arguments).slice();
+            var underscore: ?u64 = null;
+            for (arguments) |argument, i| {
+                if (argument.get(components.AstKind) == .underscore) {
+                    assert(underscore == null);
+                    underscore = i;
+                }
+            }
+            if (underscore == null) {
+                var call_arguments = try components.Arguments.withCapacity(self.allocator, arguments.len + 1);
+                try call_arguments.append(lhs);
+                for (arguments) |argument| {
+                    try call_arguments.append(argument);
+                }
+                return call_arguments;
+            }
+            const call_arguments = try components.Arguments.fromSlice(self.allocator, arguments);
+            call_arguments.mutSlice()[underscore.?] = lhs;
+            return call_arguments;
+        }
+
         fn analyzePipeline(self: *Self, entity: Entity) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = arguments[0];
@@ -267,28 +289,7 @@ fn Context(comptime FileSystem: type) type {
             );
             switch (rhs.get(components.AstKind)) {
                 .call => {
-                    const rhs_arguments = rhs.get(components.Arguments).slice();
-                    var underscore: ?u64 = null;
-                    for (rhs_arguments) |argument, i| {
-                        if (argument.get(components.AstKind) == .underscore) {
-                            assert(underscore == null);
-                            underscore = i;
-                        }
-                    }
-                    const call_arguments = blk: {
-                        if (underscore == null) {
-                            var call_arguments = try components.Arguments.withCapacity(self.allocator, rhs_arguments.len + 1);
-                            try call_arguments.append(lhs);
-                            for (rhs_arguments) |argument| {
-                                try call_arguments.append(argument);
-                            }
-                            break :blk call_arguments;
-                        } else {
-                            const call_arguments = try components.Arguments.fromSlice(self.allocator, rhs_arguments);
-                            call_arguments.mutSlice()[underscore.?] = lhs;
-                            break :blk call_arguments;
-                        }
-                    };
+                    const call_arguments = try self.pipelineArguments(lhs, rhs);
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         rhs.get(components.Callable),
@@ -306,6 +307,28 @@ fn Context(comptime FileSystem: type) type {
                         span,
                     });
                     return try self.analyzeCall(call);
+                },
+                .binary_op => {
+                    assert(rhs.get(components.BinaryOp) == .dot);
+                    const dot_arguments = rhs.get(components.Arguments).slice();
+                    const call = dot_arguments[1];
+                    const call_arguments = try self.pipelineArguments(lhs, call);
+                    const new_call = try self.codebase.createEntity(.{
+                        components.AstKind.call,
+                        call.get(components.Callable),
+                        call_arguments,
+                        span,
+                    });
+                    const new_dot_arguments = try components.Arguments.fromSlice(self.allocator, &.{
+                        dot_arguments[0], new_call,
+                    });
+                    const dot = try self.codebase.createEntity(.{
+                        components.AstKind.binary_op,
+                        components.BinaryOp.dot,
+                        new_dot_arguments,
+                        span,
+                    });
+                    return try self.analyzeDot(dot);
                 },
                 else => {
                     panic("\nshould not have gotten here\n", .{});
@@ -1550,5 +1573,48 @@ test "analyze semantics of pipeline with position specified" {
     try expectEqualStrings(literalOf(five), "5");
     const min = call.get(components.Callable).entity;
     try expectEqualStrings(literalOf(min.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(min.get(components.Name).entity), "min");
+}
+
+test "analyze semantics of pipeline calling imported function" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\math = import("math.yeti")
+        \\
+        \\start = function(): I64
+        \\  5 |> math.min(3, _)
+        \\end
+    );
+    _ = try fs.newFile("math.yeti",
+        \\min = function(x: I64, y: I64): I64
+        \\  if x < y then x else y end
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const call = body[0];
+    try expectEqual(call.get(components.AstKind), .call);
+    const arguments = call.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    try expectEqual(typeOf(call), builtins.I64);
+    const three = arguments[0];
+    try expectEqual(typeOf(three), builtins.I64);
+    try expectEqualStrings(literalOf(three), "3");
+    const five = arguments[1];
+    try expectEqual(typeOf(five), builtins.I64);
+    try expectEqualStrings(literalOf(five), "5");
+    const min = call.get(components.Callable).entity;
+    try expectEqualStrings(literalOf(min.get(components.Module).entity), "math");
     try expectEqualStrings(literalOf(min.get(components.Name).entity), "min");
 }
