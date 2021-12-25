@@ -32,7 +32,7 @@ const Files = struct {
     entities: List(Entity, .{}),
 
     fn init(arena: *Arena) Files {
-        return Files{ .entities = List(Entity, .{}).init(&arena.allocator) };
+        return Files{ .entities = List(Entity, .{}).init(arena.allocator()) };
     }
 };
 
@@ -40,7 +40,7 @@ const Lookup = struct {
     map: std.StringHashMap(Entity),
 
     fn init(arena: *Arena) Lookup {
-        return Lookup{ .map = std.StringHashMap(Entity).init(&arena.allocator) };
+        return Lookup{ .map = std.StringHashMap(Entity).init(arena.allocator()) };
     }
 };
 

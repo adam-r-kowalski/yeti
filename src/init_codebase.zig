@@ -13,7 +13,7 @@ const literalOf = test_utils.literalOf;
 const typeOf = test_utils.typeOf;
 
 pub fn initCodebase(arena: *Arena) !*ECS {
-    const codebase = try arena.allocator.create(ECS);
+    const codebase = try arena.allocator().create(ECS);
     codebase.* = ECS.init(arena);
     try codebase.set(.{Strings.init(arena)});
     try initBuiltins(codebase);
@@ -31,7 +31,7 @@ fn builtinType(codebase: *ECS, scope: *components.Scope, symbol: []const u8, Typ
 }
 
 pub fn initBuiltins(codebase: *ECS) !void {
-    var scope = components.Scope.init(&codebase.arena.allocator, codebase.getPtr(Strings));
+    var scope = components.Scope.init(codebase.arena.allocator(), codebase.getPtr(Strings));
     const interned = try codebase.getPtr(Strings).intern("Type");
     const Type = try codebase.createEntity(.{
         components.Literal.init(interned),

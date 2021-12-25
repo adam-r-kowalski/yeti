@@ -40,10 +40,11 @@ fn parseGrouping(codebase: *ECS, tokens: *Tokens) !Entity {
 }
 
 fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
+    const allocator = codebase.arena.allocator();
     const begin = if_.get(components.Span).begin;
     const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
     _ = tokens.consume(.then);
-    var then = components.Then.init(&codebase.arena.allocator);
+    var then = components.Then.init(allocator);
     while (true) {
         try then.append(try parseExpression(codebase, tokens, LOWEST));
         if (tokens.peek()) |token| {
@@ -53,7 +54,7 @@ fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
             }
         } else break;
     }
-    var else_ = components.Else.init(&codebase.arena.allocator);
+    var else_ = components.Else.init(allocator);
     const result = try codebase.createEntity(.{
         components.AstKind.if_,
         conditional,
@@ -79,7 +80,7 @@ fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
     const begin = while_.get(components.Span).begin;
     const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
     _ = tokens.consume(.then);
-    var body = components.Body.init(&codebase.arena.allocator);
+    var body = components.Body.init(codebase.arena.allocator());
     const result = try codebase.createEntity(.{
         components.AstKind.while_,
         conditional,
@@ -221,7 +222,7 @@ const InfixParser = union(enum) {
 
 fn parseBinaryOp(codebase: *ECS, tokens: *Tokens, left: Entity, op: components.BinaryOp, precedence: u64) !Entity {
     const right = try parseExpression(codebase, tokens, precedence + 1);
-    const arguments = try components.Arguments.fromSlice(&codebase.arena.allocator, &.{ left, right });
+    const arguments = try components.Arguments.fromSlice(codebase.arena.allocator(), &.{ left, right });
     return try codebase.createEntity(.{
         components.AstKind.binary_op,
         op,
@@ -267,7 +268,7 @@ fn parseAssign(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !
 }
 
 fn parseCall(codebase: *ECS, tokens: *Tokens, callable: Entity) !Entity {
-    var arguments = components.Arguments.init(&codebase.arena.allocator);
+    var arguments = components.Arguments.init(codebase.arena.allocator());
     while (tokens.peek()) |token| {
         switch (token.get(components.TokenKind)) {
             .right_paren => break,
@@ -332,7 +333,7 @@ test "parse float" {
 }
 
 fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !components.Parameters {
-    var parameters = components.Parameters.init(&codebase.arena.allocator);
+    var parameters = components.Parameters.init(codebase.arena.allocator());
     _ = tokens.consume(.left_paren);
     while (tokens.next()) |token| {
         const kind = token.get(components.TokenKind);
@@ -353,7 +354,7 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !components.Paramete
 }
 
 fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !components.Body {
-    var body = components.Body.init(&codebase.arena.allocator);
+    var body = components.Body.init(codebase.arena.allocator());
     while (true) {
         try body.append(try parseExpression(codebase, tokens, LOWEST));
         if (tokens.peek()) |token| {
@@ -703,7 +704,7 @@ test "parse import module" {
 
 pub fn parse(module: Entity, tokens: *Tokens) !void {
     const codebase = module.ecs;
-    var top_level = components.TopLevel.init(&codebase.arena.allocator, codebase.getPtr(Strings));
+    var top_level = components.TopLevel.init(codebase.arena.allocator(), codebase.getPtr(Strings));
     while (tokens.next()) |token| {
         const name = components.Name.init(token);
         _ = tokens.consume(.equal);
@@ -715,7 +716,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
                 if (top_level.hasName(name)) |overload_set| {
                     try overload_set.getPtr(components.Overloads).append(function);
                 } else {
-                    var overloads = components.Overloads.init(&codebase.arena.allocator);
+                    var overloads = components.Overloads.init(codebase.arena.allocator());
                     try overloads.append(function);
                     const overload_set = try codebase.createEntity(.{
                         components.AstKind.overload_set,

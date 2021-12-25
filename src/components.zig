@@ -30,16 +30,16 @@ pub fn DistinctList(comptime unique_id: []const u8, comptime T: type) type {
 
         const Self = @This();
 
-        pub fn init(allocator: *Allocator) Self {
+        pub fn init(allocator: Allocator) Self {
             return Self{ .values = List(T, .{}).init(allocator) };
         }
 
-        pub fn fromSlice(allocator: *Allocator, values: []const T) !Self {
+        pub fn fromSlice(allocator: Allocator, values: []const T) !Self {
             const list = try List(T, .{}).fromSlice(allocator, values);
             return Self{ .values = list };
         }
 
-        pub fn withCapacity(allocator: *Allocator, capacity: u64) !Self {
+        pub fn withCapacity(allocator: Allocator, capacity: u64) !Self {
             const list = try List(T, .{}).withCapacity(allocator, capacity);
             return Self{ .values = list };
         }
@@ -85,7 +85,7 @@ pub fn DistinctEntityMap(comptime unique_id: []const u8) type {
         map: Map,
         strings: *Strings,
 
-        pub fn init(allocator: *Allocator, strings: *Strings) Self {
+        pub fn init(allocator: Allocator, strings: *Strings) Self {
             return Self{ .map = Map.init(allocator), .strings = strings };
         }
 
@@ -133,7 +133,7 @@ pub fn DistinctEntitySet(comptime unique_id: []const u8) type {
 
         const Self = @This();
 
-        pub fn init(allocator: *Allocator) Self {
+        pub fn init(allocator: Allocator) Self {
             return Self{ .entities = List(Entity, .{}).init(allocator) };
         }
 
@@ -388,9 +388,9 @@ pub const Scopes = struct {
 
     scopes: List(Map, .{}),
     strings: *Strings,
-    allocator: *Allocator,
+    allocator: Allocator,
 
-    pub fn init(allocator: *Allocator, strings: *Strings) Self {
+    pub fn init(allocator: Allocator, strings: *Strings) Self {
         return Self{
             .scopes = List(Map, .{}).init(allocator),
             .strings = strings,

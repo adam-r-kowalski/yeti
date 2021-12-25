@@ -23,10 +23,11 @@ fn Component(comptime T: type) type {
         const Self = @This();
 
         fn init(arena: *Arena) Self {
+            const allocator = arena.allocator();
             return Self{
-                .lookup = std.AutoHashMap(u64, u64).init(&arena.allocator),
-                .data = Data.init(&arena.allocator),
-                .inverse = Inverse.init(&arena.allocator),
+                .lookup = std.AutoHashMap(u64, u64).init(allocator),
+                .data = Data.init(allocator),
+                .inverse = Inverse.init(allocator),
             };
         }
 
@@ -164,9 +165,10 @@ pub const ECS = struct {
     arena: *Arena,
 
     pub fn init(arena: *Arena) ECS {
+        const allocator = arena.allocator();
         return ECS{
-            .components = std.AutoHashMap(u64, u64).init(&arena.allocator),
-            .resources = std.AutoHashMap(u64, u64).init(&arena.allocator),
+            .components = std.AutoHashMap(u64, u64).init(allocator),
+            .resources = std.AutoHashMap(u64, u64).init(allocator),
             .next_uuid = 0,
             .arena = arena,
         };
@@ -192,7 +194,7 @@ pub const ECS = struct {
                 const resource = @intToPtr(*T, result.value_ptr.*);
                 resource.* = @field(resources, field.name);
             } else {
-                const resource = try self.arena.allocator.create(T);
+                const resource = try self.arena.allocator().create(T);
                 resource.* = @field(resources, field.name);
                 result.value_ptr.* = @ptrToInt(resource);
             }
@@ -226,7 +228,7 @@ pub const Entity = struct {
                 const component = @intToPtr(*Component(T), result.value_ptr.*);
                 try component.*.set(self, @field(components, field.name));
             } else {
-                const component = try self.ecs.arena.allocator.create(Component(T));
+                const component = try self.ecs.arena.allocator().create(Component(T));
                 component.* = Component(T).init(self.ecs.arena);
                 try component.*.set(self, @field(components, field.name));
                 result.value_ptr.* = @ptrToInt(component);

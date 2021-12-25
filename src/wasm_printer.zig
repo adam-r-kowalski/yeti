@@ -64,7 +64,7 @@ fn printWasmFunctionReturnType(wasm: *Wasm, function: Entity) !void {
 
 fn printWasmFunctionLocals(wasm: *Wasm, function: Entity) !void {
     const parameters = function.get(components.Parameters).slice();
-    const parameter_names = try function.ecs.arena.allocator.alloc(InternedString, parameters.len);
+    const parameter_names = try function.ecs.arena.allocator().alloc(InternedString, parameters.len);
     for (parameters) |parameter, i| {
         parameter_names[i] = parameter.get(components.Name).entity.get(components.Literal).interned;
     }
@@ -250,7 +250,7 @@ fn printWasmFunction(wasm: *Wasm, function: Entity) !void {
 
 pub fn printWasm(module: Entity) ![]u8 {
     const codebase = module.ecs;
-    var wasm = Wasm.init(&codebase.arena.allocator);
+    var wasm = Wasm.init(codebase.arena.allocator());
     try wasm.appendSlice("(module");
     for (codebase.get(components.Functions).slice()) |function| {
         try printWasmFunction(&wasm, function);
@@ -269,7 +269,7 @@ test "print wasm int literal" {
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  5
             \\end
@@ -277,7 +277,7 @@ test "print wasm int literal" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})
@@ -296,7 +296,7 @@ test "print wasm int literal" {
     const wasm_types = [_][]const u8{ "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  5.3
             \\end
@@ -304,7 +304,7 @@ test "print wasm int literal" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})
@@ -323,7 +323,7 @@ test "print wasm call local function" {
     const wasm_types = [_][]const u8{ "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  baz()
             \\end
@@ -335,7 +335,7 @@ test "print wasm call local function" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})
@@ -358,7 +358,7 @@ test "print wasm call local function with argument" {
     const const_kinds = [_][]const u8{ "i64.const", "i32.const", "i64.const", "i32.const", "f64.const", "f32.const" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  id(5)
             \\end
@@ -370,7 +370,7 @@ test "print wasm call local function with argument" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})
@@ -393,7 +393,7 @@ test "print wasm define int literal" {
     const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  x = 10
             \\  x
@@ -402,7 +402,7 @@ test "print wasm define int literal" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})
@@ -429,7 +429,7 @@ test "print wasm arithmetic binary op" {
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
-            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
                 \\start = function(): {s}
                 \\  x: {s} = 8
                 \\  y: {s} = 2
@@ -439,7 +439,7 @@ test "print wasm arithmetic binary op" {
             const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
             try codegen(module);
             const wasm = try printWasm(module);
-            try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
                 \\(module
                 \\
                 \\  (func $foo/start (result {s})
@@ -469,7 +469,7 @@ test "print wasm int binary op" {
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
-            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
                 \\start = function(): {s}
                 \\  x: {s} = 8
                 \\  y: {s} = 2
@@ -479,7 +479,7 @@ test "print wasm int binary op" {
             const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
             try codegen(module);
             const wasm = try printWasm(module);
-            try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
                 \\(module
                 \\
                 \\  (func $foo/start (result {s})
@@ -507,7 +507,7 @@ test "print wasm arithmetic binary op non constant" {
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
-            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
                 \\start = function(): {s}
                 \\  id(10) {s} id(25)
                 \\end
@@ -519,7 +519,7 @@ test "print wasm arithmetic binary op non constant" {
             const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
             try codegen(module);
             const wasm = try printWasm(module);
-            try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
                 \\(module
                 \\
                 \\  (func $foo/start (result {s})
@@ -556,7 +556,7 @@ test "print wasm int binary op non constant" {
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
-            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
                 \\start = function(): {s}
                 \\  id(10) {s} id(25)
                 \\end
@@ -568,7 +568,7 @@ test "print wasm int binary op non constant" {
             const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
             try codegen(module);
             const wasm = try printWasm(module);
-            try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
                 \\(module
                 \\
                 \\  (func $foo/start (result {s})
@@ -595,7 +595,7 @@ test "print wasm if then else where then branch taken statically" {
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  if 1 then 20 else 30 end
             \\end
@@ -603,7 +603,7 @@ test "print wasm if then else where then branch taken statically" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})
@@ -622,7 +622,7 @@ test "print wasm if then else where else branch taken statically" {
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  if 0 then 20 else 30 end
             \\end
@@ -630,7 +630,7 @@ test "print wasm if then else where else branch taken statically" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})
@@ -649,7 +649,7 @@ test "print wasm if then else non const conditional" {
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  if f() then 20 else 30 end
             \\end
@@ -659,7 +659,7 @@ test "print wasm if then else non const conditional" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})
@@ -686,7 +686,7 @@ test "print wasm assignment" {
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  x: {s} = 10
             \\  x := 3
@@ -696,7 +696,7 @@ test "print wasm assignment" {
         const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
         try codegen(module);
         const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(&arena.allocator,
+        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
             \\(module
             \\
             \\  (func $foo/start (result {s})

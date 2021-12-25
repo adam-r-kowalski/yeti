@@ -80,7 +80,7 @@ pub const Tokens = struct {
 };
 
 pub fn tokenize(module: Entity, code: []const u8) !Tokens {
-    var entities = List(Entity, .{ .initial_capacity = 1024 }).init(&module.ecs.arena.allocator);
+    var entities = List(Entity, .{ .initial_capacity = 1024 }).init(module.ecs.arena.allocator());
     var source = Source.init(code);
     while (true) {
         source.trimWhitespace();

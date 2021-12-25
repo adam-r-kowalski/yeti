@@ -29,7 +29,7 @@ const typeOf = test_utils.typeOf;
 
 fn Context(comptime FileSystem: type) type {
     return struct {
-        allocator: *Allocator,
+        allocator: Allocator,
         codebase: *ECS,
         file_system: FileSystem,
         module: Entity,
@@ -585,7 +585,8 @@ fn Context(comptime FileSystem: type) type {
 }
 
 pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []const u8, function_name: []const u8) !Entity {
-    _ = try codebase.set(.{components.Functions.init(&codebase.arena.allocator)});
+    const allocator = codebase.arena.allocator();
+    _ = try codebase.set(.{components.Functions.init(allocator)});
     const contents = try file_system.read(module_name);
     const module = try codebase.createEntity(.{});
     var tokens = try tokenize(module, contents);
@@ -595,7 +596,6 @@ pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []con
     const top_level = module.get(components.TopLevel);
     const overloads = top_level.findString(function_name).get(components.Overloads).slice();
     assert(overloads.len == 1);
-    const allocator = &codebase.arena.allocator;
     var scopes = components.Scopes.init(allocator, codebase.getPtr(Strings));
     const scope = try scopes.pushScope();
     const function = overloads[0];
@@ -623,7 +623,7 @@ test "analyze semantics int literal" {
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  5
             \\end
@@ -653,7 +653,7 @@ test "analyze semantics float literal" {
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  5.3
             \\end
@@ -683,7 +683,7 @@ test "analyze semantics call local function" {
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  baz()
             \\end
@@ -730,14 +730,14 @@ test "analyze semantics call function import" {
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\bar = import("bar.yeti")
             \\
             \\start = function(): {s}
             \\  bar.baz()
             \\end
         , .{type_of}));
-        _ = try fs.newFile("bar.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("bar.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\baz = function(): {s}
             \\  10
             \\end
@@ -780,7 +780,7 @@ test "analyze semantics define" {
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  x = 10
             \\  x
@@ -816,7 +816,7 @@ test "analyze semantics two defines" {
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  x = 10
             \\  y = 15
@@ -858,7 +858,7 @@ test "analyze semantics define with explicit float type" {
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  x: {s} = 10
             \\  x
@@ -894,7 +894,7 @@ test "analyze semantics function with argument" {
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  x: {s} = 10
             \\  id(x)
@@ -956,7 +956,7 @@ test "analyze semantics function call twice" {
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  x = id(10)
             \\  id(25)
@@ -1028,7 +1028,7 @@ test "analyze semantics binary op two comptime known" {
     for (op_strings) |op_string, op_index| {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
-            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
                 \\start = function(): {s}
                 \\  x: {s} = 10
                 \\  y: {s} = 32
@@ -1089,7 +1089,7 @@ test "analyze semantics comparison op two comptime known" {
     for (op_strings) |op_string, op_index| {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
-            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
                 \\start = function(): I32
                 \\  x: {s} = 10
                 \\  y: {s} = 32
@@ -1140,7 +1140,7 @@ test "analyze semantics if then else" {
     const builtin_types = [_]Entity{builtins.I64};
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  if 1 then 20 else 30 end
             \\end
@@ -1185,7 +1185,7 @@ test "analyze semantics if then else non constant conditional" {
     const builtin_types = [_]Entity{builtins.I64};
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  if f() then 20 else 30 end
             \\end
@@ -1243,7 +1243,7 @@ test "analyze semantics if then else with different type branches" {
     const builtin_types = [_]Entity{builtins.I64};
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  if 1 then 20 else f() end
             \\end
@@ -1290,7 +1290,7 @@ test "analyze semantics of assignment" {
     const builtin_types = [_]Entity{builtins.I64};
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(&arena.allocator,
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = function(): {s}
             \\  x: {s} = 10
             \\  x := 3

@@ -18,11 +18,11 @@ pub fn List(comptime T: type, comptime config: Config) type {
     return struct {
         items: []T,
         len: u64,
-        allocator: *Allocator,
+        allocator: Allocator,
 
         const Self = @This();
 
-        pub fn init(allocator: *Allocator) Self {
+        pub fn init(allocator: Allocator) Self {
             return Self{
                 .items = &.{},
                 .len = 0,
@@ -30,7 +30,7 @@ pub fn List(comptime T: type, comptime config: Config) type {
             };
         }
 
-        pub fn fromSlice(allocator: *Allocator, data: []const T) !Self {
+        pub fn fromSlice(allocator: Allocator, data: []const T) !Self {
             const items = try allocator.dupe(T, data);
             return Self{
                 .items = items,
@@ -39,7 +39,7 @@ pub fn List(comptime T: type, comptime config: Config) type {
             };
         }
 
-        pub fn withCapacity(allocator: *Allocator, capacity: u64) !Self {
+        pub fn withCapacity(allocator: Allocator, capacity: u64) !Self {
             const items = try allocator.alloc(T, capacity);
             return Self{
                 .items = items,
@@ -113,8 +113,7 @@ pub fn List(comptime T: type, comptime config: Config) type {
 test "list push" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK!!!", .{});
-    const allocator = &gpa.allocator;
-    var list = List(i64, .{}).init(allocator);
+    var list = List(i64, .{}).init(gpa.allocator());
     defer list.deinit();
     try expectEqual(list.len, 0);
     try list.append(4);
@@ -136,8 +135,7 @@ test "list push" {
 test "list fill initial_capacity" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK!!!", .{});
-    const allocator = &gpa.allocator;
-    var list = List(u64, .{}).init(allocator);
+    var list = List(u64, .{}).init(gpa.allocator());
     defer list.deinit();
     const fill = 32;
     var i: u64 = 0;
@@ -155,8 +153,7 @@ test "list fill initial_capacity" {
 test "list fill double initial_capacity" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK!!!", .{});
-    const allocator = &gpa.allocator;
-    var list = List(u64, .{}).init(allocator);
+    var list = List(u64, .{}).init(gpa.allocator());
     defer list.deinit();
     const fill = 64;
     var i: u64 = 0;
@@ -174,8 +171,7 @@ test "list fill double initial_capacity" {
 test "list appendSlice" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer expect(!gpa.deinit()) catch panic("MEMORY LEAK!!!", .{});
-    const allocator = &gpa.allocator;
-    var list = List(u8, .{ .initial_capacity = 2 }).init(allocator);
+    var list = List(u8, .{ .initial_capacity = 2 }).init(gpa.allocator());
     defer list.deinit();
     try list.appendSlice("hello");
     try expectEqual(list.len, 5);

@@ -21,9 +21,10 @@ pub const Strings = struct {
     arena: *Arena,
 
     pub fn init(arena: *Arena) Strings {
+        const allocator = arena.allocator();
         return Strings{
-            .lookup = std.StringHashMap(InternedString).init(&arena.allocator),
-            .inverse = Inverse.init(&arena.allocator),
+            .lookup = std.StringHashMap(InternedString).init(allocator),
+            .inverse = Inverse.init(allocator),
             .next = InternedString{ .value = 0 },
             .arena = arena,
         };
@@ -37,7 +38,7 @@ pub const Strings = struct {
             const interned = self.next;
             result.value_ptr.* = interned;
             self.next.value += 1;
-            try self.inverse.append(try self.arena.allocator.dupe(u8, string));
+            try self.inverse.append(try self.arena.allocator().dupe(u8, string));
             return interned;
         }
     }
