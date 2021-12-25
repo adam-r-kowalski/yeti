@@ -34,7 +34,7 @@ pub fn DistinctList(comptime unique_id: []const u8, comptime T: type) type {
             return Self{ .values = List(T, .{}).init(allocator) };
         }
 
-        pub fn fromSlice(allocator: *Allocator, values: []T) !Self {
+        pub fn fromSlice(allocator: *Allocator, values: []const T) !Self {
             const list = try List(T, .{}).fromSlice(allocator, values);
             return Self{ .values = list };
         }
@@ -204,6 +204,7 @@ pub const TokenKind = enum(u8) {
     then,
     else_,
     while_,
+    underscore,
 };
 
 pub const Literal = struct {
@@ -229,6 +230,7 @@ pub const AstKind = enum(u8) {
     while_,
     local,
     intrinsic,
+    underscore,
 };
 
 pub const BinaryOp = enum(u8) {

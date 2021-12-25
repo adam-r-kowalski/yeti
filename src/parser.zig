@@ -115,6 +115,7 @@ fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
         .left_paren => parseGrouping(token.ecs, tokens),
         .if_ => parseIf(token.ecs, tokens, token),
         .while_ => parseWhile(token.ecs, tokens, token),
+        .underscore => token.set(.{components.AstKind.underscore}),
         else => panic("\nno prefix parser for = {}\n", .{kind}),
     };
 }

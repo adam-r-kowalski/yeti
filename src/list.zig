@@ -30,7 +30,7 @@ pub fn List(comptime T: type, comptime config: Config) type {
             };
         }
 
-        pub fn fromSlice(allocator: *Allocator, data: []T) !Self {
+        pub fn fromSlice(allocator: *Allocator, data: []const T) !Self {
             const items = try allocator.dupe(T, data);
             return Self{
                 .items = items,

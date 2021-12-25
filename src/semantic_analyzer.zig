@@ -268,11 +268,27 @@ fn Context(comptime FileSystem: type) type {
             switch (rhs.get(components.AstKind)) {
                 .call => {
                     const rhs_arguments = rhs.get(components.Arguments).slice();
-                    var call_arguments = try components.Arguments.withCapacity(self.allocator, rhs_arguments.len);
-                    try call_arguments.append(lhs);
-                    for (rhs_arguments) |argument| {
-                        try call_arguments.append(argument);
+                    var underscore: ?u64 = null;
+                    for (rhs_arguments) |argument, i| {
+                        if (argument.get(components.AstKind) == .underscore) {
+                            assert(underscore == null);
+                            underscore = i;
+                        }
                     }
+                    const call_arguments = blk: {
+                        if (underscore == null) {
+                            var call_arguments = try components.Arguments.withCapacity(self.allocator, rhs_arguments.len + 1);
+                            try call_arguments.append(lhs);
+                            for (rhs_arguments) |argument| {
+                                try call_arguments.append(argument);
+                            }
+                            break :blk call_arguments;
+                        } else {
+                            const call_arguments = try components.Arguments.fromSlice(self.allocator, rhs_arguments);
+                            call_arguments.mutSlice()[underscore.?] = lhs;
+                            break :blk call_arguments;
+                        }
+                    };
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         rhs.get(components.Callable),
@@ -1495,4 +1511,44 @@ test "analyze semantics of pipeline with parenthesis omitted" {
     const square = call.get(components.Callable).entity;
     try expectEqualStrings(literalOf(square.get(components.Module).entity), "foo");
     try expectEqualStrings(literalOf(square.get(components.Name).entity), "square");
+}
+
+test "analyze semantics of pipeline with position specified" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\min = function(x: I64, y: I64): I64
+        \\  if x < y then x else y end
+        \\end
+        \\
+        \\start = function(): I64
+        \\  5 |> min(3, _)
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const call = body[0];
+    try expectEqual(call.get(components.AstKind), .call);
+    const arguments = call.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    try expectEqual(typeOf(call), builtins.I64);
+    const three = arguments[0];
+    try expectEqual(typeOf(three), builtins.I64);
+    try expectEqualStrings(literalOf(three), "3");
+    const five = arguments[1];
+    try expectEqual(typeOf(five), builtins.I64);
+    try expectEqualStrings(literalOf(five), "5");
+    const min = call.get(components.Callable).entity;
+    try expectEqualStrings(literalOf(min.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(min.get(components.Name).entity), "min");
 }
