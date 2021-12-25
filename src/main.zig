@@ -13,12 +13,12 @@ const FileSystem = struct {
     const Files = List(std.fs.File, .{});
 
     files: Files,
-    allocator: *Allocator,
+    allocator: Allocator,
 
     fn init(arena: *Arena) FileSystem {
         return FileSystem{
-            .files = Files.init(&arena.allocator),
-            .allocator = &arena.allocator,
+            .files = Files.init(arena.allocator()),
+            .allocator = arena.allocator(),
         };
     }
 
@@ -39,7 +39,7 @@ const FileSystem = struct {
 pub fn main() !void {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    const args = try std.process.argsAlloc(&arena.allocator);
+    const args = try std.process.argsAlloc(arena.allocator());
     assert(args.len == 3);
     var fs = FileSystem.init(&arena);
     defer fs.deinit();
@@ -49,7 +49,7 @@ pub fn main() !void {
     const wasm = try printWasm(module);
     try std.fs.cwd().writeFile(args[2], wasm);
     const result = try std.ChildProcess.exec(.{
-        .allocator = &arena.allocator,
+        .allocator = arena.allocator(),
         .argv = &.{ "wasmtime", args[2] },
     });
     std.debug.print("{s}", .{result.stdout});
