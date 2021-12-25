@@ -261,6 +261,10 @@ fn Context(comptime FileSystem: type) type {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = arguments[0];
             const rhs = arguments[1];
+            const span = components.Span.init(
+                lhs.get(components.Span).begin,
+                rhs.get(components.Span).end,
+            );
             switch (rhs.get(components.AstKind)) {
                 .call => {
                     const rhs_arguments = rhs.get(components.Arguments).slice();
@@ -269,17 +273,23 @@ fn Context(comptime FileSystem: type) type {
                     for (rhs_arguments) |argument| {
                         try call_arguments.append(argument);
                     }
-                    const span = components.Span.init(
-                        lhs.get(components.Span).begin,
-                        rhs.get(components.Span).end,
-                    );
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         rhs.get(components.Callable),
                         call_arguments,
                         span,
                     });
-                    return self.analyzeCall(call);
+                    return try self.analyzeCall(call);
+                },
+                .symbol => {
+                    const call_arguments = try components.Arguments.fromSlice(self.allocator, &.{lhs});
+                    const call = try self.codebase.createEntity(.{
+                        components.AstKind.call,
+                        components.Callable.init(rhs),
+                        call_arguments,
+                        span,
+                    });
+                    return try self.analyzeCall(call);
                 },
                 else => {
                     panic("\nshould not have gotten here\n", .{});
@@ -1426,6 +1436,43 @@ test "analyze semantics of pipeline" {
         \\
         \\start = function(): I64
         \\  5 |> square()
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const call = body[0];
+    try expectEqual(call.get(components.AstKind), .call);
+    const arguments = call.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 1);
+    try expectEqual(typeOf(call), builtins.I64);
+    const five = arguments[0];
+    try expectEqual(typeOf(five), builtins.I64);
+    try expectEqualStrings(literalOf(five), "5");
+    const square = call.get(components.Callable).entity;
+    try expectEqualStrings(literalOf(square.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(square.get(components.Name).entity), "square");
+}
+
+test "analyze semantics of pipeline with parenthesis omitted" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\square = function(x: I64): I64
+        \\  x * x
+        \\end
+        \\
+        \\start = function(): I64
+        \\  5 |> square
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
