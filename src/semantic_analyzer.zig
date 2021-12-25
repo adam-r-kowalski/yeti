@@ -257,6 +257,37 @@ fn Context(comptime FileSystem: type) type {
             return try context.analyzeCall(call);
         }
 
+        fn analyzePipeline(self: *Self, entity: Entity) !Entity {
+            const arguments = entity.get(components.Arguments).slice();
+            const lhs = arguments[0];
+            const rhs = arguments[1];
+            switch (rhs.get(components.AstKind)) {
+                .call => {
+                    const rhs_arguments = rhs.get(components.Arguments).slice();
+                    var call_arguments = try components.Arguments.withCapacity(self.allocator, rhs_arguments.len);
+                    try call_arguments.append(lhs);
+                    for (rhs_arguments) |argument| {
+                        try call_arguments.append(argument);
+                    }
+                    const span = components.Span.init(
+                        lhs.get(components.Span).begin,
+                        rhs.get(components.Span).end,
+                    );
+                    const call = try self.codebase.createEntity(.{
+                        components.AstKind.call,
+                        rhs.get(components.Callable),
+                        call_arguments,
+                        span,
+                    });
+                    return self.analyzeCall(call);
+                },
+                else => {
+                    panic("\nshould not have gotten here\n", .{});
+                },
+            }
+            return entity;
+        }
+
         fn analyzeIntrinsic(self: *Self, entity: Entity, intrinsic: components.Intrinsic, result_is_i32: bool) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.analyzeExpression(arguments[0]);
@@ -288,6 +319,7 @@ fn Context(comptime FileSystem: type) type {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
                 .dot => self.analyzeDot(entity),
+                .pipeline => self.analyzePipeline(entity),
                 .add => self.analyzeIntrinsic(entity, .add, false),
                 .subtract => self.analyzeIntrinsic(entity, .subtract, false),
                 .multiply => self.analyzeIntrinsic(entity, .multiply, false),
@@ -1379,4 +1411,41 @@ test "analyze semantics of add between typed and inferred" {
     try expectEqual(local.get(components.AstKind), .local);
     try expectEqual(local.get(components.Local).entity, b);
     try expectEqual(typeOf(local), builtins.I64);
+}
+
+test "analyze semantics of pipeline" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\square = function(x: I64): I64
+        \\  x * x
+        \\end
+        \\
+        \\start = function(): I64
+        \\  5 |> square()
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const call = body[0];
+    try expectEqual(call.get(components.AstKind), .call);
+    const arguments = call.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 1);
+    try expectEqual(typeOf(call), builtins.I64);
+    const five = arguments[0];
+    try expectEqual(typeOf(five), builtins.I64);
+    try expectEqualStrings(literalOf(five), "5");
+    const square = call.get(components.Callable).entity;
+    try expectEqualStrings(literalOf(square.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(square.get(components.Name).entity), "square");
 }
