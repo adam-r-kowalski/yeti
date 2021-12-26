@@ -202,12 +202,12 @@ fn Context(comptime FileSystem: type) type {
             return best_overload;
         }
 
-        fn analyzeCall(self: *Self, call: Entity) !Entity {
+        fn analyzeCall(self: *Self, call: Entity, callingContext: *Self) !Entity {
             const callable = call.get(components.Callable).entity;
             const call_arguments = call.get(components.Arguments).slice();
             var analyzed_arguments = try components.Arguments.withCapacity(self.allocator, call_arguments.len);
             for (call_arguments) |argument| {
-                analyzed_arguments.appendAssumeCapacity(try self.analyzeExpression(argument));
+                analyzed_arguments.appendAssumeCapacity(try callingContext.analyzeExpression(argument));
             }
             const overload = try self.bestOverload(callable, analyzed_arguments.slice());
             if (!overload.contains(components.AnalyzedBody)) {
@@ -254,7 +254,7 @@ fn Context(comptime FileSystem: type) type {
                 .active_scopes = self.active_scopes,
                 .builtins = self.builtins,
             };
-            return try context.analyzeCall(call);
+            return try context.analyzeCall(call, self);
         }
 
         fn pipelineArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
@@ -296,7 +296,7 @@ fn Context(comptime FileSystem: type) type {
                         call_arguments,
                         span,
                     });
-                    return try self.analyzeCall(call);
+                    return try self.analyzeCall(call, self);
                 },
                 .symbol => {
                     const call_arguments = try components.Arguments.fromSlice(self.allocator, &.{lhs});
@@ -306,7 +306,7 @@ fn Context(comptime FileSystem: type) type {
                         call_arguments,
                         span,
                     });
-                    return try self.analyzeCall(call);
+                    return try self.analyzeCall(call, self);
                 },
                 .binary_op => {
                     assert(rhs.get(components.BinaryOp) == .dot);
@@ -529,7 +529,7 @@ fn Context(comptime FileSystem: type) type {
             return switch (kind) {
                 .symbol => try self.analyzeSymbol(entity),
                 .int, .float => entity,
-                .call => try self.analyzeCall(entity),
+                .call => try self.analyzeCall(entity, self),
                 .binary_op => try self.analyzeBinaryOp(entity),
                 .define => try self.analyzeDefine(entity),
                 .assign => try self.analyzeAssign(entity),
@@ -1671,4 +1671,58 @@ test "analyze semantics of pipeline calling imported function with parenthesis o
     const square = call.get(components.Callable).entity;
     try expectEqualStrings(literalOf(square.get(components.Module).entity), "math");
     try expectEqualStrings(literalOf(square.get(components.Name).entity), "square");
+}
+
+test "analyze semantics of pipeline calling imported function with parenthesis omitted" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\bar = import("bar.yeti")
+        \\
+        \\g = function(x: I64): I64
+        \\  x + x
+        \\end
+        \\
+        \\start = function(): I64
+        \\  bar.f(g(300))
+        \\end
+    );
+    _ = try fs.newFile("bar.yeti",
+        \\f = function(x: I64): I64
+        \\  x * x
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const g = blk: {
+        const f = body[0];
+        try expectEqual(f.get(components.AstKind), .call);
+        const arguments = f.get(components.Arguments).slice();
+        try expectEqual(arguments.len, 1);
+        try expectEqual(typeOf(f), builtins.I64);
+        const callable = f.get(components.Callable).entity;
+        try expectEqualStrings(literalOf(callable.get(components.Module).entity), "bar");
+        try expectEqualStrings(literalOf(callable.get(components.Name).entity), "f");
+        break :blk arguments[0];
+    };
+    try expectEqual(g.get(components.AstKind), .call);
+    const arguments = g.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 1);
+    try expectEqual(typeOf(g), builtins.I64);
+    const callable = g.get(components.Callable).entity;
+    try expectEqualStrings(literalOf(callable.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(callable.get(components.Name).entity), "g");
+    const five = arguments[0];
+    try expectEqual(typeOf(five), builtins.I64);
+    try expectEqualStrings(literalOf(five), "300");
 }
