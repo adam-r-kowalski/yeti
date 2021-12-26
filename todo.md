@@ -15,7 +15,8 @@
     - [x] AnalyzedThen
     - [x] AnalyzedElse
 - [x] While loop
-- [ ] Pipeline |> operator
+- [x] Pipeline |> operator
+- [ ] Calling imported function twice
 - [ ] Overloading
 - [ ] Error Messages
     - [ ] Tokenizer

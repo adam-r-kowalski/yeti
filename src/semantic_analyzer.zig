@@ -136,7 +136,9 @@ fn Context(comptime FileSystem: type) type {
                 const kind = top_level.get(components.AstKind);
                 switch (kind) {
                     .import => {
-                        // TODO: Don't reparse the module every time. Cache them based on path
+                        if (top_level.has(components.Module)) |module| {
+                            return module.entity;
+                        }
                         const module_name = literalOf(top_level.get(components.Path).entity);
                         const contents = try self.file_system.read(module_name);
                         const module = try self.codebase.createEntity(.{});
@@ -144,6 +146,7 @@ fn Context(comptime FileSystem: type) type {
                         try parse(module, &tokens);
                         const interned = try self.codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
                         _ = try module.set(.{components.Literal.init(interned)});
+                        _ = try top_level.set(.{components.Module.init(module)});
                         return module;
                     },
                     else => panic("\nanalyzeSumbol unspported top level kind {}\n", .{kind}),
@@ -1673,7 +1676,7 @@ test "analyze semantics of pipeline calling imported function with parenthesis o
     try expectEqualStrings(literalOf(square.get(components.Name).entity), "square");
 }
 
-test "analyze semantics of pipeline calling imported function with parenthesis omitted" {
+test "analyze semantics of calling imported function with local arguments" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -1725,4 +1728,49 @@ test "analyze semantics of pipeline calling imported function with parenthesis o
     const five = arguments[0];
     try expectEqual(typeOf(five), builtins.I64);
     try expectEqualStrings(literalOf(five), "300");
+}
+
+test "analyze semantics of calling imported function twice" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\bar = import("bar.yeti")
+        \\
+        \\start = function(): I64
+        \\  bar.f(bar.f(300))
+        \\end
+    );
+    _ = try fs.newFile("bar.yeti",
+        \\f = function(x: I64): I64
+        \\  x * x
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const f = body[0];
+    try expectEqual(f.get(components.AstKind), .call);
+    const f_arguments = f.get(components.Arguments).slice();
+    try expectEqual(f_arguments.len, 1);
+    try expectEqual(typeOf(f), builtins.I64);
+    const f_callable = f.get(components.Callable).entity;
+    const f_module = f_callable.get(components.Module).entity;
+    try expectEqualStrings(literalOf(f_module), "bar");
+    try expectEqualStrings(literalOf(f_callable.get(components.Name).entity), "f");
+    const f_inner = f_arguments[0];
+    try expectEqual(f_inner.get(components.AstKind), .call);
+    const f_inner_arguments = f_inner.get(components.Arguments).slice();
+    try expectEqual(f_inner_arguments.len, 1);
+    try expectEqual(typeOf(f_inner), builtins.I64);
+    const f_inner_callable = f_inner.get(components.Callable).entity;
+    try expectEqual(f_inner_callable, f_callable);
 }
