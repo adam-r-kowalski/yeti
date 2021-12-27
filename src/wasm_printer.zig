@@ -17,6 +17,7 @@ const ECS = ecs.ECS;
 const components = @import("components.zig");
 const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
+const typeOf = test_utils.typeOf;
 const List = @import("list.zig").List;
 const strings_module = @import("strings.zig");
 const Strings = strings_module.Strings;
@@ -39,11 +40,26 @@ fn printWasmType(wasm: *Wasm, type_: Entity) !void {
     }
 }
 
+fn functionName(function: Entity) ![]const u8 {
+    if (function.has(components.WasmName)) |name| {
+        return name.slice();
+    }
+    var wasm_name = components.WasmName.init(function.ecs.arena.allocator());
+    try wasm_name.append('$');
+    try wasm_name.appendSlice(literalOf(function.get(components.Module).entity));
+    try wasm_name.append('/');
+    try wasm_name.appendSlice(literalOf(function.get(components.Name).entity));
+    for (function.get(components.Parameters).slice()) |parameter| {
+        try wasm_name.append('.');
+        try wasm_name.appendSlice(literalOf(typeOf(parameter)));
+    }
+    _ = try function.set(.{wasm_name});
+    return wasm_name.slice();
+}
+
 fn printWasmFunctionName(wasm: *Wasm, function: Entity) !void {
-    try wasm.appendSlice("\n\n  (func $");
-    try wasm.appendSlice(literalOf(function.get(components.Module).entity));
-    try wasm.append('/');
-    try wasm.appendSlice(literalOf(function.get(components.Name).entity));
+    try wasm.appendSlice("\n\n  (func ");
+    try wasm.appendSlice(try functionName(function));
 }
 
 fn printWasmFunctionParameters(wasm: *Wasm, function: Entity) !void {
@@ -186,11 +202,9 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         .i32_xor => try wasm.appendSlice("\n    i32.xor"),
         .i32_eqz => try wasm.appendSlice("\n    i32.eqz"),
         .call => {
-            try wasm.appendSlice("\n    (call $");
+            try wasm.appendSlice("\n    (call ");
             const callable = wasm_instruction.get(components.Callable).entity;
-            try wasm.appendSlice(literalOf(callable.get(components.Module).entity));
-            try wasm.append('/');
-            try wasm.appendSlice(literalOf(callable.get(components.Name).entity));
+            try wasm.appendSlice(try functionName(callable));
             try wasm.append(')');
         },
         .get_local => {
@@ -255,9 +269,11 @@ pub fn printWasm(module: Entity) ![]u8 {
     for (codebase.get(components.Functions).slice()) |function| {
         try printWasmFunction(&wasm, function);
     }
-    try wasm.appendSlice("\n\n(export \"_start\" (func $");
-    try wasm.appendSlice(literalOf(module));
-    try wasm.appendSlice("/start)))");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try wasm.appendSlice("\n\n(export \"_start\" (func ");
+    try wasm.appendSlice(try functionName(start));
+    try wasm.appendSlice(")))");
     return wasm.mutSlice();
 }
 
@@ -288,7 +304,7 @@ test "print wasm int literal" {
     }
 }
 
-test "print wasm int literal" {
+test "print wasm float literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -375,13 +391,13 @@ test "print wasm call local function with argument" {
             \\
             \\  (func $foo/start (result {s})
             \\    ({s} 5)
-            \\    (call $foo/id))
+            \\    (call $foo/id.{s}))
             \\
-            \\  (func $foo/id (param $x {s}) (result {s})
+            \\  (func $foo/id.{s} (param $x {s}) (result {s})
             \\    (get_local $x))
             \\
             \\(export "_start" (func $foo/start)))
-        , .{ wasm_types[i], const_kinds[i], wasm_types[i], wasm_types[i] }));
+        , .{ wasm_types[i], const_kinds[i], type_, type_, wasm_types[i], wasm_types[i] }));
     }
 }
 
@@ -524,16 +540,26 @@ test "print wasm arithmetic binary op non constant" {
                 \\
                 \\  (func $foo/start (result {s})
                 \\    ({s}.const 10)
-                \\    (call $foo/id)
+                \\    (call $foo/id.{s})
                 \\    ({s}.const 25)
-                \\    (call $foo/id)
+                \\    (call $foo/id.{s})
                 \\    {s})
                 \\
-                \\  (func $foo/id (param $x {s}) (result {s})
+                \\  (func $foo/id.{s} (param $x {s}) (result {s})
                 \\    (get_local $x))
                 \\
                 \\(export "_start" (func $foo/start)))
-            , .{ wasm_types[i], wasm_types[i], wasm_types[i], instructions[op_index][i], wasm_types[i], wasm_types[i] }));
+            , .{
+                wasm_types[i],
+                wasm_types[i],
+                type_,
+                wasm_types[i],
+                type_,
+                instructions[op_index][i],
+                type_,
+                wasm_types[i],
+                wasm_types[i],
+            }));
         }
     }
 }
@@ -573,16 +599,26 @@ test "print wasm int binary op non constant" {
                 \\
                 \\  (func $foo/start (result {s})
                 \\    ({s}.const 10)
-                \\    (call $foo/id)
+                \\    (call $foo/id.{s})
                 \\    ({s}.const 25)
-                \\    (call $foo/id)
+                \\    (call $foo/id.{s})
                 \\    {s})
                 \\
-                \\  (func $foo/id (param $x {s}) (result {s})
+                \\  (func $foo/id.{s} (param $x {s}) (result {s})
                 \\    (get_local $x))
                 \\
                 \\(export "_start" (func $foo/start)))
-            , .{ wasm_types[i], wasm_types[i], wasm_types[i], instructions[op_index][i], wasm_types[i], wasm_types[i] }));
+            , .{
+                wasm_types[i],
+                wasm_types[i],
+                type_,
+                wasm_types[i],
+                type_,
+                instructions[op_index][i],
+                type_,
+                wasm_types[i],
+                wasm_types[i],
+            }));
         }
     }
 }

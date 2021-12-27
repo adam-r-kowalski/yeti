@@ -44,8 +44,12 @@ pub fn DistinctList(comptime unique_id: []const u8, comptime T: type) type {
             return Self{ .values = list };
         }
 
-        pub fn append(self: *Self, entity: T) !void {
-            try self.values.append(entity);
+        pub fn append(self: *Self, value: T) !void {
+            try self.values.append(value);
+        }
+
+        pub fn appendSlice(self: *Self, values: []const T) !void {
+            return self.values.appendSlice(values);
         }
 
         pub fn appendAssumeCapacity(self: *Self, entity: T) void {
@@ -488,3 +492,4 @@ pub const Label = struct { value: u64 };
 pub const Mutable = struct { value: bool };
 pub const AnalyzedParameters = struct { value: bool };
 pub const AnalyzedBody = struct { value: bool };
+pub const WasmName = DistinctList("Wasm Name", u8);
