@@ -587,6 +587,25 @@ fn Context(comptime FileSystem: type) type {
     };
 }
 
+fn analyzeOverload(file_system: anytype, module: Entity, overload: Entity) !void {
+    const codebase = overload.ecs;
+    const allocator = codebase.arena.allocator();
+    var scopes = components.Scopes.init(allocator, codebase.getPtr(Strings));
+    const scope = try scopes.pushScope();
+    _ = try overload.set(.{scopes});
+    const active_scopes = [_]u64{scope};
+    var context = Context(@TypeOf(file_system)){
+        .allocator = allocator,
+        .codebase = codebase,
+        .file_system = file_system,
+        .module = module,
+        .function = overload,
+        .active_scopes = &active_scopes,
+        .builtins = codebase.getPtr(components.Builtins),
+    };
+    try context.analyzeFunction();
+}
+
 pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []const u8) !Entity {
     const allocator = codebase.arena.allocator();
     _ = try codebase.set(.{components.Functions.init(allocator)});
@@ -597,23 +616,19 @@ pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []con
     const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
     _ = try module.set(.{components.Literal.init(interned)});
     const top_level = module.get(components.TopLevel);
-    const overloads = top_level.findString("start").get(components.Overloads).slice();
-    assert(overloads.len == 1);
-    var scopes = components.Scopes.init(allocator, codebase.getPtr(Strings));
-    const scope = try scopes.pushScope();
-    const function = overloads[0];
-    _ = try function.set(.{scopes});
-    const active_scopes = [_]u64{scope};
-    var context = Context(@TypeOf(file_system)){
-        .allocator = allocator,
-        .codebase = codebase,
-        .file_system = file_system,
-        .module = module,
-        .function = function,
-        .active_scopes = &active_scopes,
-        .builtins = codebase.getPtr(components.Builtins),
-    };
-    try context.analyzeFunction();
+    const foreign_exports = module.get(components.ForeignExports).slice();
+    if (foreign_exports.len > 0) {
+        for (foreign_exports) |foreign_export| {
+            const literal = foreign_export.get(components.Literal);
+            const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
+            assert(overloads.len == 1);
+            try analyzeOverload(file_system, module, overloads[0]);
+        }
+    } else {
+        const overloads = top_level.findString("start").get(components.Overloads).slice();
+        assert(overloads.len == 1);
+        try analyzeOverload(file_system, module, overloads[0]);
+    }
     return module;
 }
 
@@ -1773,4 +1788,28 @@ test "analyze semantics of calling imported function twice" {
     try expectEqual(typeOf(f_inner), builtins.I64);
     const f_inner_callable = f_inner.get(components.Callable).entity;
     try expectEqual(f_inner_callable, f_callable);
+}
+
+test "analyze semantics of foreign exports" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\square = function(x: I64): I64
+        \\  x * x
+        \\end
+        \\
+        \\foreign_export(square)
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const square = top_level.findString("square").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(square.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(square.get(components.Name).entity), "square");
+    try expectEqual(square.get(components.Parameters).len(), 1);
+    try expectEqual(square.get(components.ReturnType).entity, builtins.I64);
+    const body = square.get(components.Body).slice();
+    try expectEqual(body.len, 1);
 }

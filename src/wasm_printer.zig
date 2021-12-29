@@ -270,10 +270,24 @@ pub fn printWasm(module: Entity) ![]u8 {
         try printWasmFunction(&wasm, function);
     }
     const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    try wasm.appendSlice("\n\n(export \"_start\" (func ");
-    try wasm.appendSlice(try functionName(start));
-    try wasm.appendSlice(")))");
+    const foreign_exports = module.get(components.ForeignExports).slice();
+    if (foreign_exports.len > 0) {
+        for (foreign_exports) |foreign_export| {
+            const literal = foreign_export.get(components.Literal);
+            const overload = top_level.findLiteral(literal).get(components.Overloads).slice()[0];
+            try wasm.appendSlice("\n\n(export \"");
+            try wasm.appendSlice(literalOf(overload.get(components.Name).entity));
+            try wasm.appendSlice("\" (func ");
+            try wasm.appendSlice(try functionName(overload));
+            try wasm.appendSlice("))");
+        }
+    } else {
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        try wasm.appendSlice("\n\n(export \"_start\" (func ");
+        try wasm.appendSlice(try functionName(start));
+        try wasm.appendSlice("))");
+    }
+    try wasm.append(')');
     return wasm.mutSlice();
 }
 
@@ -789,5 +803,45 @@ test "print wasm while loop" {
         \\    (local.get $i))
         \\
         \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "print wasm foreign export" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\square = function(x: I64): I64
+        \\  x * x
+        \\end
+        \\
+        \\area = function(width: F64, height: F64): F64
+        \\  width * height
+        \\end
+        \\
+        \\foreign_export(square)
+        \\
+        \\foreign_export(area)
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/square.I64 (param $x i64) (result i64)
+        \\    (local.get $x)
+        \\    (local.get $x)
+        \\    i64.mul)
+        \\
+        \\  (func $foo/area.F64.F64 (param $width f64) (param $height f64) (result f64)
+        \\    (local.get $width)
+        \\    (local.get $height)
+        \\    f64.mul)
+        \\
+        \\(export "square" (func $foo/square.I64))
+        \\
+        \\(export "area" (func $foo/area.F64.F64)))
     );
 }
