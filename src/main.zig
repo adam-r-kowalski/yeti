@@ -49,8 +49,8 @@ pub fn main() !void {
     try codegen(module);
     const wasm = try printWasm(module);
     const foreign_exports = module.get(components.ForeignExports).slice();
-    if (foreign_exports.len > 0) return;
     try std.fs.cwd().writeFile(args[2], wasm);
+    if (foreign_exports.len > 0) return;
     const result = try std.ChildProcess.exec(.{
         .allocator = arena.allocator(),
         .argv = &.{ "wasmtime", args[2] },
