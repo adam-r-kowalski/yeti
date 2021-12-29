@@ -8,6 +8,7 @@ const analyzeSemantics = @import("semantic_analyzer.zig").analyzeSemantics;
 const codegen = @import("codegen.zig").codegen;
 const printWasm = @import("wasm_printer.zig").printWasm;
 const List = @import("list.zig").List;
+const components = @import("components.zig");
 
 const FileSystem = struct {
     const Files = List(std.fs.File, .{});
@@ -47,6 +48,8 @@ pub fn main() !void {
     const module = try analyzeSemantics(codebase, &fs, args[1]);
     try codegen(module);
     const wasm = try printWasm(module);
+    const foreign_exports = module.get(components.ForeignExports).slice();
+    if (foreign_exports.len > 0) return;
     try std.fs.cwd().writeFile(args[2], wasm);
     const result = try std.ChildProcess.exec(.{
         .allocator = arena.allocator(),
