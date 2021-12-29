@@ -1,1 +1,1 @@
-# compiler
+# Yeti Programming Language
