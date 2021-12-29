@@ -588,6 +588,8 @@ fn Context(comptime FileSystem: type) type {
 }
 
 fn analyzeOverload(file_system: anytype, module: Entity, overload: Entity) !void {
+    if (overload.contains(components.AnalyzedBody)) return;
+    _ = try overload.set(.{components.AnalyzedBody{ .value = true }});
     const codebase = overload.ecs;
     const allocator = codebase.arena.allocator();
     var scopes = components.Scopes.init(allocator, codebase.getPtr(Strings));
@@ -1811,5 +1813,33 @@ test "analyze semantics of foreign exports" {
     try expectEqual(square.get(components.Parameters).len(), 1);
     try expectEqual(square.get(components.ReturnType).entity, builtins.I64);
     const body = square.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+}
+
+test "analyze semantics of foreign exports with recursion" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\fib = function(n: I64): I64
+        \\  if n < 2 then
+        \\    0
+        \\  else
+        \\    fib(n - 1) + fib(n - 2)
+        \\  end
+        \\end
+        \\
+        \\foreign_export(fib)
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const fib = top_level.findString("fib").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(fib.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(fib.get(components.Name).entity), "fib");
+    try expectEqual(fib.get(components.Parameters).len(), 1);
+    try expectEqual(fib.get(components.ReturnType).entity, builtins.I64);
+    const body = fib.get(components.Body).slice();
     try expectEqual(body.len, 1);
 }
