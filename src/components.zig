@@ -209,6 +209,7 @@ pub const TokenKind = enum(u8) {
     else_,
     while_,
     underscore,
+    foreign_export,
 };
 
 pub const Literal = struct {
@@ -493,3 +494,4 @@ pub const Mutable = struct { value: bool };
 pub const AnalyzedParameters = struct { value: bool };
 pub const AnalyzedBody = struct { value: bool };
 pub const WasmName = DistinctList("Wasm Name", u8);
+pub const ForeignExports = DistinctList("Foreign Exports", Entity);

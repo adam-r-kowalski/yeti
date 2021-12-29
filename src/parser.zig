@@ -702,39 +702,58 @@ test "parse import module" {
     try expectEqualStrings(literalOf(import.get(components.Path).entity), "foo.yeti");
 }
 
+fn parseTopLevel(tokens: *Tokens, top_level: *components.TopLevel, token: Entity) !void {
+    const name = components.Name.init(token);
+    _ = tokens.consume(.equal);
+    const kind = tokens.peek().?.get(components.TokenKind);
+    switch (kind) {
+        .function => {
+            const function = try parseFunction(token.ecs, tokens);
+            _ = try function.set(.{name});
+            if (top_level.hasName(name)) |overload_set| {
+                try overload_set.getPtr(components.Overloads).append(function);
+            } else {
+                var overloads = components.Overloads.init(token.ecs.arena.allocator());
+                try overloads.append(function);
+                const overload_set = try token.ecs.createEntity(.{
+                    components.AstKind.overload_set,
+                    overloads,
+                });
+                try top_level.putName(name, overload_set);
+            }
+        },
+        .import => {
+            const import = try parseImport(token.ecs, tokens);
+            _ = try import.set(.{name});
+            try top_level.putName(name, import);
+        },
+        else => panic("\ncannot parse top level expression {}\n", .{kind}),
+    }
+}
+
+fn parseForeignExport(tokens: *Tokens, foreign_exports: *components.ForeignExports) !void {
+    _ = tokens.consume(.left_paren);
+    const foreign_export = tokens.consume(.symbol);
+    _ = tokens.consume(.right_paren);
+    try foreign_exports.append(foreign_export);
+}
+
 pub fn parse(module: Entity, tokens: *Tokens) !void {
     const codebase = module.ecs;
-    var top_level = components.TopLevel.init(codebase.arena.allocator(), codebase.getPtr(Strings));
+    const allocator = codebase.arena.allocator();
+    var top_level = components.TopLevel.init(allocator, codebase.getPtr(Strings));
+    var foreign_exports = components.ForeignExports.init(allocator);
     while (tokens.next()) |token| {
-        const name = components.Name.init(token);
-        _ = tokens.consume(.equal);
-        const kind = tokens.peek().?.get(components.TokenKind);
+        const kind = token.get(components.TokenKind);
         switch (kind) {
-            .function => {
-                const function = try parseFunction(codebase, tokens);
-                _ = try function.set(.{name});
-                if (top_level.hasName(name)) |overload_set| {
-                    try overload_set.getPtr(components.Overloads).append(function);
-                } else {
-                    var overloads = components.Overloads.init(codebase.arena.allocator());
-                    try overloads.append(function);
-                    const overload_set = try codebase.createEntity(.{
-                        components.AstKind.overload_set,
-                        overloads,
-                    });
-                    try top_level.putName(name, overload_set);
-                }
-            },
-            .import => {
-                const import = try parseImport(codebase, tokens);
-                _ = try import.set(.{name});
-                try top_level.putName(name, import);
-            },
-            else => panic("\ncannot parse top level expression {}\n", .{kind}),
+            .symbol => try parseTopLevel(tokens, &top_level, token),
+            .foreign_export => try parseForeignExport(tokens, &foreign_exports),
+            else => panic("\nparse unsupported kind {}\n", .{kind}),
         }
     }
     _ = try module.set(.{
         top_level,
+        foreign_exports,
         components.Type.init(codebase.get(components.Builtins).Module),
     });
 }
@@ -1123,4 +1142,17 @@ test "parse pipeline" {
     try expectEqualStrings(literalOf(square.get(components.Callable).entity), "square");
     const square_arguments = square.get(components.Arguments).slice();
     try expectEqual(square_arguments.len, 0);
+}
+
+test "parse foreign export" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code = "foreign_export(start)";
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const foreign_exports = module.get(components.ForeignExports).slice();
+    try expectEqual(foreign_exports.len, 1);
+    try expectEqualStrings(literalOf(foreign_exports[0]), "start");
 }

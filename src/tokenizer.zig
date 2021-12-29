@@ -155,6 +155,8 @@ fn tokenizeSymbol(module: Entity, source: *Source) !Entity {
         return try module.ecs.createEntity(.{ components.TokenKind.else_, span });
     } else if (std.mem.eql(u8, string, "while")) {
         return try module.ecs.createEntity(.{ components.TokenKind.while_, span });
+    } else if (std.mem.eql(u8, string, "foreign_export")) {
+        return try module.ecs.createEntity(.{ components.TokenKind.foreign_export, span });
     } else if (std.mem.eql(u8, string, "_")) {
         return try module.ecs.createEntity(.{ components.TokenKind.underscore, span });
     } else {
