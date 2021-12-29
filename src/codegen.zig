@@ -83,7 +83,7 @@ fn codegenDefine(context: *Context, entity: Entity) !void {
     }
     try codegenEntity(context, value);
     const wasm_instruction = try context.codebase.createEntity(.{
-        components.WasmInstructionKind.set_local,
+        components.WasmInstructionKind.local_set,
         components.Local.init(entity),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
@@ -94,7 +94,7 @@ fn codegenAssign(context: *Context, entity: Entity) !void {
     const value = entity.get(components.Value).entity;
     try codegenEntity(context, value);
     const wasm_instruction = try context.codebase.createEntity(.{
-        components.WasmInstructionKind.set_local,
+        components.WasmInstructionKind.local_set,
         components.Local.init(entity),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
@@ -130,7 +130,7 @@ fn codegenLocal(context: *Context, entity: Entity) !void {
         }
     }
     const wasm_instruction = try context.codebase.createEntity(.{
-        components.WasmInstructionKind.get_local,
+        components.WasmInstructionKind.local_get,
         local,
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
@@ -1143,7 +1143,7 @@ test "codegen arithmethic binary op non constant" {
             const id_instructions = id.get(components.WasmInstructions).slice();
             try expectEqual(id_instructions.len, 1);
             const local = id_instructions[0];
-            try expectEqual(local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(local.get(components.WasmInstructionKind), .local_get);
             try expectEqualStrings(literalOf(local.get(components.Local).entity), "x");
         }
     }
@@ -1206,7 +1206,7 @@ test "codegen int binary op non constant" {
             const id_instructions = id.get(components.WasmInstructions).slice();
             try expectEqual(id_instructions.len, 1);
             const local = id_instructions[0];
-            try expectEqual(local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(local.get(components.WasmInstructionKind), .local_get);
             try expectEqualStrings(literalOf(local.get(components.Local).entity), "x");
         }
     }
@@ -1269,7 +1269,7 @@ test "codegen comparison binary op non constant" {
             const id_instructions = id.get(components.WasmInstructions).slice();
             try expectEqual(id_instructions.len, 1);
             const local = id_instructions[0];
-            try expectEqual(local.get(components.WasmInstructionKind), .get_local);
+            try expectEqual(local.get(components.WasmInstructionKind), .local_get);
             try expectEqualStrings(literalOf(local.get(components.Local).entity), "x");
         }
     }
@@ -1426,9 +1426,9 @@ test "codegen assignment" {
             try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
         }
         {
-            const set_local = start_instructions[1];
-            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-            const local = set_local.get(components.Local).entity;
+            const local_set = start_instructions[1];
+            try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+            const local = local_set.get(components.Local).entity;
             try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
         }
         {
@@ -1437,14 +1437,14 @@ test "codegen assignment" {
             try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "3");
         }
         {
-            const set_local = start_instructions[3];
-            try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-            const local = set_local.get(components.Local).entity;
+            const local_set = start_instructions[3];
+            try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+            const local = local_set.get(components.Local).entity;
             try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
         }
-        const get_local = start_instructions[4];
-        try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-        const local = get_local.get(components.Local).entity;
+        const local_get = start_instructions[4];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
         try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
     }
 }
@@ -1475,9 +1475,9 @@ test "codegen while loop" {
     //     try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
     // }
     // {
-    //     const set_local = start_instructions[1];
-    //     try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-    //     const local = set_local.get(components.Local).entity;
+    //     const local_set = start_instructions[1];
+    //     try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+    //     const local = local_set.get(components.Local).entity;
     //     try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
     // }
     // {
@@ -1486,13 +1486,13 @@ test "codegen while loop" {
     //     try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "3");
     // }
     // {
-    //     const set_local = start_instructions[3];
-    //     try expectEqual(set_local.get(components.WasmInstructionKind), .set_local);
-    //     const local = set_local.get(components.Local).entity;
+    //     const local_set = start_instructions[3];
+    //     try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+    //     const local = local_set.get(components.Local).entity;
     //     try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
     // }
-    // const get_local = start_instructions[4];
-    // try expectEqual(get_local.get(components.WasmInstructionKind), .get_local);
-    // const local = get_local.get(components.Local).entity;
+    // const local_get = start_instructions[4];
+    // try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+    // const local = local_get.get(components.Local).entity;
     // try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
 }

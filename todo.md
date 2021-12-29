@@ -16,8 +16,8 @@
     - [x] AnalyzedElse
 - [x] While loop
 - [x] Pipeline |> operator
-- [ ] Calling imported function twice
-- [ ] Overloading
+- [x] Calling imported function twice
+- [x] Overloading
 - [ ] Error Messages
     - [ ] Tokenizer
     - [ ] Parser

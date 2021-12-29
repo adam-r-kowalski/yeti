@@ -207,14 +207,14 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
             try wasm.appendSlice(try functionName(callable));
             try wasm.append(')');
         },
-        .get_local => {
-            try wasm.appendSlice("\n    (get_local $");
+        .local_get => {
+            try wasm.appendSlice("\n    (local.get $");
             const local = wasm_instruction.get(components.Local).entity;
             try wasm.appendSlice(literalOf(local.get(components.Name).entity));
             try wasm.append(')');
         },
-        .set_local => {
-            try wasm.appendSlice("\n    (set_local $");
+        .local_set => {
+            try wasm.appendSlice("\n    (local.set $");
             const local = wasm_instruction.get(components.Local).entity;
             try wasm.appendSlice(literalOf(local.get(components.Name).entity));
             try wasm.append(')');
@@ -394,7 +394,7 @@ test "print wasm call local function with argument" {
             \\    (call $foo/id.{s}))
             \\
             \\  (func $foo/id.{s} (param $x {s}) (result {s})
-            \\    (get_local $x))
+            \\    (local.get $x))
             \\
             \\(export "_start" (func $foo/start)))
         , .{ wasm_types[i], const_kinds[i], type_, type_, wasm_types[i], wasm_types[i] }));
@@ -546,7 +546,7 @@ test "print wasm arithmetic binary op non constant" {
                 \\    {s})
                 \\
                 \\  (func $foo/id.{s} (param $x {s}) (result {s})
-                \\    (get_local $x))
+                \\    (local.get $x))
                 \\
                 \\(export "_start" (func $foo/start)))
             , .{
@@ -605,7 +605,7 @@ test "print wasm int binary op non constant" {
                 \\    {s})
                 \\
                 \\  (func $foo/id.{s} (param $x {s}) (result {s})
-                \\    (get_local $x))
+                \\    (local.get $x))
                 \\
                 \\(export "_start" (func $foo/start)))
             , .{
@@ -738,10 +738,10 @@ test "print wasm assignment" {
             \\  (func $foo/start (result {s})
             \\    (local $x {s})
             \\    ({s}.const 10)
-            \\    (set_local $x)
+            \\    (local.set $x)
             \\    ({s}.const 3)
-            \\    (set_local $x)
-            \\    (get_local $x))
+            \\    (local.set $x)
+            \\    (local.get $x))
             \\
             \\(export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
@@ -771,22 +771,22 @@ test "print wasm while loop" {
         \\  (func $foo/start (result i32)
         \\    (local $i i32)
         \\    (i32.const 0)
-        \\    (set_local $i)
+        \\    (local.set $i)
         \\    block $.label.0
         \\    loop $.label.1
-        \\    (get_local $i)
+        \\    (local.get $i)
         \\    (i32.const 10)
         \\    i32.lt_s
         \\    i32.eqz
         \\    br_if $.label.0
-        \\    (get_local $i)
+        \\    (local.get $i)
         \\    (i32.const 1)
         \\    i32.add
-        \\    (set_local $i)
+        \\    (local.set $i)
         \\    br $.label.1
         \\    end $.label.1
         \\    end $.label.0
-        \\    (get_local $i))
+        \\    (local.get $i))
         \\
         \\(export "_start" (func $foo/start)))
     );
