@@ -290,7 +290,7 @@ test "print wasm int literal" {
             \\  5
             \\end
         , .{type_}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -317,7 +317,7 @@ test "print wasm float literal" {
             \\  5.3
             \\end
         , .{type_}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -348,7 +348,7 @@ test "print wasm call local function" {
             \\  10
             \\end
         , .{ type_, type_ }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -383,7 +383,7 @@ test "print wasm call local function with argument" {
             \\  x
             \\end
         , .{ type_, type_, type_ }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -415,7 +415,7 @@ test "print wasm define int literal" {
             \\  x
             \\end
         , .{type_}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -452,7 +452,7 @@ test "print wasm arithmetic binary op" {
                 \\  x {s} y
                 \\end
             , .{ type_, type_, type_, op_string }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const wasm = try printWasm(module);
             try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -492,7 +492,7 @@ test "print wasm int binary op" {
                 \\  x {s} y
                 \\end
             , .{ type_, type_, type_, op_string }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const wasm = try printWasm(module);
             try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -532,7 +532,7 @@ test "print wasm arithmetic binary op non constant" {
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const wasm = try printWasm(module);
             try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -591,7 +591,7 @@ test "print wasm int binary op non constant" {
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const wasm = try printWasm(module);
             try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -636,7 +636,7 @@ test "print wasm if then else where then branch taken statically" {
             \\  if 1 then 20 else 30 end
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -663,7 +663,7 @@ test "print wasm if then else where else branch taken statically" {
             \\  if 0 then 20 else 30 end
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -692,7 +692,7 @@ test "print wasm if then else non const conditional" {
             \\
             \\f = function(): I32 1 end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -729,7 +729,7 @@ test "print wasm assignment" {
             \\  x
             \\end
         , .{ type_of, type_of }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const wasm = try printWasm(module);
         try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
@@ -762,7 +762,7 @@ test "print wasm while loop" {
         \\  i
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
     const wasm = try printWasm(module);
     try expectEqualStrings(wasm,

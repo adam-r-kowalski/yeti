@@ -587,7 +587,7 @@ fn Context(comptime FileSystem: type) type {
     };
 }
 
-pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []const u8, function_name: []const u8) !Entity {
+pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []const u8) !Entity {
     const allocator = codebase.arena.allocator();
     _ = try codebase.set(.{components.Functions.init(allocator)});
     const contents = try file_system.read(module_name);
@@ -597,7 +597,7 @@ pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []con
     const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
     _ = try module.set(.{components.Literal.init(interned)});
     const top_level = module.get(components.TopLevel);
-    const overloads = top_level.findString(function_name).get(components.Overloads).slice();
+    const overloads = top_level.findString("start").get(components.Overloads).slice();
     assert(overloads.len == 1);
     var scopes = components.Scopes.init(allocator, codebase.getPtr(Strings));
     const scope = try scopes.pushScope();
@@ -631,7 +631,7 @@ test "analyze semantics int literal" {
             \\  5
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -661,7 +661,7 @@ test "analyze semantics float literal" {
             \\  5.3
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -695,7 +695,7 @@ test "analyze semantics call local function" {
             \\  10
             \\end
         , .{ type_of, type_of }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -745,7 +745,7 @@ test "analyze semantics call function import" {
             \\  10
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -789,7 +789,7 @@ test "analyze semantics define" {
             \\  x
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -826,7 +826,7 @@ test "analyze semantics two defines" {
             \\  x
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -867,7 +867,7 @@ test "analyze semantics define with explicit float type" {
             \\  x
             \\end
         , .{ type_of, type_of }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -907,7 +907,7 @@ test "analyze semantics function with argument" {
             \\  x
             \\end
         , .{ type_of, type_of, type_of, type_of }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -969,7 +969,7 @@ test "analyze semantics function call twice" {
             \\  x
             \\end
         , .{ type_of, type_of, type_of }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1038,7 +1038,7 @@ test "analyze semantics binary op two comptime known" {
                 \\  x {s} y
                 \\end
             , .{ type_of, type_of, type_of, op_string }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
             try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1099,7 +1099,7 @@ test "analyze semantics comparison op two comptime known" {
                 \\  x {s} y
                 \\end
             , .{ type_of, type_of, op_string }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
             try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1148,7 +1148,7 @@ test "analyze semantics if then else" {
             \\  if 1 then 20 else 30 end
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1197,7 +1197,7 @@ test "analyze semantics if then else non constant conditional" {
             \\  1
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1255,7 +1255,7 @@ test "analyze semantics if then else with different type branches" {
             \\  0
             \\end
         , .{ type_of, type_of }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1300,7 +1300,7 @@ test "analyze semantics of assignment" {
             \\  x
             \\end
         , .{ type_of, type_of }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
         try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1341,7 +1341,7 @@ test "analyze semantics of while loop" {
         \\  i
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1388,7 +1388,7 @@ test "analyze semantics of increment" {
         \\  x
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1438,7 +1438,7 @@ test "analyze semantics of add between typed and inferred" {
         \\  b
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1494,7 +1494,7 @@ test "analyze semantics of pipeline" {
         \\  5 |> square()
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1531,7 +1531,7 @@ test "analyze semantics of pipeline with parenthesis omitted" {
         \\  5 |> square
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1568,7 +1568,7 @@ test "analyze semantics of pipeline with position specified" {
         \\  5 |> min(3, _)
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1611,7 +1611,7 @@ test "analyze semantics of pipeline calling imported function" {
         \\  if x < y then x else y end
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1654,7 +1654,7 @@ test "analyze semantics of pipeline calling imported function with parenthesis o
         \\  x * x
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1698,7 +1698,7 @@ test "analyze semantics of calling imported function with local arguments" {
         \\  x * x
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1748,7 +1748,7 @@ test "analyze semantics of calling imported function twice" {
         \\  x * x
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");

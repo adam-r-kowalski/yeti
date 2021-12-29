@@ -44,7 +44,7 @@ pub fn main() !void {
     var fs = FileSystem.init(&arena);
     defer fs.deinit();
     var codebase = try initCodebase(&arena);
-    const module = try analyzeSemantics(codebase, &fs, args[1], "start");
+    const module = try analyzeSemantics(codebase, &fs, args[1]);
     try codegen(module);
     const wasm = try printWasm(module);
     try std.fs.cwd().writeFile(args[2], wasm);

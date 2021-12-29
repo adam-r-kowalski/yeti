@@ -845,7 +845,7 @@ test "codegen int literal" {
             \\  5
             \\end
         , .{type_}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -870,7 +870,7 @@ test "codegen float literal" {
             \\  5
             \\end
         , .{type_}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -899,7 +899,7 @@ test "codegen call local function" {
             \\  10
             \\end
         , .{ type_, type_ }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -930,7 +930,7 @@ test "codegen assign" {
             \\  x
             \\end
         , .{ type_, type_ }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -963,7 +963,7 @@ test "codegen binary op two literals" {
                 \\  8 {s} 2
                 \\end
             , .{ type_, op_string }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -999,7 +999,7 @@ test "codegen arithmetic binary op two local constants" {
                 \\  x {s} y
                 \\end
             , .{ type_, type_, type_, op_string }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1037,7 +1037,7 @@ test "codegen int binary op two local constants" {
                 \\  x {s} y
                 \\end
             , .{ type_, type_, type_, op_string }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1075,7 +1075,7 @@ test "codegen int comparison op two local constants" {
                 \\  x {s} y
                 \\end
             , .{ type_, type_, op_string }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1113,7 +1113,7 @@ test "codegen arithmethic binary op non constant" {
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1176,7 +1176,7 @@ test "codegen int binary op non constant" {
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1239,7 +1239,7 @@ test "codegen comparison binary op non constant" {
                 \\  x
                 \\end
             , .{ op_string, type_, type_ }));
-            const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
             const top_level = module.get(components.TopLevel);
             const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1295,7 +1295,7 @@ test "codegen if then else where then branch taken statically" {
             \\  if 1 then 20 else 30 end
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1327,7 +1327,7 @@ test "codegen if then else where else branch taken statically" {
             \\  if 0 then 20 else 30 end
             \\end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1370,7 +1370,7 @@ test "codegen if then else non const conditional" {
             \\
             \\f = function(): I32 1 end
         , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1414,7 +1414,7 @@ test "codegen assignment" {
             \\  x
             \\end
         , .{ type_, type_ }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
         const top_level = module.get(components.TopLevel);
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -1463,36 +1463,11 @@ test "codegen while loop" {
         \\  i
         \\end
     );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti", "start");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 17);
-    // {
-    //     const constant = start_instructions[0];
-    //     try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
-    //     try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
-    // }
-    // {
-    //     const local_set = start_instructions[1];
-    //     try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
-    //     const local = local_set.get(components.Local).entity;
-    //     try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
-    // }
-    // {
-    //     const constant = start_instructions[2];
-    //     try expectEqual(constant.get(components.WasmInstructionKind), const_kinds[i]);
-    //     try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "3");
-    // }
-    // {
-    //     const local_set = start_instructions[3];
-    //     try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
-    //     const local = local_set.get(components.Local).entity;
-    //     try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
-    // }
-    // const local_get = start_instructions[4];
-    // try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
-    // const local = local_get.get(components.Local).entity;
-    // try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
+    // TODO: test that proper while loop instructions are generated
 }
