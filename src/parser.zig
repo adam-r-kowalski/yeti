@@ -702,6 +702,45 @@ test "parse import module" {
     try expectEqualStrings(literalOf(import.get(components.Path).entity), "foo.yeti");
 }
 
+fn parseForeignImport(codebase: *ECS, tokens: *Tokens) !Entity {
+    const begin = tokens.consume(.foreign_import).get(components.Span).begin;
+    _ = tokens.consume(.left_paren);
+    const foreign_module = components.ForeignModule.init(tokens.consume(.string));
+    _ = tokens.consume(.comma);
+    const foreign_name = components.ForeignName.init(tokens.consume(.string));
+    _ = tokens.consume(.comma);
+    _ = tokens.consume(.symbol);
+    const parameters = try parseFunctionParameters(codebase, tokens);
+    _ = tokens.consume(.colon);
+    const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
+    const end = tokens.consume(.right_paren).get(components.Span).end;
+    const span = components.Span.init(begin, end);
+    return try codebase.createEntity(.{
+        components.AstKind.function,
+        foreign_module,
+        foreign_name,
+        parameters,
+        return_type,
+        span,
+    });
+}
+
+fn overloadFunction(top_level: *components.TopLevel, function: Entity, name: components.Name) !void {
+    const codebase = function.ecs;
+    _ = try function.set(.{name});
+    if (top_level.hasName(name)) |overload_set| {
+        try overload_set.getPtr(components.Overloads).append(function);
+    } else {
+        var overloads = components.Overloads.init(codebase.arena.allocator());
+        try overloads.append(function);
+        const overload_set = try codebase.createEntity(.{
+            components.AstKind.overload_set,
+            overloads,
+        });
+        try top_level.putName(name, overload_set);
+    }
+}
+
 fn parseTopLevel(tokens: *Tokens, top_level: *components.TopLevel, token: Entity) !void {
     const name = components.Name.init(token);
     _ = tokens.consume(.equal);
@@ -709,23 +748,16 @@ fn parseTopLevel(tokens: *Tokens, top_level: *components.TopLevel, token: Entity
     switch (kind) {
         .function => {
             const function = try parseFunction(token.ecs, tokens);
-            _ = try function.set(.{name});
-            if (top_level.hasName(name)) |overload_set| {
-                try overload_set.getPtr(components.Overloads).append(function);
-            } else {
-                var overloads = components.Overloads.init(token.ecs.arena.allocator());
-                try overloads.append(function);
-                const overload_set = try token.ecs.createEntity(.{
-                    components.AstKind.overload_set,
-                    overloads,
-                });
-                try top_level.putName(name, overload_set);
-            }
+            try overloadFunction(top_level, function, name);
         },
         .import => {
             const import = try parseImport(token.ecs, tokens);
             _ = try import.set(.{name});
             try top_level.putName(name, import);
+        },
+        .foreign_import => {
+            const function = try parseForeignImport(token.ecs, tokens);
+            try overloadFunction(top_level, function, name);
         },
         else => panic("\ncannot parse top level expression {}\n", .{kind}),
     }
@@ -1167,4 +1199,8 @@ test "parse foreign import" {
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const log = top_level.findString("log");
+    const overloads = log.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
 }
