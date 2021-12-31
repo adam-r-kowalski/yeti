@@ -1203,4 +1203,14 @@ test "parse foreign import" {
     const log = top_level.findString("log");
     const overloads = log.get(components.Overloads).slice();
     try expectEqual(overloads.len, 1);
+    const function = overloads[0];
+    try expectEqual(function.get(components.AstKind), .function);
+    try expectEqualStrings(literalOf(function.get(components.ForeignModule).entity), "console");
+    try expectEqualStrings(literalOf(function.get(components.ForeignName).entity), "log");
+    const parameters = function.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const parameter = parameters[0];
+    try expectEqualStrings(literalOf(parameter), "value");
+    try expectEqualStrings(literalOf(parameter.get(components.TypeAst).entity), "I64");
+    try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "Void");
 }
