@@ -115,58 +115,29 @@ fn tokenizeSymbol(module: Entity, source: *Source) !Entity {
     var i: u64 = 1;
     while (i < source.code.len) : (i += 1) {
         switch (source.code[i]) {
-            '(',
-            ')',
-            '[',
-            ']',
-            '{',
-            '}',
-            ' ',
-            ':',
-            '+',
-            '-',
-            '*',
-            '/',
-            '&',
-            '|',
-            '<',
-            '>',
-            ',',
-            '\n',
-            '\r',
-            '.',
-            => break,
+            '(', ')', '[', ']', '{', '}', ' ', ':', '+', '-', '*', '/', '&', '|', '<', '>', ',', '\n', '\r', '.' => break,
             else => continue,
         }
     }
     const string = source.advance(i);
     const span = components.Span{ .begin = begin, .end = source.position };
-    if (std.mem.eql(u8, string, "import")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.import, span });
-    } else if (std.mem.eql(u8, string, "function")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.function, span });
-    } else if (std.mem.eql(u8, string, "end")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.end, span });
-    } else if (std.mem.eql(u8, string, "if")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.if_, span });
-    } else if (std.mem.eql(u8, string, "then")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.then, span });
-    } else if (std.mem.eql(u8, string, "else")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.else_, span });
-    } else if (std.mem.eql(u8, string, "while")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.while_, span });
-    } else if (std.mem.eql(u8, string, "foreign_export")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.foreign_export, span });
-    } else if (std.mem.eql(u8, string, "_")) {
-        return try module.ecs.createEntity(.{ components.TokenKind.underscore, span });
-    } else {
-        const interned = try module.ecs.getPtr(Strings).intern(string);
-        return try module.ecs.createEntity(.{
-            components.Literal.init(interned),
-            components.TokenKind.symbol,
-            span,
-        });
+    const symbols = [_][]const u8{
+        "import", "function", "end", "if", "then", "else", "while", "foreign_export", "foreign_import", "_",
+    };
+    const tokens = [_]components.TokenKind{
+        .import, .function, .end, .if_, .then, .else_, .while_, .foreign_export, .foreign_import, .underscore,
+    };
+    for (symbols) |symbol, j| {
+        if (std.mem.eql(u8, string, symbol)) {
+            return try module.ecs.createEntity(.{ tokens[j], span });
+        }
     }
+    const interned = try module.ecs.getPtr(Strings).intern(string);
+    return try module.ecs.createEntity(.{
+        components.Literal.init(interned),
+        components.TokenKind.symbol,
+        span,
+    });
 }
 
 test "tokenize symbol" {

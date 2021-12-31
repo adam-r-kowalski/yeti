@@ -1156,3 +1156,15 @@ test "parse foreign export" {
     try expectEqual(foreign_exports.len, 1);
     try expectEqualStrings(literalOf(foreign_exports[0]), "start");
 }
+
+test "parse foreign import" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\log = foreign_import("console", "log", Function(value: I64): Void)
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+}
