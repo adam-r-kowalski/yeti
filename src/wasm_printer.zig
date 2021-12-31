@@ -25,19 +25,16 @@ const InternedString = strings_module.InternedString;
 
 const Wasm = List(u8, .{ .initial_capacity = 1000 });
 
-fn printWasmType(wasm: *Wasm, type_: Entity) !void {
-    const builtins = type_.ecs.get(components.Builtins);
-    if (eql(type_, builtins.I64) or eql(type_, builtins.U64)) {
-        try wasm.appendSlice("i64");
-    } else if (eql(type_, builtins.I32) or eql(type_, builtins.U32)) {
-        try wasm.appendSlice("i32");
-    } else if (eql(type_, builtins.F64)) {
-        try wasm.appendSlice("f64");
-    } else if (eql(type_, builtins.F32)) {
-        try wasm.appendSlice("f32");
-    } else {
-        panic("\nwasm wasm unsupported type {s}\n", .{literalOf(type_)});
+fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
+    const b = type_of.ecs.get(components.Builtins);
+    const builtins = [_]Entity{ b.I64, b.U64, b.I32, b.U32, b.F64, b.F32 };
+    const strings = [_][]const u8{ "i64", "i64", "i32", "i32", "f64", "f32" };
+    for (builtins) |builtin, i| {
+        if (eql(type_of, builtin)) {
+            return try wasm.appendSlice(strings[i]);
+        }
     }
+    panic("\nwasm wasm unsupported type {s}\n", .{literalOf(type_of)});
 }
 
 fn functionName(function: Entity) ![]const u8 {
@@ -73,8 +70,12 @@ fn printWasmFunctionParameters(wasm: *Wasm, function: Entity) !void {
 }
 
 fn printWasmFunctionReturnType(wasm: *Wasm, function: Entity) !void {
+    const return_type = function.get(components.ReturnType).entity;
+    if (eql(return_type, function.ecs.get(components.Builtins).Void)) {
+        return;
+    }
     try wasm.appendSlice(" (result ");
-    try printWasmType(wasm, function.get(components.ReturnType).entity);
+    try printWasmType(wasm, return_type);
     try wasm.append(')');
 }
 
@@ -262,10 +263,25 @@ fn printWasmFunction(wasm: *Wasm, function: Entity) !void {
     try wasm.append(')');
 }
 
+fn printWasmForeignImport(wasm: *Wasm, function: Entity) !void {
+    try wasm.appendSlice("\n\n  (import \"");
+    try wasm.appendSlice(literalOf(function.get(components.ForeignModule).entity));
+    try wasm.appendSlice("\" \"");
+    try wasm.appendSlice(literalOf(function.get(components.ForeignName).entity));
+    try wasm.appendSlice("\" (func ");
+    try wasm.appendSlice(try functionName(function));
+    try printWasmFunctionParameters(wasm, function);
+    try printWasmFunctionReturnType(wasm, function);
+    try wasm.appendSlice("))");
+}
+
 pub fn printWasm(module: Entity) ![]u8 {
     const codebase = module.ecs;
     var wasm = Wasm.init(codebase.arena.allocator());
     try wasm.appendSlice("(module");
+    for (codebase.get(components.ForeignImports).slice()) |foreign_import| {
+        try printWasmForeignImport(&wasm, foreign_import);
+    }
     for (codebase.get(components.Functions).slice()) |function| {
         try printWasmFunction(&wasm, function);
     }
@@ -843,5 +859,33 @@ test "print wasm foreign export" {
         \\(export "square" (func $foo/square.I64))
         \\
         \\(export "area" (func $foo/area.F64.F64)))
+    );
+}
+
+test "print wasm foreign import" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\log = foreign_import("console", "log", Function(value: I64): Void)
+        \\
+        \\start = function(): Void
+        \\  log(10)
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (import "console" "log" (func $foo/log.I64 (param $value i64)))
+        \\
+        \\  (func $foo/start
+        \\    (i64.const 10)
+        \\    (call $foo/log.I64))
+        \\
+        \\(export "_start" (func $foo/start)))
     );
 }

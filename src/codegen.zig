@@ -814,21 +814,22 @@ pub fn codegen(module: Entity) !void {
     const allocator = codebase.arena.allocator();
     const builtins = codebase.get(components.Builtins);
     for (module.ecs.get(components.Functions).slice()) |function| {
-        var locals = components.Locals.init(allocator);
-        var wasm_instructions = components.WasmInstructions.init(allocator);
-        var context = Context{
-            .codebase = codebase,
-            .wasm_instructions = &wasm_instructions,
-            .locals = &locals,
-            .allocator = allocator,
-            .builtins = builtins,
-            .label = 0,
-        };
-        const body = function.get(components.Body).slice();
-        for (body) |entity| {
-            try codegenEntity(&context, entity);
+        if (function.has(components.Body)) |body_component| {
+            var locals = components.Locals.init(allocator);
+            var wasm_instructions = components.WasmInstructions.init(allocator);
+            var context = Context{
+                .codebase = codebase,
+                .wasm_instructions = &wasm_instructions,
+                .locals = &locals,
+                .allocator = allocator,
+                .builtins = builtins,
+                .label = 0,
+            };
+            for (body_component.slice()) |entity| {
+                try codegenEntity(&context, entity);
+            }
+            _ = try function.set(.{ wasm_instructions, locals });
         }
-        _ = try function.set(.{ wasm_instructions, locals });
     }
 }
 

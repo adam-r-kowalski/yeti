@@ -562,8 +562,7 @@ fn Context(comptime FileSystem: type) type {
             return return_type;
         }
 
-        fn analyzeFunctionBody(self: *Self) !Entity {
-            const body = self.function.get(components.Body).slice();
+        fn analyzeFunctionBody(self: *Self, body: []const Entity) !Entity {
             var analyzed_body = try components.Body.withCapacity(self.allocator, body.len);
             for (body) |expression| {
                 try analyzed_body.append(try self.analyzeExpression(expression));
@@ -576,13 +575,17 @@ fn Context(comptime FileSystem: type) type {
 
         fn analyzeFunction(self: *Self) !void {
             _ = try self.function.set(.{components.Module.init(self.module)});
-            _ = try self.codebase.getPtr(components.Functions).append(self.function);
             if (!self.function.contains(components.AnalyzedParameters)) {
                 try self.analyzeFunctionParameters();
             }
             const return_type = try self.analyzeFunctionReturnType();
-            const return_entity = try self.analyzeFunctionBody();
-            try self.implicitTypeConversion(return_entity, return_type);
+            if (self.function.has(components.Body)) |body| {
+                _ = try self.codebase.getPtr(components.Functions).append(self.function);
+                const return_entity = try self.analyzeFunctionBody(body.slice());
+                try self.implicitTypeConversion(return_entity, return_type);
+            } else {
+                _ = try self.codebase.getPtr(components.ForeignImports).append(self.function);
+            }
         }
     };
 }
@@ -611,6 +614,7 @@ fn analyzeOverload(file_system: anytype, module: Entity, overload: Entity) !void
 pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []const u8) !Entity {
     const allocator = codebase.arena.allocator();
     _ = try codebase.set(.{components.Functions.init(allocator)});
+    _ = try codebase.set(.{components.ForeignImports.init(allocator)});
     const contents = try file_system.read(module_name);
     const module = try codebase.createEntity(.{});
     var tokens = try tokenize(module, contents);
@@ -1842,4 +1846,42 @@ test "analyze semantics of foreign exports with recursion" {
     try expectEqual(fib.get(components.ReturnType).entity, builtins.I64);
     const body = fib.get(components.Body).slice();
     try expectEqual(body.len, 1);
+}
+
+test "analyze semantics of foreign import" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\log = foreign_import("console", "log", Function(value: I64): Void)
+        \\
+        \\start = function(): Void
+        \\  log(10)
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.Void);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const log = body[0];
+    try expectEqual(log.get(components.AstKind), .call);
+    const arguments = log.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 1);
+    const callable = log.get(components.Callable).entity;
+    try expectEqualStrings(literalOf(callable.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(callable.get(components.Name).entity), "log");
+    const parameters = callable.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    try expectEqual(callable.get(components.ReturnType).entity, builtins.Void);
+    const parameter = parameters[0];
+    try expectEqual(typeOf(parameter), builtins.I64);
+    try expectEqualStrings(literalOf(parameter.get(components.Name).entity), "value");
 }
