@@ -837,12 +837,12 @@ test "codegen int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  5
             \\end
         , .{type_}));
@@ -862,12 +862,12 @@ test "codegen float literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  5
             \\end
         , .{type_}));
@@ -887,16 +887,16 @@ test "codegen call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  baz()
             \\end
             \\
-            \\baz = function(): {s}
+            \\baz = fn(): {s}
             \\  10
             \\end
         , .{ type_, type_ }));
@@ -921,12 +921,12 @@ test "codegen assign" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x: {s} = 10
             \\  x
             \\end
@@ -947,7 +947,7 @@ test "codegen binary op two literals" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     const op_strings = [_][]const u8{ "+", "-", "*", "/" };
     const results = [_][6][]const u8{
@@ -960,7 +960,7 @@ test "codegen binary op two literals" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  8 {s} 2
                 \\end
             , .{ type_, op_string }));
@@ -981,7 +981,7 @@ test "codegen arithmetic binary op two local constants" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     const op_strings = [_][]const u8{ "+", "-", "*", "/" };
     const results = [_][6][]const u8{
@@ -994,7 +994,7 @@ test "codegen arithmetic binary op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -1017,7 +1017,7 @@ test "codegen int binary op two local constants" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const };
     const op_strings = [_][]const u8{ "%", "&", "|", "^", "<<", ">>" };
     const results = [_][4][]const u8{
@@ -1032,7 +1032,7 @@ test "codegen int binary op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -1055,7 +1055,7 @@ test "codegen int comparison op two local constants" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i32_const, .i32_const, .i32_const, .i32_const, .i32_const, .i32_const };
     const op_strings = [_][]const u8{ "==", "!=", "<", "<=", ">", ">=" };
     const results = [_][6][]const u8{
@@ -1070,7 +1070,7 @@ test "codegen int comparison op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): I32
+                \\start = fn(): i32
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -1093,7 +1093,7 @@ test "codegen arithmethic binary op non constant" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     const op_kinds = [_][6]components.WasmInstructionKind{
         [_]components.WasmInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add },
@@ -1106,11 +1106,11 @@ test "codegen arithmethic binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  id(10) {s} id(25)
                 \\end
                 \\
-                \\id = function(x: {s}): {s}
+                \\id = fn(x: {s}): {s}
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
@@ -1154,7 +1154,7 @@ test "codegen int binary op non constant" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const };
     const op_kinds = [_][4]components.WasmInstructionKind{
         [_]components.WasmInstructionKind{ .i64_and, .i32_and, .i64_and, .i32_and },
@@ -1169,11 +1169,11 @@ test "codegen int binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  id(10) {s} id(25)
                 \\end
                 \\
-                \\id = function(x: {s}): {s}
+                \\id = fn(x: {s}): {s}
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
@@ -1217,7 +1217,7 @@ test "codegen comparison binary op non constant" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     const op_kinds = [_][6]components.WasmInstructionKind{
         [_]components.WasmInstructionKind{ .i64_eq, .i32_eq, .i64_eq, .i32_eq, .f64_eq, .f32_eq },
@@ -1232,11 +1232,11 @@ test "codegen comparison binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): I32
+                \\start = fn(): i32
                 \\  id(10) {s} id(25)
                 \\end
                 \\
-                \\id = function(x: {s}): {s}
+                \\id = fn(x: {s}): {s}
                 \\  x
                 \\end
             , .{ op_string, type_, type_ }));
@@ -1280,7 +1280,7 @@ test "codegen if then else where then branch taken statically" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{
         .i64_const,
         .i32_const,
@@ -1292,7 +1292,7 @@ test "codegen if then else where then branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if 1 then 20 else 30 end
             \\end
         , .{type_of}));
@@ -1312,7 +1312,7 @@ test "codegen if then else where else branch taken statically" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{
         .i64_const,
         .i32_const,
@@ -1324,7 +1324,7 @@ test "codegen if then else where else branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if 0 then 20 else 30 end
             \\end
         , .{type_of}));
@@ -1344,7 +1344,7 @@ test "codegen if then else non const conditional" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const b = codebase.get(components.Builtins);
     const builtin_types = [_]Entity{
         b.I64,
@@ -1365,11 +1365,11 @@ test "codegen if then else non const conditional" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if f() then 20 else 30 end
             \\end
             \\
-            \\f = function(): I32 1 end
+            \\f = fn(): i32 1 end
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -1404,12 +1404,12 @@ test "codegen assignment" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x: {s} = 10
             \\  x := 3
             \\  x
@@ -1456,7 +1456,7 @@ test "codegen while loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = function(): I32
+        \\start = fn(): i32
         \\  i = 0
         \\  while i < 10 then
         \\      i := i + 1

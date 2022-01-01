@@ -18,12 +18,12 @@
 - [x] Pipeline |> operator
 - [x] Calling imported function twice
 - [x] Overloading
-- [ ] Foreign Exports
-- [ ] Foreign Imports
+- [x] Foreign Exports
+- [x] Foreign Imports
+- [ ] Linear Memory
 - [ ] Error Messages
     - [ ] Tokenizer
     - [ ] Parser
     - [ ] Semantic Analyzer
     - [ ] Code Generator
-- [ ] Linear Memory
 

@@ -202,7 +202,7 @@ pub const TokenKind = enum(u8) {
     caret,
     comma,
     import,
-    function,
+    fn_,
     end,
     if_,
     then,
@@ -376,8 +376,8 @@ pub const Builtins = struct {
     F32: Entity,
     IntLiteral: Entity,
     FloatLiteral: Entity,
-    StringLiteral: Entity,
     Void: Entity,
+    P32: Entity,
 };
 
 pub const Error = struct {

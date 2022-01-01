@@ -311,12 +311,12 @@ test "print wasm int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  5
             \\end
         , .{type_}));
@@ -338,12 +338,12 @@ test "print wasm float literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "F64", "F32" };
+    const types = [_][]const u8{ "f64", "f32" };
     const wasm_types = [_][]const u8{ "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  5.3
             \\end
         , .{type_}));
@@ -365,16 +365,16 @@ test "print wasm call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "F64", "F32" };
+    const types = [_][]const u8{ "f64", "f32" };
     const wasm_types = [_][]const u8{ "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  baz()
             \\end
             \\
-            \\baz = function(): {s}
+            \\baz = fn(): {s}
             \\  10
             \\end
         , .{ type_, type_ }));
@@ -399,17 +399,17 @@ test "print wasm call local function with argument" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     const const_kinds = [_][]const u8{ "i64.const", "i32.const", "i64.const", "i32.const", "f64.const", "f32.const" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  id(5)
             \\end
             \\
-            \\id = function(x: {s}): {s}
+            \\id = fn(x: {s}): {s}
             \\  x
             \\end
         , .{ type_, type_, type_ }));
@@ -435,12 +435,12 @@ test "print wasm define int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "U64", "F64" };
+    const types = [_][]const u8{ "i64", "u64", "f64" };
     const wasm_types = [_][]const u8{ "i64", "i64", "f64" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x = 10
             \\  x
             \\end
@@ -470,13 +470,13 @@ test "print wasm arithmetic binary op" {
         [_][]const u8{ "16", "16", "16", "16", "1.6e+01", "1.6e+01" },
         [_][]const u8{ "4", "4", "4", "4", "4.0e+00", "4.0e+00" },
     };
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -510,13 +510,13 @@ test "print wasm int binary op" {
         [_][]const u8{ "32", "32", "32", "32" },
         [_][]const u8{ "2", "2", "2", "2" },
     };
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32" };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -548,17 +548,17 @@ test "print wasm arithmetic binary op non constant" {
         [_][]const u8{ "i64.mul", "i32.mul", "i64.mul", "i32.mul", "f64.mul", "f32.mul" },
         [_][]const u8{ "i64.div_s", "i32.div_s", "i64.div_u", "i32.div_u", "f64.div", "f32.div" },
     };
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  id(10) {s} id(25)
                 \\end
                 \\
-                \\id = function(x: {s}): {s}
+                \\id = fn(x: {s}): {s}
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
@@ -607,17 +607,17 @@ test "print wasm int binary op non constant" {
         [_][]const u8{ "i64.shl", "i32.shl", "i64.shl", "i32.shl" },
         [_][]const u8{ "i64.shr_s", "i32.shr_s", "i64.shr_u", "i32.shr_u" },
     };
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32" };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  id(10) {s} id(25)
                 \\end
                 \\
-                \\id = function(x: {s}): {s}
+                \\id = fn(x: {s}): {s}
                 \\  x
                 \\end
             , .{ type_, op_string, type_, type_ }));
@@ -657,12 +657,12 @@ test "print wasm if then else where then branch taken statically" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if 1 then 20 else 30 end
             \\end
         , .{type_of}));
@@ -684,12 +684,12 @@ test "print wasm if then else where else branch taken statically" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if 0 then 20 else 30 end
             \\end
         , .{type_of}));
@@ -711,16 +711,16 @@ test "print wasm if then else non const conditional" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if f() then 20 else 30 end
             \\end
             \\
-            \\f = function(): I32 1 end
+            \\f = fn(): i32 1 end
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -748,12 +748,12 @@ test "print wasm assignment" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x: {s} = 10
             \\  x := 3
             \\  x
@@ -784,7 +784,7 @@ test "print wasm while loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = function(): I32
+        \\start = fn(): i32
         \\  i = 0
         \\  while i < 10 then
         \\      i := i + 1
@@ -828,11 +828,11 @@ test "print wasm foreign export" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square = function(x: I64): I64
+        \\square = fn(x: i64): i64
         \\  x * x
         \\end
         \\
-        \\area = function(width: F64, height: F64): F64
+        \\area = fn(width: f64, height: f64): f64
         \\  width * height
         \\end
         \\
@@ -846,19 +846,19 @@ test "print wasm foreign export" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/square.I64 (param $x i64) (result i64)
+        \\  (func $foo/square.i64 (param $x i64) (result i64)
         \\    (local.get $x)
         \\    (local.get $x)
         \\    i64.mul)
         \\
-        \\  (func $foo/area.F64.F64 (param $width f64) (param $height f64) (result f64)
+        \\  (func $foo/area.f64.f64 (param $width f64) (param $height f64) (result f64)
         \\    (local.get $width)
         \\    (local.get $height)
         \\    f64.mul)
         \\
-        \\(export "square" (func $foo/square.I64))
+        \\(export "square" (func $foo/square.i64))
         \\
-        \\(export "area" (func $foo/area.F64.F64)))
+        \\(export "area" (func $foo/area.f64.f64)))
     );
 }
 
@@ -868,9 +868,9 @@ test "print wasm foreign import" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\log = foreign_import("console", "log", Function(value: I64): Void)
+        \\log = foreign_import("console", "log", Fn(value: i64): void)
         \\
-        \\start = function(): Void
+        \\start = fn(): void
         \\  log(10)
         \\end
     );
@@ -880,11 +880,11 @@ test "print wasm foreign import" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (import "console" "log" (func $foo/log.I64 (param $value i64)))
+        \\  (import "console" "log" (func $foo/log.i64 (param $value i64)))
         \\
         \\  (func $foo/start
         \\    (i64.const 10)
-        \\    (call $foo/log.I64))
+        \\    (call $foo/log.i64))
         \\
         \\(export "_start" (func $foo/start)))
     );

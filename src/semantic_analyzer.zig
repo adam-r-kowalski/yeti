@@ -643,12 +643,12 @@ test "analyze semantics int literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  5
             \\end
         , .{type_of}));
@@ -673,12 +673,12 @@ test "analyze semantics float literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "F64", "F32" };
+    const types = [_][]const u8{ "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  5.3
             \\end
         , .{type_of}));
@@ -703,16 +703,16 @@ test "analyze semantics call local function" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  baz()
             \\end
             \\
-            \\baz = function(): {s}
+            \\baz = fn(): {s}
             \\  10
             \\end
         , .{ type_of, type_of }));
@@ -750,19 +750,19 @@ test "analyze semantics call function import" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\bar = import("bar.yeti")
             \\
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  bar.baz()
             \\end
         , .{type_of}));
         _ = try fs.newFile("bar.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\baz = function(): {s}
+            \\baz = fn(): {s}
             \\  10
             \\end
         , .{type_of}));
@@ -800,12 +800,12 @@ test "analyze semantics define" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x = 10
             \\  x
             \\end
@@ -836,12 +836,12 @@ test "analyze semantics two defines" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "F64", "F32" };
+    const types = [_][]const u8{ "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x = 10
             \\  y = 15
             \\  x
@@ -878,12 +878,12 @@ test "analyze semantics define with explicit float type" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "F64", "F32" };
+    const types = [_][]const u8{ "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x: {s} = 10
             \\  x
             \\end
@@ -914,17 +914,17 @@ test "analyze semantics function with argument" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x: {s} = 10
             \\  id(x)
             \\end
             \\
-            \\id = function(x: {s}): {s}
+            \\id = fn(x: {s}): {s}
             \\  x
             \\end
         , .{ type_of, type_of, type_of, type_of }));
@@ -976,17 +976,17 @@ test "analyze semantics function call twice" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x = id(10)
             \\  id(25)
             \\end
             \\
-            \\id = function(x: {s}): {s}
+            \\id = fn(x: {s}): {s}
             \\  x
             \\end
         , .{ type_of, type_of, type_of }));
@@ -1045,7 +1045,7 @@ test "analyze semantics binary op two comptime known" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     const op_strings = [_][]const u8{ "+", "-", "*", "/" };
     const intrinsics = [_]components.Intrinsic{ .add, .subtract, .multiply, .divide };
@@ -1053,7 +1053,7 @@ test "analyze semantics binary op two comptime known" {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): {s}
+                \\start = fn(): {s}
                 \\  x: {s} = 10
                 \\  y: {s} = 32
                 \\  x {s} y
@@ -1099,7 +1099,7 @@ test "analyze semantics comparison op two comptime known" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "I64", "I32", "U64", "U32", "F64", "F32" };
+    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
     const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
     const op_strings = [_][]const u8{ "==", "!=", "<", "<=", ">", ">=" };
     const intrinsics = [_]components.Intrinsic{
@@ -1114,7 +1114,7 @@ test "analyze semantics comparison op two comptime known" {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = function(): I32
+                \\start = fn(): i32
                 \\  x: {s} = 10
                 \\  y: {s} = 32
                 \\  x {s} y
@@ -1160,12 +1160,12 @@ test "analyze semantics if then else" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"I64"};
+    const types = [_][]const u8{"i64"};
     const builtin_types = [_]Entity{builtins.I64};
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if 1 then 20 else 30 end
             \\end
         , .{type_of}));
@@ -1205,16 +1205,16 @@ test "analyze semantics if then else non constant conditional" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"I64"};
+    const types = [_][]const u8{"i64"};
     const builtin_types = [_]Entity{builtins.I64};
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if f() then 20 else 30 end
             \\end
             \\
-            \\f = function(): I32
+            \\f = fn(): i32
             \\  1
             \\end
         , .{type_of}));
@@ -1263,16 +1263,16 @@ test "analyze semantics if then else with different type branches" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"I64"};
+    const types = [_][]const u8{"i64"};
     const builtin_types = [_]Entity{builtins.I64};
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  if 1 then 20 else f() end
             \\end
             \\
-            \\f = function(): {s}
+            \\f = fn(): {s}
             \\  0
             \\end
         , .{ type_of, type_of }));
@@ -1310,12 +1310,12 @@ test "analyze semantics of assignment" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{"I64"};
+    const types = [_][]const u8{"i64"};
     const builtin_types = [_]Entity{builtins.I64};
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = function(): {s}
+            \\start = fn(): {s}
             \\  x: {s} = 10
             \\  x := 3
             \\  x
@@ -1354,7 +1354,7 @@ test "analyze semantics of while loop" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = function(): I32
+        \\start = fn(): i32
         \\  i = 0
         \\  while i < 10 then
         \\      i := i + 1
@@ -1403,7 +1403,7 @@ test "analyze semantics of increment" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
+        \\start = fn(): i64
         \\  x = 0
         \\  x := x + 1
         \\  x
@@ -1452,8 +1452,8 @@ test "analyze semantics of add between typed and inferred" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = function(): I64
-        \\  a: I64 = 10
+        \\start = fn(): i64
+        \\  a: i64 = 10
         \\  b = 0
         \\  b := a + b
         \\  b
@@ -1507,11 +1507,11 @@ test "analyze semantics of pipeline" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square = function(x: I64): I64
+        \\square = fn(x: i64): i64
         \\  x * x
         \\end
         \\
-        \\start = function(): I64
+        \\start = fn(): i64
         \\  5 |> square()
         \\end
     );
@@ -1544,11 +1544,11 @@ test "analyze semantics of pipeline with parenthesis omitted" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square = function(x: I64): I64
+        \\square = fn(x: i64): i64
         \\  x * x
         \\end
         \\
-        \\start = function(): I64
+        \\start = fn(): i64
         \\  5 |> square
         \\end
     );
@@ -1581,11 +1581,11 @@ test "analyze semantics of pipeline with position specified" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\min = function(x: I64, y: I64): I64
+        \\min = fn(x: i64, y: i64): i64
         \\  if x < y then x else y end
         \\end
         \\
-        \\start = function(): I64
+        \\start = fn(): i64
         \\  5 |> min(3, _)
         \\end
     );
@@ -1623,12 +1623,12 @@ test "analyze semantics of pipeline calling imported function" {
     _ = try fs.newFile("foo.yeti",
         \\math = import("math.yeti")
         \\
-        \\start = function(): I64
+        \\start = fn(): i64
         \\  5 |> math.min(3, _)
         \\end
     );
     _ = try fs.newFile("math.yeti",
-        \\min = function(x: I64, y: I64): I64
+        \\min = fn(x: i64, y: i64): i64
         \\  if x < y then x else y end
         \\end
     );
@@ -1666,12 +1666,12 @@ test "analyze semantics of pipeline calling imported function with parenthesis o
     _ = try fs.newFile("foo.yeti",
         \\math = import("math.yeti")
         \\
-        \\start = function(): I64
+        \\start = fn(): i64
         \\  5 |> math.square
         \\end
     );
     _ = try fs.newFile("math.yeti",
-        \\square = function(x: I64): I64
+        \\square = fn(x: i64): i64
         \\  x * x
         \\end
     );
@@ -1706,16 +1706,16 @@ test "analyze semantics of calling imported function with local arguments" {
     _ = try fs.newFile("foo.yeti",
         \\bar = import("bar.yeti")
         \\
-        \\g = function(x: I64): I64
+        \\g = fn(x: i64): i64
         \\  x + x
         \\end
         \\
-        \\start = function(): I64
+        \\start = fn(): i64
         \\  bar.f(g(300))
         \\end
     );
     _ = try fs.newFile("bar.yeti",
-        \\f = function(x: I64): I64
+        \\f = fn(x: i64): i64
         \\  x * x
         \\end
     );
@@ -1760,12 +1760,12 @@ test "analyze semantics of calling imported function twice" {
     _ = try fs.newFile("foo.yeti",
         \\bar = import("bar.yeti")
         \\
-        \\start = function(): I64
+        \\start = fn(): i64
         \\  bar.f(bar.f(300))
         \\end
     );
     _ = try fs.newFile("bar.yeti",
-        \\f = function(x: I64): I64
+        \\f = fn(x: i64): i64
         \\  x * x
         \\end
     );
@@ -1803,7 +1803,7 @@ test "analyze semantics of foreign exports" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square = function(x: I64): I64
+        \\square = fn(x: i64): i64
         \\  x * x
         \\end
         \\
@@ -1827,7 +1827,7 @@ test "analyze semantics of foreign exports with recursion" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\fib = function(n: I64): I64
+        \\fib = fn(n: i64): i64
         \\  if n < 2 then
         \\    0
         \\  else
@@ -1855,9 +1855,9 @@ test "analyze semantics of foreign import" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\log = foreign_import("console", "log", Function(value: I64): Void)
+        \\log = foreign_import("console", "log", Fn(value: i64): void)
         \\
-        \\start = function(): Void
+        \\start = fn(): void
         \\  log(10)
         \\end
     );
@@ -1885,3 +1885,41 @@ test "analyze semantics of foreign import" {
     try expectEqual(typeOf(parameter), builtins.I64);
     try expectEqualStrings(literalOf(parameter.get(components.Name).entity), "value");
 }
+
+// test "analyze semantics of pointer" {
+//     var arena = Arena.init(std.heap.page_allocator);
+//     defer arena.deinit();
+//     var codebase = try initCodebase(&arena);
+//     const builtins = codebase.get(components.Builtins);
+//     var fs = try MockFileSystem.init(&arena);
+//     _ = try fs.newFile("foo.yeti",
+//         \\start = fn(): i32
+//         \\  x: P32(I32) = 0
+//         \\  *x := 10
+//         \\  *x
+//         \\end
+//     );
+//     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+//     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+//     const top_level = module.get(components.TopLevel);
+//     const start = top_level.findString("start").get(components.Overloads).slice()[0];
+//     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+//     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+//     try expectEqual(start.get(components.Parameters).len(), 0);
+//     try expectEqual(start.get(components.ReturnType).entity, builtins.Void);
+//     const body = start.get(components.Body).slice();
+//     try expectEqual(body.len, 1);
+//     const log = body[0];
+//     try expectEqual(log.get(components.AstKind), .call);
+//     const arguments = log.get(components.Arguments).slice();
+//     try expectEqual(arguments.len, 1);
+//     const callable = log.get(components.Callable).entity;
+//     try expectEqualStrings(literalOf(callable.get(components.Module).entity), "foo");
+//     try expectEqualStrings(literalOf(callable.get(components.Name).entity), "log");
+//     const parameters = callable.get(components.Parameters).slice();
+//     try expectEqual(parameters.len, 1);
+//     try expectEqual(callable.get(components.ReturnType).entity, builtins.Void);
+//     const parameter = parameters[0];
+//     try expectEqual(typeOf(parameter), builtins.I64);
+//     try expectEqualStrings(literalOf(parameter.get(components.Name).entity), "value");
+// }
