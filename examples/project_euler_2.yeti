@@ -1,4 +1,4 @@
-problem2 = function(upper_bound: I32): I32
+problem2 = fn(upper_bound: i32): i32
   previous = 1
   current = 1
   sum = 0
@@ -12,6 +12,6 @@ problem2 = function(upper_bound: I32): I32
   sum
 end
 
-start = function(): I32
+start = fn(): i32
   problem2(4000000)
 end

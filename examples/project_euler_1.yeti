@@ -1,4 +1,4 @@
-problem1 = function(upper_bound: I32): I32
+problem1 = fn(upper_bound: i32): i32
   n = 0
   sum = 0
   while n < upper_bound then
@@ -9,6 +9,6 @@ problem1 = function(upper_bound: I32): I32
   sum
 end
 
-start = function(): I32
+start = fn(): i32
   problem1(1000)
 end
