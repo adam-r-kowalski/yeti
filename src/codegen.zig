@@ -49,6 +49,16 @@ fn codegenNumber(context: *Context, entity: Entity) !void {
         _ = try context.wasm_instructions.append(wasm_instruction);
         return;
     }
+    if (type_of.has(components.Callable)) |callable| {
+        assert(eql(callable.entity, b.P32));
+        const wasm_instruction = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.i32_const,
+            components.Constant.init(entity),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+        return;
+    }
+    panic("\ncodegen number unsupported type {s}\n", .{literalOf(type_of)});
 }
 
 fn codegenCall(context: *Context, entity: Entity) !void {
@@ -1471,4 +1481,25 @@ test "codegen while loop" {
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 17);
     // TODO: test that proper while loop instructions are generated
+}
+
+test "codegen of casting int literal to p32" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): p32(i64)
+        \\  cast(p32(i64), 0)
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const wasm_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(wasm_instructions.len, 1);
+    const constant = wasm_instructions[0];
+    try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+    try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
 }

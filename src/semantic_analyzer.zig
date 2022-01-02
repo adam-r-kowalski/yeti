@@ -1929,7 +1929,7 @@ test "analyze semantics of foreign import" {
     try expectEqualStrings(literalOf(parameter.get(components.Name).entity), "value");
 }
 
-test "analyze semantics of casting i32 to p32" {
+test "analyze semantics of casting int literal to p32" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
