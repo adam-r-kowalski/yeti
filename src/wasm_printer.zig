@@ -34,6 +34,10 @@ fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
             return try wasm.appendSlice(strings[i]);
         }
     }
+    if (type_of.has(components.Callable)) |callable| {
+        assert(eql(callable.entity, b.P32));
+        return try wasm.appendSlice("i32");
+    }
     panic("\nwasm wasm unsupported type {s}\n", .{literalOf(type_of)});
 }
 
@@ -885,6 +889,29 @@ test "print wasm foreign import" {
         \\  (func $foo/start
         \\    (i64.const 10)
         \\    (call $foo/log.i64))
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "print wasm pointer" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): p32(i64)
+        \\  cast(p32(i64), 0)
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32)
+        \\    (i32.const 0))
         \\
         \\(export "_start" (func $foo/start)))
     );
