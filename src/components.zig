@@ -364,6 +364,10 @@ pub const WasmInstructionKind = enum(u8) {
     loop,
     br_if,
     br,
+    i32_store,
+    i64_store,
+    f32_store,
+    f64_store,
 };
 
 pub const Builtins = struct {

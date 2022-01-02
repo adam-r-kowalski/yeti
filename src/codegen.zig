@@ -18,6 +18,7 @@ const components = @import("components.zig");
 const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
 const typeOf = test_utils.typeOf;
+const valueType = test_utils.valueType;
 const List = @import("list.zig").List;
 const Strings = @import("strings.zig").Strings;
 
@@ -708,6 +709,25 @@ fn codegenBinaryOp(context: *Context, entity: Entity, comptime ops: anytype) !vo
     panic("\ncodegen add unspported type {s}\n", .{literalOf(type_of)});
 }
 
+fn codegenStore(context: *Context, entity: Entity) !void {
+    const arguments = entity.get(components.Arguments).slice();
+    const pointer = arguments[0];
+    try codegenEntity(context, pointer);
+    try codegenEntity(context, arguments[1]);
+    const b = context.builtins;
+    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+    const instructions = [_]components.WasmInstructionKind{ .i64_store, .i32_store, .i64_store, .i32_store, .f64_store, .f32_store };
+    const value_type = valueType(typeOf(pointer));
+    for (builtins) |builtin, i| {
+        if (eql(value_type, builtin)) {
+            const instruction = try context.codebase.createEntity(.{instructions[i]});
+            try context.wasm_instructions.append(instruction);
+            return;
+        }
+    }
+    panic("\ncodegen store unspported type {s}\n", .{literalOf(value_type)});
+}
+
 fn codegenIntrinsic(context: *Context, entity: Entity) !void {
     const intrinsic = entity.get(components.Intrinsic);
     switch (intrinsic) {
@@ -727,6 +747,7 @@ fn codegenIntrinsic(context: *Context, entity: Entity) !void {
         .less_equal => try codegenBinaryOp(context, entity, lessEqualOps),
         .greater_than => try codegenBinaryOp(context, entity, greaterThanOps),
         .greater_equal => try codegenBinaryOp(context, entity, greaterEqualOps),
+        .store => try codegenStore(context, entity),
     }
 }
 
@@ -1502,4 +1523,48 @@ test "codegen of casting int literal to p32" {
     const constant = wasm_instructions[0];
     try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
     try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+}
+
+test "codegen of storing through pointer" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): void
+        \\  ptr = cast(p32(i64), 0)
+        \\  store(ptr, 10)
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const wasm_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(wasm_instructions.len, 5);
+    {
+        const constant = wasm_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    }
+    {
+        const local_set = wasm_instructions[1];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        const local = local_set.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+    }
+    {
+        const local_get = wasm_instructions[2];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+    }
+    {
+        const constant = wasm_instructions[3];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i64_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
+    }
+    {
+        try expectEqual(wasm_instructions[4].get(components.WasmInstructionKind), .i64_store);
+    }
 }
