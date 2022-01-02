@@ -535,3 +535,4 @@ pub const ForeignName = DistinctEntity("Foreign Name");
 pub const Memoized = DistinctMap("Memoized", Entity, Entity);
 pub const ParentType = DistinctEntity("Parent Type");
 pub const ValueType = DistinctEntity("Value Type");
+pub const UsesMemory = struct { value: bool };

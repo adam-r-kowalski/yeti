@@ -303,7 +303,7 @@ pub fn printWasm(module: Entity) ![]u8 {
         for (foreign_exports) |foreign_export| {
             const literal = foreign_export.get(components.Literal);
             const overload = top_level.findLiteral(literal).get(components.Overloads).slice()[0];
-            try wasm.appendSlice("\n\n(export \"");
+            try wasm.appendSlice("\n\n  (export \"");
             try wasm.appendSlice(literalOf(overload.get(components.Name).entity));
             try wasm.appendSlice("\" (func ");
             try wasm.appendSlice(try functionName(overload));
@@ -311,9 +311,13 @@ pub fn printWasm(module: Entity) ![]u8 {
         }
     } else {
         const start = top_level.findString("start").get(components.Overloads).slice()[0];
-        try wasm.appendSlice("\n\n(export \"_start\" (func ");
+        try wasm.appendSlice("\n\n  (export \"_start\" (func ");
         try wasm.appendSlice(try functionName(start));
         try wasm.appendSlice("))");
+    }
+
+    if (module.ecs.contains(components.UsesMemory)) {
+        try wasm.appendSlice("\n\n  (memory 1)");
     }
     try wasm.append(')');
     return wasm.mutSlice();
@@ -341,7 +345,7 @@ test "print wasm int literal" {
             \\  (func $foo/start (result {s})
             \\    ({s}.const 5))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i] }));
     }
 }
@@ -368,7 +372,7 @@ test "print wasm float literal" {
             \\  (func $foo/start (result {s})
             \\    ({s}.const 5.3))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i] }));
     }
 }
@@ -402,7 +406,7 @@ test "print wasm call local function" {
             \\  (func $foo/baz (result {s})
             \\    ({s}.const 10))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i], wasm_types[i] }));
     }
 }
@@ -438,7 +442,7 @@ test "print wasm call local function with argument" {
             \\  (func $foo/id.{s} (param $x {s}) (result {s})
             \\    (local.get $x))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], const_kinds[i], type_, type_, wasm_types[i], wasm_types[i] }));
     }
 }
@@ -466,7 +470,7 @@ test "print wasm define int literal" {
             \\  (func $foo/start (result {s})
             \\    ({s}.const 10))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i] }));
     }
 }
@@ -503,7 +507,7 @@ test "print wasm arithmetic binary op" {
                 \\  (func $foo/start (result {s})
                 \\    ({s}.const {s}))
                 \\
-                \\(export "_start" (func $foo/start)))
+                \\  (export "_start" (func $foo/start)))
             , .{ wasm_types[i], wasm_types[i], results[op_index][i] }));
         }
     }
@@ -543,7 +547,7 @@ test "print wasm int binary op" {
                 \\  (func $foo/start (result {s})
                 \\    ({s}.const {s}))
                 \\
-                \\(export "_start" (func $foo/start)))
+                \\  (export "_start" (func $foo/start)))
             , .{ wasm_types[i], wasm_types[i], results[op_index][i] }));
         }
     }
@@ -590,7 +594,7 @@ test "print wasm arithmetic binary op non constant" {
                 \\  (func $foo/id.{s} (param $x {s}) (result {s})
                 \\    (local.get $x))
                 \\
-                \\(export "_start" (func $foo/start)))
+                \\  (export "_start" (func $foo/start)))
             , .{
                 wasm_types[i],
                 wasm_types[i],
@@ -649,7 +653,7 @@ test "print wasm int binary op non constant" {
                 \\  (func $foo/id.{s} (param $x {s}) (result {s})
                 \\    (local.get $x))
                 \\
-                \\(export "_start" (func $foo/start)))
+                \\  (export "_start" (func $foo/start)))
             , .{
                 wasm_types[i],
                 wasm_types[i],
@@ -687,7 +691,7 @@ test "print wasm if then else where then branch taken statically" {
             \\  (func $foo/start (result {s})
             \\    ({s}.const 20))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i] }));
     }
 }
@@ -714,7 +718,7 @@ test "print wasm if then else where else branch taken statically" {
             \\  (func $foo/start (result {s})
             \\    ({s}.const 30))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i] }));
     }
 }
@@ -751,7 +755,7 @@ test "print wasm if then else non const conditional" {
             \\  (func $foo/f (result i32)
             \\    (i32.const 1))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
     }
 }
@@ -785,7 +789,7 @@ test "print wasm assignment" {
             \\    (local.set $x)
             \\    (local.get $x))
             \\
-            \\(export "_start" (func $foo/start)))
+            \\  (export "_start" (func $foo/start)))
         , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
     }
 }
@@ -830,7 +834,7 @@ test "print wasm while loop" {
         \\    end $.label.0
         \\    (local.get $i))
         \\
-        \\(export "_start" (func $foo/start)))
+        \\  (export "_start" (func $foo/start)))
     );
 }
 
@@ -868,9 +872,9 @@ test "print wasm foreign export" {
         \\    (local.get $height)
         \\    f64.mul)
         \\
-        \\(export "square" (func $foo/square.i64))
+        \\  (export "square" (func $foo/square.i64))
         \\
-        \\(export "area" (func $foo/area.f64.f64)))
+        \\  (export "area" (func $foo/area.f64.f64)))
     );
 }
 
@@ -898,7 +902,7 @@ test "print wasm foreign import" {
         \\    (i64.const 10)
         \\    (call $foo/log.i64))
         \\
-        \\(export "_start" (func $foo/start)))
+        \\  (export "_start" (func $foo/start)))
     );
 }
 
@@ -921,7 +925,7 @@ test "print wasm pointer" {
         \\  (func $foo/start (result i32)
         \\    (i32.const 0))
         \\
-        \\(export "_start" (func $foo/start)))
+        \\  (export "_start" (func $foo/start)))
     );
 }
 
@@ -950,7 +954,9 @@ test "print wasm pointer store" {
         \\    (i64.const 10)
         \\    i64.store)
         \\
-        \\(export "_start" (func $foo/start)))
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (memory 1))
     );
 }
 
@@ -978,6 +984,8 @@ test "print wasm pointer load" {
         \\    (local.get $ptr)
         \\    i64.load)
         \\
-        \\(export "_start" (func $foo/start)))
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (memory 1))
     );
 }

@@ -209,6 +209,10 @@ pub const ECS = struct {
         return @intToPtr(*T, self.resources.get(typeid(T)).?);
     }
 
+    pub fn contains(self: ECS, comptime T: type) bool {
+        return self.resources.contains(typeid(T));
+    }
+
     pub fn query(self: *ECS, components: anytype) Iterator(components) {
         return Iterator(components).init(self);
     }

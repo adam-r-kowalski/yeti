@@ -710,6 +710,7 @@ fn codegenBinaryOp(context: *Context, entity: Entity, comptime ops: anytype) !vo
 }
 
 fn codegenStore(context: *Context, entity: Entity) !void {
+    try context.codebase.set(.{components.UsesMemory{ .value = true }});
     const arguments = entity.get(components.Arguments).slice();
     const pointer = arguments[0];
     try codegenEntity(context, pointer);
@@ -729,6 +730,7 @@ fn codegenStore(context: *Context, entity: Entity) !void {
 }
 
 fn codegenLoad(context: *Context, entity: Entity) !void {
+    try context.codebase.set(.{components.UsesMemory{ .value = true }});
     const arguments = entity.get(components.Arguments).slice();
     const pointer = arguments[0];
     try codegenEntity(context, pointer);
