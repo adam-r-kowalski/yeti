@@ -237,6 +237,7 @@ pub const AstKind = enum(u8) {
     local,
     intrinsic,
     underscore,
+    cast,
 };
 
 pub const BinaryOp = enum(u8) {

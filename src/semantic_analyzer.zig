@@ -230,11 +230,26 @@ fn Context(comptime FileSystem: type) type {
 
         fn analyzeCast(self: *Self, arguments: []const Entity) !Entity {
             assert(arguments.len == 2);
+            const b = self.builtins;
             const to = arguments[0];
-            assert(eql(parentType(to), self.builtins.P32));
+            assert(eql(parentType(to), b.P32));
             const value = arguments[1];
-            assert(eql(typeOf(value), self.builtins.IntLiteral));
-            return try value.set(.{components.Type.init(to)});
+            const type_of = typeOf(value);
+            if (eql(type_of, b.IntLiteral)) {
+                return try self.codebase.createEntity(.{
+                    value.get(components.Literal),
+                    components.Type.init(to),
+                    components.TokenKind.int,
+                    components.AstKind.int,
+                    value.get(components.Span),
+                });
+            }
+            assert(eql(type_of, b.I32));
+            return try self.codebase.createEntity(.{
+                components.AstKind.cast,
+                components.Type.init(to),
+                components.Value.init(value),
+            });
         }
 
         fn analyzeStore(self: *Self, arguments: []const Entity) !Entity {
@@ -1999,6 +2014,48 @@ test "analyze semantics of casting int literal to p32" {
     try expectEqualStrings(literalOf(zero), "0");
 }
 
+test "analyze semantics of casting i32 to p32" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): p32(i64)
+        \\  i: i32 = 0
+        \\  cast(p32(i64), i)
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const return_type = start.get(components.ReturnType).entity;
+    try expectEqualStrings(literalOf(return_type), "p32(i64)");
+    try expectEqual(parentType(return_type), builtins.P32);
+    try expectEqualStrings(literalOf(valueType(return_type)), "i64");
+    try expectEqual(valueType(return_type), builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqual(typeOf(define), builtins.I32);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "i");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+    const cast = body[1];
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.P32);
+    try expectEqual(valueType(pointer_type), builtins.I64);
+    const local = cast.get(components.Value).entity;
+    try expectEqual(local.get(components.AstKind), .local);
+    try expectEqual(local.get(components.Local).entity, define);
+    try expectEqual(typeOf(local), builtins.I32);
+}
+
 test "analyze semantics of pointer store" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -2027,7 +2084,7 @@ test "analyze semantics of pointer store" {
     const value = define.get(components.Value).entity;
     try expectEqualStrings(literalOf(value), "0");
     try expectEqual(value.get(components.AstKind), .int);
-    try expectEqual(valueType(typeOf(value)), builtins.I64);
+    try expectEqual(valueType(typeOf(define)), builtins.I64);
     const store = body[1];
     try expectEqual(store.get(components.AstKind), .intrinsic);
     try expectEqual(store.get(components.Intrinsic), .store);

@@ -857,6 +857,7 @@ fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow
         .intrinsic => try codegenIntrinsic(context, entity),
         .if_ => try codegenIf(context, entity),
         .while_ => try codegenWhile(context, entity),
+        .cast => try codegenEntity(context, entity.get(components.Value).entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }
 }
