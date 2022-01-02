@@ -374,10 +374,11 @@ pub const Builtins = struct {
     U32: Entity,
     F64: Entity,
     F32: Entity,
-    IntLiteral: Entity,
-    FloatLiteral: Entity,
     Void: Entity,
     P32: Entity,
+    IntLiteral: Entity,
+    FloatLiteral: Entity,
+    Cast: Entity,
 };
 
 pub const Error = struct {
@@ -465,6 +466,26 @@ pub const Scopes = struct {
     }
 };
 
+fn DistinctMap(comptime unique_id: []const u8, comptime K: type, comptime V: type) type {
+    assert(unique_id.len > 0);
+
+    return struct {
+        const Map = std.AutoHashMap(K, V);
+
+        const Self = @This();
+
+        map: Map,
+
+        pub fn init(allocator: Allocator) Self {
+            return Self{ .map = Map.init(allocator) };
+        }
+
+        pub fn getOrPut(self: *Self, key: K) !Map.GetOrPutResult {
+            return try self.map.getOrPut(key);
+        }
+    };
+}
+
 pub const Name = DistinctEntity("Name");
 pub const ReturnTypeAst = DistinctEntity("Return Type Ast");
 pub const ReturnType = DistinctEntity("Return Type");
@@ -499,3 +520,4 @@ pub const ForeignImports = DistinctList("Foreign Imports", Entity);
 pub const ForeignExports = DistinctList("Foreign Exports", Entity);
 pub const ForeignModule = DistinctEntity("Foreign Module");
 pub const ForeignName = DistinctEntity("Foreign Name");
+pub const Memoized = DistinctMap("Memoized", Entity, Entity);

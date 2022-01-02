@@ -205,12 +205,48 @@ fn Context(comptime FileSystem: type) type {
             return best_overload;
         }
 
+        fn analyzePointer(self: *Self, arguments: []const Entity) !Entity {
+            assert(arguments.len == 1);
+            const argument = arguments[0];
+            const b = self.builtins;
+            const memoized = b.P32.getPtr(components.Memoized);
+            const result = try memoized.getOrPut(argument);
+            if (result.found_existing) {
+                return result.value_ptr.*;
+            }
+            const string = try std.fmt.allocPrint(self.allocator, "p32({s})", .{literalOf(argument)});
+            const interned = try self.codebase.getPtr(Strings).intern(string);
+            const pointer_type = try self.codebase.createEntity(.{
+                components.Literal.init(interned),
+                components.Type.init(b.Type),
+                components.Callable.init(b.P32),
+            });
+            result.value_ptr.* = pointer_type;
+            return pointer_type;
+        }
+
+        fn analyzeCast(self: *Self, arguments: []const Entity) !Entity {
+            assert(arguments.len == 2);
+            const to = arguments[0];
+            assert(eql(to.get(components.Callable).entity, self.builtins.P32));
+            const value = arguments[1];
+            assert(eql(typeOf(value), self.builtins.IntLiteral));
+            return try value.set(.{components.Type.init(to)});
+        }
+
         fn analyzeCall(self: *Self, call: Entity, callingContext: *Self) !Entity {
             const callable = call.get(components.Callable).entity;
             const call_arguments = call.get(components.Arguments).slice();
             var analyzed_arguments = try components.Arguments.withCapacity(self.allocator, call_arguments.len);
             for (call_arguments) |argument| {
                 analyzed_arguments.appendAssumeCapacity(try callingContext.analyzeExpression(argument));
+            }
+            const callable_literal = callable.get(components.Literal);
+            if (eql(callable_literal, self.builtins.P32.get(components.Literal))) {
+                return try self.analyzePointer(analyzed_arguments.slice());
+            }
+            if (eql(callable_literal, self.builtins.Cast.get(components.Literal))) {
+                return try self.analyzeCast(analyzed_arguments.slice());
             }
             const overload = try self.bestOverload(callable, analyzed_arguments.slice());
             if (!overload.contains(components.AnalyzedBody)) {
@@ -354,6 +390,11 @@ fn Context(comptime FileSystem: type) type {
             return entity;
         }
 
+        // TODO: comparison binary ops should not implicitly convert arguments to i32
+        // for example
+        // x = 10
+        // y = x < 20
+        // type_of(x) != i32 yet, should still be int literal
         fn analyzeIntrinsic(self: *Self, entity: Entity, intrinsic: components.Intrinsic, result_is_i32: bool) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.analyzeExpression(arguments[0]);
@@ -405,6 +446,7 @@ fn Context(comptime FileSystem: type) type {
             };
         }
 
+        // TODO: type_of(x = 5) should be void
         fn analyzeDefine(self: *Self, define: Entity) !Entity {
             const scopes = self.function.getPtr(components.Scopes);
             const value = try self.analyzeExpression(define.get(components.Value).entity);
@@ -430,6 +472,7 @@ fn Context(comptime FileSystem: type) type {
             return analyzed_define;
         }
 
+        // TODO: type_of(x := 5) should be void
         fn analyzeAssign(self: *Self, assign: Entity) !Entity {
             const scopes = self.function.get(components.Scopes);
             const value = try self.analyzeExpression(assign.get(components.Value).entity);
@@ -1886,40 +1929,31 @@ test "analyze semantics of foreign import" {
     try expectEqualStrings(literalOf(parameter.get(components.Name).entity), "value");
 }
 
-// test "analyze semantics of pointer" {
-//     var arena = Arena.init(std.heap.page_allocator);
-//     defer arena.deinit();
-//     var codebase = try initCodebase(&arena);
-//     const builtins = codebase.get(components.Builtins);
-//     var fs = try MockFileSystem.init(&arena);
-//     _ = try fs.newFile("foo.yeti",
-//         \\start = fn(): i32
-//         \\  x: P32(I32) = 0
-//         \\  *x := 10
-//         \\  *x
-//         \\end
-//     );
-//     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
-//     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-//     const top_level = module.get(components.TopLevel);
-//     const start = top_level.findString("start").get(components.Overloads).slice()[0];
-//     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
-//     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
-//     try expectEqual(start.get(components.Parameters).len(), 0);
-//     try expectEqual(start.get(components.ReturnType).entity, builtins.Void);
-//     const body = start.get(components.Body).slice();
-//     try expectEqual(body.len, 1);
-//     const log = body[0];
-//     try expectEqual(log.get(components.AstKind), .call);
-//     const arguments = log.get(components.Arguments).slice();
-//     try expectEqual(arguments.len, 1);
-//     const callable = log.get(components.Callable).entity;
-//     try expectEqualStrings(literalOf(callable.get(components.Module).entity), "foo");
-//     try expectEqualStrings(literalOf(callable.get(components.Name).entity), "log");
-//     const parameters = callable.get(components.Parameters).slice();
-//     try expectEqual(parameters.len, 1);
-//     try expectEqual(callable.get(components.ReturnType).entity, builtins.Void);
-//     const parameter = parameters[0];
-//     try expectEqual(typeOf(parameter), builtins.I64);
-//     try expectEqualStrings(literalOf(parameter.get(components.Name).entity), "value");
-// }
+test "analyze semantics of casting i32 to p32" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): p32(i64)
+        \\  cast(p32(i64), 0)
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const return_type = start.get(components.ReturnType).entity;
+    try expectEqualStrings(literalOf(return_type), "p32(i64)");
+    try expectEqual(return_type.get(components.Callable).entity, builtins.P32);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const zero = body[0];
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), return_type);
+    try expectEqualStrings(literalOf(zero), "0");
+}

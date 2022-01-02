@@ -31,7 +31,8 @@ fn builtinType(codebase: *ECS, scope: *components.Scope, symbol: []const u8, Typ
 }
 
 pub fn initBuiltins(codebase: *ECS) !void {
-    var scope = components.Scope.init(codebase.arena.allocator(), codebase.getPtr(Strings));
+    const allocator = codebase.arena.allocator();
+    var scope = components.Scope.init(allocator, codebase.getPtr(Strings));
     const interned = try codebase.getPtr(Strings).intern("type");
     const Type = try codebase.createEntity(.{
         components.Literal.init(interned),
@@ -48,7 +49,16 @@ pub fn initBuiltins(codebase: *ECS) !void {
     const IntLiteral = try builtinType(codebase, &scope, "IntLiteral", Type);
     const FloatLiteral = try builtinType(codebase, &scope, "FloatLiteral", Type);
     const Void = try builtinType(codebase, &scope, "void", Type);
+    // TODO: p32 is a function from type to type, not a type itself
+    // type_of(p32) == Fn(T: type): type
+    // type_of(p32(i64)) == type
     const P32 = try builtinType(codebase, &scope, "p32", Type);
+    _ = try P32.set(.{components.Memoized.init(allocator)});
+    // TODO: cast is a function from type, and value to value of new type
+    // type_of(cast) == Fn(T: type, value: U): T
+    // type_of(cast(i64, 5)) == i64
+    const Cast = try builtinType(codebase, &scope, "cast", Type);
+    _ = try Cast.set(.{components.Memoized.init(allocator)});
     const builtins = components.Builtins{
         .Type = Type,
         .Module = Module,
@@ -58,10 +68,11 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .U32 = U32,
         .F64 = F64,
         .F32 = F32,
-        .IntLiteral = IntLiteral,
-        .FloatLiteral = FloatLiteral,
         .Void = Void,
         .P32 = P32,
+        .IntLiteral = IntLiteral,
+        .FloatLiteral = FloatLiteral,
+        .Cast = Cast,
     };
     try codebase.set(.{ builtins, scope });
 }
