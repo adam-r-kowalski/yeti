@@ -277,6 +277,7 @@ pub const Intrinsic = enum(u8) {
     less_equal,
     greater_than,
     greater_equal,
+    store,
 };
 
 pub const WasmInstructionKind = enum(u8) {
@@ -379,6 +380,7 @@ pub const Builtins = struct {
     IntLiteral: Entity,
     FloatLiteral: Entity,
     Cast: Entity,
+    Store: Entity,
 };
 
 pub const Error = struct {
@@ -521,3 +523,5 @@ pub const ForeignExports = DistinctList("Foreign Exports", Entity);
 pub const ForeignModule = DistinctEntity("Foreign Module");
 pub const ForeignName = DistinctEntity("Foreign Name");
 pub const Memoized = DistinctMap("Memoized", Entity, Entity);
+pub const ParentType = DistinctEntity("Parent Type");
+pub const ValueType = DistinctEntity("Value Type");

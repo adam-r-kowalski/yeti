@@ -58,7 +58,7 @@ pub fn initBuiltins(codebase: *ECS) !void {
     // type_of(cast) == Fn(T: type, value: U): T
     // type_of(cast(i64, 5)) == i64
     const Cast = try builtinType(codebase, &scope, "cast", Type);
-    _ = try Cast.set(.{components.Memoized.init(allocator)});
+    const Store = try builtinType(codebase, &scope, "store", Type);
     const builtins = components.Builtins{
         .Type = Type,
         .Module = Module,
@@ -73,6 +73,7 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .IntLiteral = IntLiteral,
         .FloatLiteral = FloatLiteral,
         .Cast = Cast,
+        .Store = Store,
     };
     try codebase.set(.{ builtins, scope });
 }

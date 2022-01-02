@@ -26,6 +26,8 @@ const components = @import("components.zig");
 const test_utils = @import("test_utils.zig");
 const literalOf = test_utils.literalOf;
 const typeOf = test_utils.typeOf;
+const parentType = test_utils.parentType;
+const valueType = test_utils.valueType;
 
 fn Context(comptime FileSystem: type) type {
     return struct {
@@ -219,7 +221,8 @@ fn Context(comptime FileSystem: type) type {
             const pointer_type = try self.codebase.createEntity(.{
                 components.Literal.init(interned),
                 components.Type.init(b.Type),
-                components.Callable.init(b.P32),
+                components.ParentType.init(b.P32),
+                components.ValueType.init(argument),
             });
             result.value_ptr.* = pointer_type;
             return pointer_type;
@@ -228,10 +231,26 @@ fn Context(comptime FileSystem: type) type {
         fn analyzeCast(self: *Self, arguments: []const Entity) !Entity {
             assert(arguments.len == 2);
             const to = arguments[0];
-            assert(eql(to.get(components.Callable).entity, self.builtins.P32));
+            assert(eql(parentType(to), self.builtins.P32));
             const value = arguments[1];
             assert(eql(typeOf(value), self.builtins.IntLiteral));
             return try value.set(.{components.Type.init(to)});
+        }
+
+        fn analyzeStore(self: *Self, arguments: []const Entity) !Entity {
+            assert(arguments.len == 2);
+            const pointer = arguments[0];
+            const pointer_type = typeOf(pointer);
+            const b = self.builtins;
+            assert(eql(parentType(pointer_type), b.P32));
+            const value = arguments[1];
+            try self.implicitTypeConversion(value, valueType(pointer_type));
+            return try self.codebase.createEntity(.{
+                components.AstKind.intrinsic,
+                components.Intrinsic.store,
+                try components.Arguments.fromSlice(self.allocator, &.{ pointer, value }),
+                components.Type.init(b.Void),
+            });
         }
 
         fn analyzeCall(self: *Self, call: Entity, callingContext: *Self) !Entity {
@@ -247,6 +266,9 @@ fn Context(comptime FileSystem: type) type {
             }
             if (eql(callable_literal, self.builtins.Cast.get(components.Literal))) {
                 return try self.analyzeCast(analyzed_arguments.slice());
+            }
+            if (eql(callable_literal, self.builtins.Store.get(components.Literal))) {
+                return try self.analyzeStore(analyzed_arguments.slice());
             }
             const overload = try self.bestOverload(callable, analyzed_arguments.slice());
             if (!overload.contains(components.AnalyzedBody)) {
@@ -1949,11 +1971,57 @@ test "analyze semantics of casting int literal to p32" {
     try expectEqual(start.get(components.Parameters).len(), 0);
     const return_type = start.get(components.ReturnType).entity;
     try expectEqualStrings(literalOf(return_type), "p32(i64)");
-    try expectEqual(return_type.get(components.Callable).entity, builtins.P32);
+    try expectEqual(parentType(return_type), builtins.P32);
+    try expectEqualStrings(literalOf(valueType(return_type)), "i64");
+    try expectEqual(valueType(return_type), builtins.I64);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 1);
     const zero = body[0];
     try expectEqual(zero.get(components.AstKind), .int);
     try expectEqual(typeOf(zero), return_type);
     try expectEqualStrings(literalOf(zero), "0");
+}
+
+test "analyze semantics of pointer store" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): void
+        \\  ptr = cast(p32(i64), 0)
+        \\  store(ptr, 10)
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.Void);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
+    const value = define.get(components.Value).entity;
+    try expectEqualStrings(literalOf(value), "0");
+    try expectEqual(value.get(components.AstKind), .int);
+    try expectEqual(valueType(typeOf(value)), builtins.I64);
+    const store = body[1];
+    try expectEqual(store.get(components.AstKind), .intrinsic);
+    try expectEqual(store.get(components.Intrinsic), .store);
+    try expectEqual(typeOf(store), builtins.Void);
+    const arguments = store.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    const lhs = arguments[0];
+    try expectEqual(lhs.get(components.AstKind), .local);
+    try expectEqual(lhs.get(components.Local).entity, define);
+    const rhs = arguments[1];
+    try expectEqual(rhs.get(components.AstKind), .int);
+    try expectEqual(typeOf(rhs), builtins.I64);
+    try expectEqualStrings(literalOf(rhs), "10");
 }

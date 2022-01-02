@@ -49,8 +49,8 @@ fn codegenNumber(context: *Context, entity: Entity) !void {
         _ = try context.wasm_instructions.append(wasm_instruction);
         return;
     }
-    if (type_of.has(components.Callable)) |callable| {
-        assert(eql(callable.entity, b.P32));
+    if (type_of.has(components.ParentType)) |parent_type| {
+        assert(eql(parent_type.entity, b.P32));
         const wasm_instruction = try context.codebase.createEntity(.{
             components.WasmInstructionKind.i32_const,
             components.Constant.init(entity),

@@ -11,3 +11,11 @@ pub fn literalOf(entity: Entity) []const u8 {
 pub fn typeOf(entity: Entity) Entity {
     return entity.get(components.Type).entity;
 }
+
+pub fn parentType(entity: Entity) Entity {
+    return entity.get(components.ParentType).entity;
+}
+
+pub fn valueType(entity: Entity) Entity {
+    return entity.get(components.ValueType).entity;
+}

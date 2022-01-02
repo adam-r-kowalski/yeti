@@ -34,8 +34,8 @@ fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
             return try wasm.appendSlice(strings[i]);
         }
     }
-    if (type_of.has(components.Callable)) |callable| {
-        assert(eql(callable.entity, b.P32));
+    if (type_of.has(components.ParentType)) |parent_type| {
+        assert(eql(parent_type.entity, b.P32));
         return try wasm.appendSlice("i32");
     }
     panic("\nwasm wasm unsupported type {s}\n", .{literalOf(type_of)});
