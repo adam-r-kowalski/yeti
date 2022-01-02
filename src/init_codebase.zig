@@ -59,6 +59,7 @@ pub fn initBuiltins(codebase: *ECS) !void {
     // type_of(cast(i64, 5)) == i64
     const Cast = try builtinType(codebase, &scope, "cast", Type);
     const Store = try builtinType(codebase, &scope, "store", Type);
+    const Load = try builtinType(codebase, &scope, "load", Type);
     const builtins = components.Builtins{
         .Type = Type,
         .Module = Module,
@@ -74,6 +75,7 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .FloatLiteral = FloatLiteral,
         .Cast = Cast,
         .Store = Store,
+        .Load = Load,
     };
     try codebase.set(.{ builtins, scope });
 }

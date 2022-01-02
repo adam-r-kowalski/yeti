@@ -257,6 +257,10 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         .i32_store => try wasm.appendSlice("\n    i32.store"),
         .f64_store => try wasm.appendSlice("\n    f64.store"),
         .f32_store => try wasm.appendSlice("\n    f32.store"),
+        .i64_load => try wasm.appendSlice("\n    i64.load"),
+        .i32_load => try wasm.appendSlice("\n    i32.load"),
+        .f64_load => try wasm.appendSlice("\n    f64.load"),
+        .f32_load => try wasm.appendSlice("\n    f32.load"),
     }
 }
 
@@ -945,6 +949,34 @@ test "print wasm pointer store" {
         \\    (local.get $ptr)
         \\    (i64.const 10)
         \\    i64.store)
+        \\
+        \\(export "_start" (func $foo/start)))
+    );
+}
+
+test "print wasm pointer load" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64
+        \\  ptr = cast(p32(i64), 0)
+        \\  load(ptr)
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (local $ptr i32)
+        \\    (i32.const 0)
+        \\    (local.set $ptr)
+        \\    (local.get $ptr)
+        \\    i64.load)
         \\
         \\(export "_start" (func $foo/start)))
     );

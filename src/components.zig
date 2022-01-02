@@ -278,6 +278,7 @@ pub const Intrinsic = enum(u8) {
     greater_than,
     greater_equal,
     store,
+    load,
 };
 
 pub const WasmInstructionKind = enum(u8) {
@@ -368,6 +369,10 @@ pub const WasmInstructionKind = enum(u8) {
     i64_store,
     f32_store,
     f64_store,
+    i32_load,
+    i64_load,
+    f32_load,
+    f64_load,
 };
 
 pub const Builtins = struct {
@@ -385,6 +390,7 @@ pub const Builtins = struct {
     FloatLiteral: Entity,
     Cast: Entity,
     Store: Entity,
+    Load: Entity,
 };
 
 pub const Error = struct {
