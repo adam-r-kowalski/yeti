@@ -709,6 +709,55 @@ fn codegenBinaryOp(context: *Context, entity: Entity, comptime ops: anytype) !vo
     panic("\ncodegen add unspported type {s}\n", .{literalOf(type_of)});
 }
 
+fn codegenAddP32I32(context: *Context, entity: Entity) !void {
+    const arguments = entity.get(components.Arguments).slice();
+    try codegenEntity(context, arguments[0]);
+    try codegenEntity(context, arguments[1]);
+    const instructions = context.wasm_instructions.mutSlice();
+    const rhs = instructions[instructions.len - 1];
+    const rhs_kind = rhs.get(components.WasmInstructionKind);
+    if (rhs_kind == .i32_const) {
+        const rhs_value = (try valueOf(i32, rhs.get(components.Constant).entity)).?;
+        const result_value = rhs_value * 8;
+        const result_literal = try std.fmt.allocPrint(context.allocator, "{}", .{result_value});
+        const interned = try context.codebase.getPtr(Strings).intern(result_literal);
+        const result = try context.codebase.createEntity(.{
+            entity.get(components.Type),
+            components.Literal.init(interned),
+            result_value,
+        });
+        instructions[instructions.len - 1] = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.i32_const,
+            components.Constant.init(result),
+        });
+        const instruction = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.i32_add,
+        });
+        try context.wasm_instructions.append(instruction);
+        return;
+    }
+    const literal = try std.fmt.allocPrint(context.allocator, "{}", .{8});
+    const interned = try context.codebase.getPtr(Strings).intern(literal);
+    const eight = try context.codebase.createEntity(.{
+        components.Type.init(context.builtins.I32),
+        components.Literal.init(interned),
+        @as(i32, 8),
+    });
+    const constant = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.i32_const,
+        components.Constant.init(eight),
+    });
+    const multiply = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.i32_mul,
+    });
+    const add = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.i32_add,
+    });
+    try context.wasm_instructions.append(constant);
+    try context.wasm_instructions.append(multiply);
+    try context.wasm_instructions.append(add);
+}
+
 fn codegenStore(context: *Context, entity: Entity) !void {
     try context.codebase.set(.{components.UsesMemory{ .value = true }});
     const arguments = entity.get(components.Arguments).slice();
@@ -769,6 +818,7 @@ fn codegenIntrinsic(context: *Context, entity: Entity) !void {
         .greater_equal => try codegenBinaryOp(context, entity, greaterEqualOps),
         .store => try codegenStore(context, entity),
         .load => try codegenLoad(context, entity),
+        .add_p32_i32 => try codegenAddP32I32(context, entity),
     }
 }
 
@@ -1626,4 +1676,46 @@ test "codegen of loading through pointer" {
         try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
     }
     try expectEqual(wasm_instructions[3].get(components.WasmInstructionKind), .i64_load);
+}
+
+test "codegen of adding pointer and int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): p32(i64)
+        \\  ptr = cast(p32(i64), 0)
+        \\  ptr + 1
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const wasm_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(wasm_instructions.len, 5);
+    {
+        const constant = wasm_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    }
+    {
+        const local_set = wasm_instructions[1];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        const local = local_set.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+    }
+    {
+        const local_get = wasm_instructions[2];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+    }
+    {
+        const constant = wasm_instructions[3];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "8");
+    }
+    try expectEqual(wasm_instructions[4].get(components.WasmInstructionKind), .i32_add);
 }

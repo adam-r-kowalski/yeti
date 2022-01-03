@@ -50,9 +50,23 @@ fn functionName(function: Entity) ![]const u8 {
     try wasm_name.appendSlice(literalOf(function.get(components.Module).entity));
     try wasm_name.append('/');
     try wasm_name.appendSlice(literalOf(function.get(components.Name).entity));
+    const builtins = function.ecs.get(components.Builtins);
     for (function.get(components.Parameters).slice()) |parameter| {
         try wasm_name.append('.');
-        try wasm_name.appendSlice(literalOf(typeOf(parameter)));
+        const type_of = typeOf(parameter);
+        const literal = literalOf(type_of);
+        if (type_of.has(components.ParentType)) |parent_type| {
+            assert(eql(parent_type.entity, builtins.P32));
+            for (literal) |c| {
+                switch (c) {
+                    '(' => try wasm_name.append('.'),
+                    ')' => continue,
+                    else => try wasm_name.append(c),
+                }
+            }
+        } else {
+            try wasm_name.appendSlice(literal);
+        }
     }
     _ = try function.set(.{wasm_name});
     return wasm_name.slice();
@@ -987,5 +1001,86 @@ test "print wasm pointer load" {
         \\  (export "_start" (func $foo/start))
         \\
         \\  (memory 1))
+    );
+}
+
+test "print wasm pointer as parameter" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\f = fn(ptr: p32(i32)): i32
+        \\  0
+        \\end
+        \\
+        \\foreign_export(f)
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/f.p32.i32 (param $ptr i32) (result i32)
+        \\    (i32.const 0))
+        \\
+        \\  (export "f" (func $foo/f.p32.i32)))
+    );
+}
+
+test "print wasm adding pointer and int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\f = fn(ptr: p32(i64)): p32(i64)
+        \\  ptr + 1
+        \\end
+        \\
+        \\foreign_export(f)
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/f.p32.i64 (param $ptr i32) (result i32)
+        \\    (local.get $ptr)
+        \\    (i32.const 8)
+        \\    i32.add)
+        \\
+        \\  (export "f" (func $foo/f.p32.i64)))
+    );
+}
+
+test "print wasm adding pointer and i32" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\f = fn(ptr: p32(i64), len: i32): p32(i64)
+        \\  ptr + len
+        \\end
+        \\
+        \\foreign_export(f)
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/f.p32.i64.i32 (param $ptr i32) (param $len i32) (result i32)
+        \\    (local.get $ptr)
+        \\    (local.get $len)
+        \\    (i32.const 8)
+        \\    i32.mul
+        \\    i32.add)
+        \\
+        \\  (export "f" (func $foo/f.p32.i64.i32)))
     );
 }

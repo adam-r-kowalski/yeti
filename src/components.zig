@@ -280,6 +280,7 @@ pub const Intrinsic = enum(u8) {
     greater_equal,
     store,
     load,
+    add_p32_i32,
 };
 
 pub const WasmInstructionKind = enum(u8) {
@@ -537,3 +538,4 @@ pub const Memoized = DistinctMap("Memoized", Entity, Entity);
 pub const ParentType = DistinctEntity("Parent Type");
 pub const ValueType = DistinctEntity("Value Type");
 pub const UsesMemory = struct { value: bool };
+pub const Size = struct { bytes: u64 };

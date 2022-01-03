@@ -444,6 +444,17 @@ fn Context(comptime FileSystem: type) type {
             return entity;
         }
 
+        fn analyzePointerArithmetic(self: *Self, lhs: Entity, rhs: Entity, intrinsic: components.Intrinsic) !Entity {
+            try self.implicitTypeConversion(rhs, self.builtins.I32);
+            assert(intrinsic == .add);
+            return try self.codebase.createEntity(.{
+                components.AstKind.intrinsic,
+                components.Intrinsic.add_p32_i32,
+                try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
+                lhs.get(components.Type),
+            });
+        }
+
         // TODO: comparison binary ops should not implicitly convert arguments to i32
         // for example
         // x = 10
@@ -455,6 +466,10 @@ fn Context(comptime FileSystem: type) type {
             const rhs = try self.analyzeExpression(arguments[1]);
             const lhs_type = typeOf(lhs);
             const b = self.builtins;
+            if (lhs_type.has(components.ParentType)) |parent_type| {
+                assert(eql(parent_type.entity, b.P32));
+                return try self.analyzePointerArithmetic(lhs, rhs, intrinsic);
+            }
             const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32, b.IntLiteral, b.FloatLiteral };
             for (builtins) |builtin| {
                 if (!eql(lhs_type, builtin)) continue;
@@ -2138,4 +2153,40 @@ test "analyze semantics of pointer load" {
     const ptr = arguments[0];
     try expectEqual(ptr.get(components.AstKind), .local);
     try expectEqual(ptr.get(components.Local).entity, define);
+}
+
+test "analyze semantics of adding p32 and int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): p32(i64)
+        \\  ptr = cast(p32(i64), 0)
+        \\  ptr + 1
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const return_type = start.get(components.ReturnType).entity;
+    try expectEqual(valueType(return_type), builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
+    const value = define.get(components.Value).entity;
+    try expectEqualStrings(literalOf(value), "0");
+    try expectEqual(value.get(components.AstKind), .int);
+    try expectEqual(typeOf(value), return_type);
+    const add = body[1];
+    try expectEqual(add.get(components.AstKind), .intrinsic);
+    try expectEqual(add.get(components.Intrinsic), .add_p32_i32);
+    try expectEqual(typeOf(add), return_type);
 }

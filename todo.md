@@ -21,9 +21,17 @@
 - [x] Foreign Exports
 - [x] Foreign Imports
 - [ ] Linear Memory
+    - [x] p32 type
+    - [x] store through pointer
+    - [x] load from pointer
+    - [ ] pass pointer to function
+    - [ ] pointer arithmetic (+, -) between p32 and i32
+    - [ ] pointer arithmetic (==, !=, >, >=, <, <=, -) between two p32s
 - [ ] Error Messages
     - [ ] Tokenizer
     - [ ] Parser
     - [ ] Semantic Analyzer
     - [ ] Code Generator
+- [ ] SIMD
+- [ ] Templates
 
