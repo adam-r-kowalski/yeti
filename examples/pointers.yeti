@@ -1,0 +1,26 @@
+fill = fn(ptr: p32(i32), len: i32): void
+  i = 0
+  while i < len then
+    store(ptr, i)
+    ptr := ptr + 1
+    i := i + 1
+  end
+end
+
+sum = fn(ptr: p32(i32), len: i32): i32
+  i = 0
+  total = 0
+  while i < len then
+    total := total + load(ptr)
+    ptr := ptr + 1
+    i := i + 1
+  end
+  total
+end
+
+start = fn(): i32
+  ptr = cast(p32(i32), 0)
+  len = 10
+  fill(ptr, len)
+  sum(ptr, len)
+end
