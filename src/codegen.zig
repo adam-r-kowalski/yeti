@@ -716,9 +716,10 @@ fn codegenAddP32I32(context: *Context, entity: Entity) !void {
     const instructions = context.wasm_instructions.mutSlice();
     const rhs = instructions[instructions.len - 1];
     const rhs_kind = rhs.get(components.WasmInstructionKind);
+    const bytes = valueType(typeOf(arguments[0])).get(components.Size).bytes;
     if (rhs_kind == .i32_const) {
         const rhs_value = (try valueOf(i32, rhs.get(components.Constant).entity)).?;
-        const result_value = rhs_value * 8;
+        const result_value = rhs_value * bytes;
         const result_literal = try std.fmt.allocPrint(context.allocator, "{}", .{result_value});
         const interned = try context.codebase.getPtr(Strings).intern(result_literal);
         const result = try context.codebase.createEntity(.{
@@ -736,16 +737,16 @@ fn codegenAddP32I32(context: *Context, entity: Entity) !void {
         try context.wasm_instructions.append(instruction);
         return;
     }
-    const literal = try std.fmt.allocPrint(context.allocator, "{}", .{8});
+    const literal = try std.fmt.allocPrint(context.allocator, "{}", .{bytes});
     const interned = try context.codebase.getPtr(Strings).intern(literal);
-    const eight = try context.codebase.createEntity(.{
+    const result = try context.codebase.createEntity(.{
         components.Type.init(context.builtins.I32),
         components.Literal.init(interned),
-        @as(i32, 8),
+        bytes,
     });
     const constant = try context.codebase.createEntity(.{
         components.WasmInstructionKind.i32_const,
-        components.Constant.init(eight),
+        components.Constant.init(result),
     });
     const multiply = try context.codebase.createEntity(.{
         components.WasmInstructionKind.i32_mul,

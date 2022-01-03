@@ -20,7 +20,7 @@ pub fn initCodebase(arena: *Arena) !*ECS {
     return codebase;
 }
 
-fn builtinType(codebase: *ECS, scope: *components.Scope, symbol: []const u8, Type: Entity, bytes: u64) !Entity {
+fn builtinType(codebase: *ECS, scope: *components.Scope, symbol: []const u8, Type: Entity, bytes: i32) !Entity {
     const size = components.Size{ .bytes = bytes };
     const interned = try codebase.getPtr(Strings).intern(symbol);
     const entity = try codebase.createEntity(.{

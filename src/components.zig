@@ -538,4 +538,4 @@ pub const Memoized = DistinctMap("Memoized", Entity, Entity);
 pub const ParentType = DistinctEntity("Parent Type");
 pub const ValueType = DistinctEntity("Value Type");
 pub const UsesMemory = struct { value: bool };
-pub const Size = struct { bytes: u64 };
+pub const Size = struct { bytes: i32 };
