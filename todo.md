@@ -26,7 +26,7 @@
     - [x] load from pointer
     - [x] pass p32 to function
     - [x] p32 + i32
-    - [ ] *i64 instead of p32(i64)
+    - [x] *i64 instead of p32(i64)
     - [ ] *p := 5 instead of store(p, 5)
     - [ ] x = *p instead of x = load(p)
     - [ ] p32 - i32

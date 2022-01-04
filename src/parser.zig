@@ -46,11 +46,14 @@ fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
     _ = tokens.consume(.then);
     var then = components.Then.init(allocator);
     while (true) {
-        try then.append(try parseExpression(codebase, tokens, LOWEST));
         if (tokens.peek()) |token| {
-            if (token.get(components.TokenKind) == .else_) {
-                _ = tokens.next();
-                break;
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .else_ => {
+                    _ = tokens.next();
+                    break;
+                },
+                else => try then.append(try parseExpression(codebase, tokens, LOWEST)),
             }
         } else break;
     }
@@ -61,15 +64,18 @@ fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
         then,
     });
     while (true) {
-        try else_.append(try parseExpression(codebase, tokens, LOWEST));
         if (tokens.peek()) |token| {
-            if (token.get(components.TokenKind) == .end) {
-                const end = tokens.next().?.get(components.Span).end;
-                _ = try result.set(.{
-                    else_,
-                    components.Span.init(begin, end),
-                });
-                break;
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .end => {
+                    const end = tokens.next().?.get(components.Span).end;
+                    _ = try result.set(.{
+                        else_,
+                        components.Span.init(begin, end),
+                    });
+                    break;
+                },
+                else => try else_.append(try parseExpression(codebase, tokens, LOWEST)),
             }
         } else break;
     }
@@ -86,15 +92,18 @@ fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
         conditional,
     });
     while (true) {
-        try body.append(try parseExpression(codebase, tokens, LOWEST));
         if (tokens.peek()) |token| {
-            if (token.get(components.TokenKind) == .end) {
-                const end = tokens.next().?.get(components.Span).end;
-                _ = try result.set(.{
-                    body,
-                    components.Span.init(begin, end),
-                });
-                break;
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .end => {
+                    const end = tokens.next().?.get(components.Span).end;
+                    _ = try result.set(.{
+                        body,
+                        components.Span.init(begin, end),
+                    });
+                    break;
+                },
+                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
             }
         } else break;
     }
@@ -369,10 +378,11 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !components.Paramete
 fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !components.Body {
     var body = components.Body.init(codebase.arena.allocator());
     while (true) {
-        try body.append(try parseExpression(codebase, tokens, LOWEST));
         if (tokens.peek()) |token| {
-            if (token.get(components.TokenKind) == .end) {
-                break;
+            switch (token.get(components.TokenKind)) {
+                .end => break,
+                .new_line => _ = tokens.next(),
+                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
             }
         } else break;
     }
@@ -792,6 +802,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
         switch (kind) {
             .symbol => try parseTopLevel(tokens, &top_level, token),
             .foreign_export => try parseForeignExport(tokens, &foreign_exports),
+            .new_line => continue,
             else => panic("\nparse unsupported kind {}\n", .{kind}),
         }
     }
@@ -1257,3 +1268,65 @@ test "parse pointer" {
     try expectEqual(zero.get(components.AstKind), .int);
     try expectEqualStrings(literalOf(zero), "0");
 }
+
+test "parse pointer load" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = fn(ptr: *i32): i32
+        \\  *ptr
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const overload = overloads[0];
+    const parameters = overload.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const ptr = parameters[0];
+    try expectEqualStrings(literalOf(ptr), "ptr");
+    const type_of = ptr.get(components.TypeAst).entity;
+    try expectEqual(type_of.get(components.AstKind), .pointer);
+    try expectEqualStrings(literalOf(type_of.get(components.Value).entity), "i32");
+    const body = overload.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const load = body[0];
+    try expectEqual(load.get(components.AstKind), .pointer);
+    const value = load.get(components.Value).entity;
+    try expectEqual(value.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(value), "ptr");
+}
+
+// test "parse pointer load after new line" {
+//     var arena = Arena.init(std.heap.page_allocator);
+//     defer arena.deinit();
+//     var codebase = try initCodebase(&arena);
+//     const module = try codebase.createEntity(.{});
+//     const code =
+//         \\start = fn(): i32
+//         \\  ptr = cast(*i32, 0)
+//         \\  *ptr
+//         \\end
+//     ;
+//     var tokens = try tokenize(module, code);
+//     try parse(module, &tokens);
+//     const top_level = module.get(components.TopLevel);
+//     const start = top_level.findString("start");
+//     const overloads = start.get(components.Overloads).slice();
+//     try expectEqual(overloads.len, 1);
+//     const overload = overloads[0];
+//     const parameters = overload.get(components.Parameters).slice();
+//     try expectEqual(parameters.len, 0);
+//     const body = overload.get(components.Body).slice();
+//     try expectEqual(body.len, 2);
+//     const load = body[0];
+//     try expectEqual(load.get(components.AstKind), .pointer);
+//     const value = load.get(components.Value).entity;
+//     try expectEqual(value.get(components.AstKind), .symbol);
+//     try expectEqualStrings(literalOf(value), "ptr");
+// }

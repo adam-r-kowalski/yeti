@@ -42,10 +42,6 @@ const Source = struct {
             switch (self.code[i]) {
                 '\r' => continue,
                 ' ' => self.position.column += 1,
-                '\n' => {
-                    self.position.column = 0;
-                    self.position.row += 1;
-                },
                 else => break,
             }
         }
@@ -79,6 +75,19 @@ pub const Tokens = struct {
     }
 };
 
+fn tokenizeNewLine(module: Entity, source: *Source) !Entity {
+    const begin = source.position;
+    source.position.column = 0;
+    source.position.row += 1;
+    source.code = source.code[1..];
+    const end = source.position;
+    const span = components.Span.init(begin, end);
+    return try module.ecs.createEntity(.{
+        components.TokenKind.new_line,
+        span,
+    });
+}
+
 pub fn tokenize(module: Entity, code: []const u8) !Tokens {
     var entities = List(Entity, .{ .initial_capacity = 1024 }).init(module.ecs.arena.allocator());
     var source = Source.init(code);
@@ -104,6 +113,7 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
             '>' => try tokenizeOneOrTwo(module, &source, .greater_than, &.{ '=', '>' }, &.{ .greater_equal, .greater_greater }),
             '<' => try tokenizeOneOrTwo(module, &source, .less_than, &.{ '=', '<' }, &.{ .less_equal, .less_less }),
             '!' => try tokenizeTwo(module, &source, '=', .bang_equal),
+            '\n' => try tokenizeNewLine(module, &source),
             else => try tokenizeSymbol(module, &source),
         };
         try entities.append(token);
@@ -481,34 +491,45 @@ test "tokenize multine function" {
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(components.TokenKind), .symbol);
+        try expectEqual(token.get(components.TokenKind), .new_line);
         try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 2, .row = 1 },
-            .end = .{ .column = 3, .row = 1 },
+            .begin = .{ .column = 13, .row = 0 },
+            .end = .{ .column = 0, .row = 1 },
         });
     }
+    try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .equal);
     try expectEqual(tokens.next().?.get(components.TokenKind), .int);
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(components.TokenKind), .symbol);
+        try expectEqual(token.get(components.TokenKind), .new_line);
         try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 2, .row = 2 },
-            .end = .{ .column = 3, .row = 2 },
+            .begin = .{ .column = 7, .row = 1 },
+            .end = .{ .column = 0, .row = 2 },
         });
     }
+    try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .equal);
     try expectEqual(tokens.next().?.get(components.TokenKind), .int);
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(components.TokenKind), .symbol);
+        try expectEqual(token.get(components.TokenKind), .new_line);
         try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 2, .row = 3 },
-            .end = .{ .column = 3, .row = 3 },
+            .begin = .{ .column = 8, .row = 2 },
+            .end = .{ .column = 0, .row = 3 },
         });
     }
+    try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .plus);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .new_line);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 7, .row = 3 },
+            .end = .{ .column = 0, .row = 4 },
+        });
+    }
     try expectEqual(tokens.next().?.get(components.TokenKind), .end);
     try expectEqual(tokens.next(), null);
 }
@@ -540,19 +561,23 @@ test "tokenize mulitine function with binary op" {
     try expectEqual(tokens.next().?.get(components.TokenKind), .right_paren);
     try expectEqual(tokens.next().?.get(components.TokenKind), .colon);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
+    try expectEqual(tokens.next().?.get(components.TokenKind), .new_line);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .equal);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .times);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
+    try expectEqual(tokens.next().?.get(components.TokenKind), .new_line);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .equal);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .times);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
+    try expectEqual(tokens.next().?.get(components.TokenKind), .new_line);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .plus);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
+    try expectEqual(tokens.next().?.get(components.TokenKind), .new_line);
     try expectEqual(tokens.next().?.get(components.TokenKind), .end);
     try expectEqual(tokens.next(), null);
 }
