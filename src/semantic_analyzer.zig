@@ -210,21 +210,31 @@ fn Context(comptime FileSystem: type) type {
         fn analyzePointer(self: *Self, entity: Entity) !Entity {
             const value = try self.analyzeExpression(entity.get(components.Value).entity);
             const b = self.builtins;
-            const memoized = b.P32.getPtr(components.Memoized);
-            const result = try memoized.getOrPut(value);
-            if (result.found_existing) {
-                return result.value_ptr.*;
+            const type_of = typeOf(value);
+            if (eql(type_of, b.Type)) {
+                const memoized = b.P32.getPtr(components.Memoized);
+                const result = try memoized.getOrPut(value);
+                if (result.found_existing) {
+                    return result.value_ptr.*;
+                }
+                const string = try std.fmt.allocPrint(self.allocator, "*{s}", .{literalOf(value)});
+                const interned = try self.codebase.getPtr(Strings).intern(string);
+                const pointer_type = try self.codebase.createEntity(.{
+                    components.Literal.init(interned),
+                    components.Type.init(b.Type),
+                    components.ParentType.init(b.P32),
+                    components.ValueType.init(value),
+                });
+                result.value_ptr.* = pointer_type;
+                return pointer_type;
             }
-            const string = try std.fmt.allocPrint(self.allocator, "*{s}", .{literalOf(value)});
-            const interned = try self.codebase.getPtr(Strings).intern(string);
-            const pointer_type = try self.codebase.createEntity(.{
-                components.Literal.init(interned),
-                components.Type.init(b.Type),
-                components.ParentType.init(b.P32),
-                components.ValueType.init(value),
+            assert(eql(parentType(type_of), b.P32));
+            return try self.codebase.createEntity(.{
+                components.AstKind.intrinsic,
+                components.Intrinsic.load,
+                try components.Arguments.fromSlice(self.allocator, &.{value}),
+                components.Type.init(valueType(type_of)),
             });
-            result.value_ptr.* = pointer_type;
-            return pointer_type;
         }
 
         fn analyzeCast(self: *Self, arguments: []const Entity) !Entity {
@@ -267,20 +277,6 @@ fn Context(comptime FileSystem: type) type {
             });
         }
 
-        fn analyzeLoad(self: *Self, arguments: []const Entity) !Entity {
-            assert(arguments.len == 1);
-            const pointer = arguments[0];
-            const pointer_type = typeOf(pointer);
-            const b = self.builtins;
-            assert(eql(parentType(pointer_type), b.P32));
-            return try self.codebase.createEntity(.{
-                components.AstKind.intrinsic,
-                components.Intrinsic.load,
-                try components.Arguments.fromSlice(self.allocator, &.{pointer}),
-                components.Type.init(valueType(pointer_type)),
-            });
-        }
-
         fn analyzeCall(self: *Self, call: Entity, callingContext: *Self) !Entity {
             const callable = call.get(components.Callable).entity;
             const call_arguments = call.get(components.Arguments).slice();
@@ -294,9 +290,6 @@ fn Context(comptime FileSystem: type) type {
             }
             if (eql(callable_literal, self.builtins.Store.get(components.Literal))) {
                 return try self.analyzeStore(analyzed_arguments.slice());
-            }
-            if (eql(callable_literal, self.builtins.Load.get(components.Literal))) {
-                return try self.analyzeLoad(analyzed_arguments.slice());
             }
             const overload = try self.bestOverload(callable, analyzed_arguments.slice());
             if (!overload.contains(components.AnalyzedBody)) {
@@ -2121,7 +2114,7 @@ test "analyze semantics of pointer load" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): i64
         \\  ptr = cast(*i64, 0)
-        \\  load(ptr)
+        \\  *ptr
         \\end
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");

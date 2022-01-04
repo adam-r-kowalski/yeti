@@ -1302,31 +1302,31 @@ test "parse pointer load" {
     try expectEqualStrings(literalOf(value), "ptr");
 }
 
-// test "parse pointer load after new line" {
-//     var arena = Arena.init(std.heap.page_allocator);
-//     defer arena.deinit();
-//     var codebase = try initCodebase(&arena);
-//     const module = try codebase.createEntity(.{});
-//     const code =
-//         \\start = fn(): i32
-//         \\  ptr = cast(*i32, 0)
-//         \\  *ptr
-//         \\end
-//     ;
-//     var tokens = try tokenize(module, code);
-//     try parse(module, &tokens);
-//     const top_level = module.get(components.TopLevel);
-//     const start = top_level.findString("start");
-//     const overloads = start.get(components.Overloads).slice();
-//     try expectEqual(overloads.len, 1);
-//     const overload = overloads[0];
-//     const parameters = overload.get(components.Parameters).slice();
-//     try expectEqual(parameters.len, 0);
-//     const body = overload.get(components.Body).slice();
-//     try expectEqual(body.len, 2);
-//     const load = body[0];
-//     try expectEqual(load.get(components.AstKind), .pointer);
-//     const value = load.get(components.Value).entity;
-//     try expectEqual(value.get(components.AstKind), .symbol);
-//     try expectEqualStrings(literalOf(value), "ptr");
-// }
+test "parse pointer load after new line" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = fn(): i32
+        \\  ptr = cast(*i32, 0)
+        \\  *ptr
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const overload = overloads[0];
+    const parameters = overload.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 0);
+    const body = overload.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const load = body[1];
+    try expectEqual(load.get(components.AstKind), .pointer);
+    const value = load.get(components.Value).entity;
+    try expectEqual(value.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(value), "ptr");
+}

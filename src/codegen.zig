@@ -1650,7 +1650,7 @@ test "codegen of loading through pointer" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): i64
         \\  ptr = cast(*i64, 0)
-        \\  load(ptr)
+        \\  *ptr
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
