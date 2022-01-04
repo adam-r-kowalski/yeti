@@ -261,22 +261,6 @@ fn Context(comptime FileSystem: type) type {
             });
         }
 
-        fn analyzeStore(self: *Self, arguments: []const Entity) !Entity {
-            assert(arguments.len == 2);
-            const pointer = arguments[0];
-            const pointer_type = typeOf(pointer);
-            const b = self.builtins;
-            assert(eql(parentType(pointer_type), b.P32));
-            const value = arguments[1];
-            try self.implicitTypeConversion(value, valueType(pointer_type));
-            return try self.codebase.createEntity(.{
-                components.AstKind.intrinsic,
-                components.Intrinsic.store,
-                try components.Arguments.fromSlice(self.allocator, &.{ pointer, value }),
-                components.Type.init(b.Void),
-            });
-        }
-
         fn analyzeCall(self: *Self, call: Entity, callingContext: *Self) !Entity {
             const callable = call.get(components.Callable).entity;
             const call_arguments = call.get(components.Arguments).slice();
@@ -287,9 +271,6 @@ fn Context(comptime FileSystem: type) type {
             const callable_literal = callable.get(components.Literal);
             if (eql(callable_literal, self.builtins.Cast.get(components.Literal))) {
                 return try self.analyzeCast(analyzed_arguments.slice());
-            }
-            if (eql(callable_literal, self.builtins.Store.get(components.Literal))) {
-                return try self.analyzeStore(analyzed_arguments.slice());
             }
             const overload = try self.bestOverload(callable, analyzed_arguments.slice());
             if (!overload.contains(components.AnalyzedBody)) {
@@ -532,25 +513,44 @@ fn Context(comptime FileSystem: type) type {
 
         // TODO: type_of(x := 5) should be void
         fn analyzeAssign(self: *Self, assign: Entity) !Entity {
-            const scopes = self.function.get(components.Scopes);
-            const value = try self.analyzeExpression(assign.get(components.Value).entity);
             const name = assign.get(components.Name);
-            const define = scopes.findName(name);
-            _ = try define.set(.{components.Mutable{ .value = true }});
-            const result_type = try self.unifyTypes(value, define);
-            const result = try self.codebase.createEntity(.{
-                components.AstKind.assign,
-                components.Value.init(value),
-                name,
-                components.Type.init(result_type),
-            });
-            const b = self.builtins;
-            if (eql(result_type, b.IntLiteral) or eql(result_type, b.FloatLiteral)) {
-                const dependent_entities = define.getPtr(components.DependentEntities);
-                try dependent_entities.append(result);
-                try dependent_entities.append(value);
+            const value = try self.analyzeExpression(assign.get(components.Value).entity);
+            const kind = name.entity.get(components.AstKind);
+            switch (kind) {
+                .symbol => {
+                    const scopes = self.function.get(components.Scopes);
+                    const define = scopes.findName(name);
+                    _ = try define.set(.{components.Mutable{ .value = true }});
+                    const result_type = try self.unifyTypes(value, define);
+                    const result = try self.codebase.createEntity(.{
+                        components.AstKind.assign,
+                        components.Value.init(value),
+                        name,
+                        components.Type.init(result_type),
+                    });
+                    const b = self.builtins;
+                    if (eql(result_type, b.IntLiteral) or eql(result_type, b.FloatLiteral)) {
+                        const dependent_entities = define.getPtr(components.DependentEntities);
+                        try dependent_entities.append(result);
+                        try dependent_entities.append(value);
+                    }
+                    return result;
+                },
+                .pointer => {
+                    const pointer = try self.analyzeExpression(name.entity.get(components.Value).entity);
+                    const pointer_type = typeOf(pointer);
+                    const b = self.builtins;
+                    assert(eql(parentType(pointer_type), b.P32));
+                    try self.implicitTypeConversion(value, valueType(pointer_type));
+                    return try self.codebase.createEntity(.{
+                        components.AstKind.intrinsic,
+                        components.Intrinsic.store,
+                        try components.Arguments.fromSlice(self.allocator, &.{ pointer, value }),
+                        components.Type.init(b.Void),
+                    });
+                },
+                else => panic("\nassigning to unsupported kind {}\n", .{kind}),
             }
-            return result;
         }
 
         fn analyzeIf(self: *Self, if_: Entity) !Entity {
@@ -2070,7 +2070,7 @@ test "analyze semantics of pointer store" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64, 0)
-        \\  store(ptr, 10)
+        \\  *ptr := 10
         \\end
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");

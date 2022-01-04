@@ -279,7 +279,6 @@ fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !
 }
 
 fn parseAssign(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
-    assert(name.get(components.AstKind) == .symbol);
     const value = try parseExpression(codebase, tokens, precedence);
     return try codebase.createEntity(.{
         components.AstKind.assign,

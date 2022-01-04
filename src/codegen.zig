@@ -795,7 +795,7 @@ fn codegenLoad(context: *Context, entity: Entity) !void {
             return;
         }
     }
-    panic("\ncodegen store unspported type {s}\n", .{literalOf(value_type)});
+    panic("\ncodegen load unspported type {s}\n", .{literalOf(value_type)});
 }
 
 fn codegenIntrinsic(context: *Context, entity: Entity) !void {
@@ -1606,7 +1606,7 @@ test "codegen of storing through pointer" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64, 0)
-        \\  store(ptr, 10)
+        \\  *ptr := 10
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");

@@ -951,7 +951,7 @@ test "print wasm pointer store" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64, 0)
-        \\  store(ptr, 10)
+        \\  *ptr := 10
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");

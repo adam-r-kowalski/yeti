@@ -27,8 +27,8 @@
     - [x] pass p32 to function
     - [x] p32 + i32
     - [x] *i64 instead of p32(i64)
-    - [ ] *p := 5 instead of store(p, 5)
-    - [ ] x = *p instead of x = load(p)
+    - [x] *p := 5 instead of store(p, 5)
+    - [x] x = *p instead of x = load(p)
     - [ ] p32 - i32
     - [ ] pointer arithmetic (==, !=, >, >=, <, <=, -) between two p32s
 - [ ] Error Messages
