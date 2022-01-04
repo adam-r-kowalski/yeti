@@ -1,7 +1,7 @@
 fill = fn(ptr: *i32, len: i32): void
   i = 0
   while i < len then
-    store(ptr, i)
+    *ptr := i
     ptr := ptr + 1
     i := i + 1
   end
