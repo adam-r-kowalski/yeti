@@ -101,6 +101,18 @@ fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
     return result;
 }
 
+fn parsePointer(codebase: *ECS, tokens: *Tokens, star: Entity) !Entity {
+    const begin = star.get(components.Span).begin;
+    const value = try parseExpression(codebase, tokens, HIGHEST);
+    const end = value.get(components.Span).end;
+    const span = components.Span.init(begin, end);
+    return try codebase.createEntity(.{
+        components.AstKind.pointer,
+        components.Value.init(value),
+        span,
+    });
+}
+
 fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
     const kind = token.get(components.TokenKind);
     return try switch (kind) {
@@ -117,6 +129,7 @@ fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
         .if_ => parseIf(token.ecs, tokens, token),
         .while_ => parseWhile(token.ecs, tokens, token),
         .underscore => token.set(.{components.AstKind.underscore}),
+        .times => parsePointer(token.ecs, tokens, token),
         else => panic("\nno prefix parser for = {}\n", .{kind}),
     };
 }
@@ -1212,4 +1225,35 @@ test "parse foreign import" {
     try expectEqualStrings(literalOf(parameter), "value");
     try expectEqualStrings(literalOf(parameter.get(components.TypeAst).entity), "i64");
     try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "void");
+}
+
+test "parse pointer" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = fn(ptr: *i32): i32
+        \\  0
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const overload = overloads[0];
+    const parameters = overload.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const ptr = parameters[0];
+    try expectEqualStrings(literalOf(ptr), "ptr");
+    const type_of = ptr.get(components.TypeAst).entity;
+    try expectEqual(type_of.get(components.AstKind), .pointer);
+    try expectEqualStrings(literalOf(type_of.get(components.Value).entity), "i32");
+    const body = overload.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const zero = body[0];
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqualStrings(literalOf(zero), "0");
 }

@@ -926,8 +926,8 @@ test "print wasm pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): p32(i64)
-        \\  cast(p32(i64), 0)
+        \\start = fn(): *i64
+        \\  cast(*i64, 0)
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -950,7 +950,7 @@ test "print wasm pointer store" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
-        \\  ptr = cast(p32(i64), 0)
+        \\  ptr = cast(*i64, 0)
         \\  store(ptr, 10)
         \\end
     );
@@ -981,7 +981,7 @@ test "print wasm pointer load" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): i64
-        \\  ptr = cast(p32(i64), 0)
+        \\  ptr = cast(*i64, 0)
         \\  load(ptr)
         \\end
     );
@@ -1010,7 +1010,7 @@ test "print wasm pointer as parameter" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\f = fn(ptr: p32(i32)): i32
+        \\f = fn(ptr: *i32): i32
         \\  0
         \\end
         \\
@@ -1022,10 +1022,10 @@ test "print wasm pointer as parameter" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.p32.i32 (param $ptr i32) (result i32)
+        \\  (func $foo/f.*i32 (param $ptr i32) (result i32)
         \\    (i32.const 0))
         \\
-        \\  (export "f" (func $foo/f.p32.i32)))
+        \\  (export "f" (func $foo/f.*i32)))
     );
 }
 
@@ -1035,7 +1035,7 @@ test "print wasm adding pointer and int literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\f = fn(ptr: p32(i64)): p32(i64)
+        \\f = fn(ptr: *i64): *i64
         \\  ptr + 1
         \\end
         \\
@@ -1047,12 +1047,12 @@ test "print wasm adding pointer and int literal" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.p32.i64 (param $ptr i32) (result i32)
+        \\  (func $foo/f.*i64 (param $ptr i32) (result i32)
         \\    (local.get $ptr)
         \\    (i32.const 8)
         \\    i32.add)
         \\
-        \\  (export "f" (func $foo/f.p32.i64)))
+        \\  (export "f" (func $foo/f.*i64)))
     );
 }
 
@@ -1062,7 +1062,7 @@ test "print wasm adding pointer and i32" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\f = fn(ptr: p32(i64), len: i32): p32(i64)
+        \\f = fn(ptr: *i64, len: i32): *i64
         \\  ptr + len
         \\end
         \\
@@ -1074,13 +1074,13 @@ test "print wasm adding pointer and i32" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.p32.i64.i32 (param $ptr i32) (param $len i32) (result i32)
+        \\  (func $foo/f.*i64.i32 (param $ptr i32) (param $len i32) (result i32)
         \\    (local.get $ptr)
         \\    (local.get $len)
         \\    (i32.const 8)
         \\    i32.mul
         \\    i32.add)
         \\
-        \\  (export "f" (func $foo/f.p32.i64.i32)))
+        \\  (export "f" (func $foo/f.*i64.i32)))
     );
 }

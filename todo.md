@@ -24,8 +24,12 @@
     - [x] p32 type
     - [x] store through pointer
     - [x] load from pointer
-    - [ ] pass pointer to function
-    - [ ] pointer arithmetic (+, -) between p32 and i32
+    - [x] pass p32 to function
+    - [x] p32 + i32
+    - [ ] *i64 instead of p32(i64)
+    - [ ] *p := 5 instead of store(p, 5)
+    - [ ] x = *p instead of x = load(p)
+    - [ ] p32 - i32
     - [ ] pointer arithmetic (==, !=, >, >=, <, <=, -) between two p32s
 - [ ] Error Messages
     - [ ] Tokenizer

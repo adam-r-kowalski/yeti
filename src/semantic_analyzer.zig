@@ -207,22 +207,21 @@ fn Context(comptime FileSystem: type) type {
             return best_overload;
         }
 
-        fn analyzePointer(self: *Self, arguments: []const Entity) !Entity {
-            assert(arguments.len == 1);
-            const argument = arguments[0];
+        fn analyzePointer(self: *Self, entity: Entity) !Entity {
+            const value = try self.analyzeExpression(entity.get(components.Value).entity);
             const b = self.builtins;
             const memoized = b.P32.getPtr(components.Memoized);
-            const result = try memoized.getOrPut(argument);
+            const result = try memoized.getOrPut(value);
             if (result.found_existing) {
                 return result.value_ptr.*;
             }
-            const string = try std.fmt.allocPrint(self.allocator, "p32({s})", .{literalOf(argument)});
+            const string = try std.fmt.allocPrint(self.allocator, "*{s}", .{literalOf(value)});
             const interned = try self.codebase.getPtr(Strings).intern(string);
             const pointer_type = try self.codebase.createEntity(.{
                 components.Literal.init(interned),
                 components.Type.init(b.Type),
                 components.ParentType.init(b.P32),
-                components.ValueType.init(argument),
+                components.ValueType.init(value),
             });
             result.value_ptr.* = pointer_type;
             return pointer_type;
@@ -290,9 +289,6 @@ fn Context(comptime FileSystem: type) type {
                 analyzed_arguments.appendAssumeCapacity(try callingContext.analyzeExpression(argument));
             }
             const callable_literal = callable.get(components.Literal);
-            if (eql(callable_literal, self.builtins.P32.get(components.Literal))) {
-                return try self.analyzePointer(analyzed_arguments.slice());
-            }
             if (eql(callable_literal, self.builtins.Cast.get(components.Literal))) {
                 return try self.analyzeCast(analyzed_arguments.slice());
             }
@@ -650,6 +646,7 @@ fn Context(comptime FileSystem: type) type {
                 .assign => try self.analyzeAssign(entity),
                 .if_ => try self.analyzeIf(entity),
                 .while_ => try self.analyzeWhile(entity),
+                .pointer => try self.analyzePointer(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
             };
         }
@@ -1998,15 +1995,15 @@ test "analyze semantics of foreign import" {
     try expectEqualStrings(literalOf(parameter.get(components.Name).entity), "value");
 }
 
-test "analyze semantics of casting int literal to p32" {
+test "analyze semantics of casting int literal to *i64" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): p32(i64)
-        \\  cast(p32(i64), 0)
+        \\start = fn(): *i64
+        \\  cast(*i64, 0)
         \\end
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2017,7 +2014,7 @@ test "analyze semantics of casting int literal to p32" {
     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
     try expectEqual(start.get(components.Parameters).len(), 0);
     const return_type = start.get(components.ReturnType).entity;
-    try expectEqualStrings(literalOf(return_type), "p32(i64)");
+    try expectEqualStrings(literalOf(return_type), "*i64");
     try expectEqual(parentType(return_type), builtins.P32);
     try expectEqualStrings(literalOf(valueType(return_type)), "i64");
     try expectEqual(valueType(return_type), builtins.I64);
@@ -2029,16 +2026,16 @@ test "analyze semantics of casting int literal to p32" {
     try expectEqualStrings(literalOf(zero), "0");
 }
 
-test "analyze semantics of casting i32 to p32" {
+test "analyze semantics of casting i32 to *i64" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): p32(i64)
+        \\start = fn(): *i64
         \\  i: i32 = 0
-        \\  cast(p32(i64), i)
+        \\  cast(*i64, i)
         \\end
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2049,7 +2046,7 @@ test "analyze semantics of casting i32 to p32" {
     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
     try expectEqual(start.get(components.Parameters).len(), 0);
     const return_type = start.get(components.ReturnType).entity;
-    try expectEqualStrings(literalOf(return_type), "p32(i64)");
+    try expectEqualStrings(literalOf(return_type), "*i64");
     try expectEqual(parentType(return_type), builtins.P32);
     try expectEqualStrings(literalOf(valueType(return_type)), "i64");
     try expectEqual(valueType(return_type), builtins.I64);
@@ -2079,7 +2076,7 @@ test "analyze semantics of pointer store" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
-        \\  ptr = cast(p32(i64), 0)
+        \\  ptr = cast(*i64, 0)
         \\  store(ptr, 10)
         \\end
     );
@@ -2123,7 +2120,7 @@ test "analyze semantics of pointer load" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): i64
-        \\  ptr = cast(p32(i64), 0)
+        \\  ptr = cast(*i64, 0)
         \\  load(ptr)
         \\end
     );
@@ -2155,15 +2152,15 @@ test "analyze semantics of pointer load" {
     try expectEqual(ptr.get(components.Local).entity, define);
 }
 
-test "analyze semantics of adding p32 and int literal" {
+test "analyze semantics of adding *i64 and int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): p32(i64)
-        \\  ptr = cast(p32(i64), 0)
+        \\start = fn(): *i64
+        \\  ptr = cast(*i64, 0)
         \\  ptr + 1
         \\end
     );

@@ -1577,14 +1577,14 @@ test "codegen while loop" {
     // TODO: test that proper while loop instructions are generated
 }
 
-test "codegen of casting int literal to p32" {
+test "codegen of casting int literal to *i64" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): p32(i64)
-        \\  cast(p32(i64), 0)
+        \\start = fn(): *i64
+        \\  cast(*i64, 0)
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1605,7 +1605,7 @@ test "codegen of storing through pointer" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
-        \\  ptr = cast(p32(i64), 0)
+        \\  ptr = cast(*i64, 0)
         \\  store(ptr, 10)
         \\end
     );
@@ -1649,7 +1649,7 @@ test "codegen of loading through pointer" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): i64
-        \\  ptr = cast(p32(i64), 0)
+        \\  ptr = cast(*i64, 0)
         \\  load(ptr)
         \\end
     );
@@ -1685,8 +1685,8 @@ test "codegen of adding pointer and int literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): p32(i64)
-        \\  ptr = cast(p32(i64), 0)
+        \\start = fn(): *i64
+        \\  ptr = cast(*i64, 0)
         \\  ptr + 1
         \\end
     );
