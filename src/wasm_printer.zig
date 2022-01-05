@@ -35,7 +35,7 @@ fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
         }
     }
     if (type_of.has(components.ParentType)) |parent_type| {
-        assert(eql(parent_type.entity, b.P32));
+        assert(eql(parent_type.entity, b.Ptr));
         return try wasm.appendSlice("i32");
     }
     panic("\nwasm wasm unsupported type {s}\n", .{literalOf(type_of)});
@@ -56,7 +56,7 @@ fn functionName(function: Entity) ![]const u8 {
         const type_of = typeOf(parameter);
         const literal = literalOf(type_of);
         if (type_of.has(components.ParentType)) |parent_type| {
-            assert(eql(parent_type.entity, builtins.P32));
+            assert(eql(parent_type.entity, builtins.Ptr));
             for (literal) |c| {
                 switch (c) {
                     '(' => try wasm_name.append('.'),

@@ -54,14 +54,12 @@ pub fn initBuiltins(codebase: *ECS) !void {
     // TODO: p32 is a function from type to type, not a type itself
     // type_of(p32) == Fn(T: type): type
     // type_of(p32(i64)) == type
-    const P32 = try builtinType(codebase, &scope, "p32", Type, 4);
-    _ = try P32.set(.{components.Memoized.init(allocator)});
+    const Ptr = try builtinType(codebase, &scope, "ptr", Type, 4);
+    _ = try Ptr.set(.{components.Memoized.init(allocator)});
     // TODO: cast is a function from type, and value to value of new type
     // type_of(cast) == Fn(T: type, value: U): T
     // type_of(cast(i64, 5)) == i64
     const Cast = try builtinType(codebase, &scope, "cast", Type, 0);
-    const Store = try builtinType(codebase, &scope, "store", Type, 0);
-    const Load = try builtinType(codebase, &scope, "load", Type, 0);
     const builtins = components.Builtins{
         .Type = Type,
         .Module = Module,
@@ -72,12 +70,10 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .F64 = F64,
         .F32 = F32,
         .Void = Void,
-        .P32 = P32,
+        .Ptr = Ptr,
         .IntLiteral = IntLiteral,
         .FloatLiteral = FloatLiteral,
         .Cast = Cast,
-        .Store = Store,
-        .Load = Load,
     };
     try codebase.set(.{ builtins, scope });
 }

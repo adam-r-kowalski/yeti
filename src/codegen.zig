@@ -51,7 +51,7 @@ fn codegenNumber(context: *Context, entity: Entity) !void {
         return;
     }
     if (type_of.has(components.ParentType)) |parent_type| {
-        assert(eql(parent_type.entity, b.P32));
+        assert(eql(parent_type.entity, b.Ptr));
         const wasm_instruction = try context.codebase.createEntity(.{
             components.WasmInstructionKind.i32_const,
             components.Constant.init(entity),
@@ -709,7 +709,7 @@ fn codegenBinaryOp(context: *Context, entity: Entity, comptime ops: anytype) !vo
     panic("\ncodegen add unspported type {s}\n", .{literalOf(type_of)});
 }
 
-fn codegenAddP32I32(context: *Context, entity: Entity) !void {
+fn codegenAddPtrI32(context: *Context, entity: Entity) !void {
     const arguments = entity.get(components.Arguments).slice();
     try codegenEntity(context, arguments[0]);
     try codegenEntity(context, arguments[1]);
@@ -819,7 +819,7 @@ fn codegenIntrinsic(context: *Context, entity: Entity) !void {
         .greater_equal => try codegenBinaryOp(context, entity, greaterEqualOps),
         .store => try codegenStore(context, entity),
         .load => try codegenLoad(context, entity),
-        .add_p32_i32 => try codegenAddP32I32(context, entity),
+        .add_p32_i32 => try codegenAddPtrI32(context, entity),
     }
 }
 

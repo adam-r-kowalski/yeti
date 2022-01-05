@@ -212,7 +212,7 @@ fn Context(comptime FileSystem: type) type {
             const b = self.builtins;
             const type_of = typeOf(value);
             if (eql(type_of, b.Type)) {
-                const memoized = b.P32.getPtr(components.Memoized);
+                const memoized = b.Ptr.getPtr(components.Memoized);
                 const result = try memoized.getOrPut(value);
                 if (result.found_existing) {
                     return result.value_ptr.*;
@@ -222,13 +222,13 @@ fn Context(comptime FileSystem: type) type {
                 const pointer_type = try self.codebase.createEntity(.{
                     components.Literal.init(interned),
                     components.Type.init(b.Type),
-                    components.ParentType.init(b.P32),
+                    components.ParentType.init(b.Ptr),
                     components.ValueType.init(value),
                 });
                 result.value_ptr.* = pointer_type;
                 return pointer_type;
             }
-            assert(eql(parentType(type_of), b.P32));
+            assert(eql(parentType(type_of), b.Ptr));
             return try self.codebase.createEntity(.{
                 components.AstKind.intrinsic,
                 components.Intrinsic.load,
@@ -241,7 +241,7 @@ fn Context(comptime FileSystem: type) type {
             assert(arguments.len == 2);
             const b = self.builtins;
             const to = arguments[0];
-            assert(eql(parentType(to), b.P32));
+            assert(eql(parentType(to), b.Ptr));
             const value = arguments[1];
             const type_of = typeOf(value);
             if (eql(type_of, b.IntLiteral)) {
@@ -415,14 +415,30 @@ fn Context(comptime FileSystem: type) type {
         }
 
         fn analyzePointerArithmetic(self: *Self, lhs: Entity, rhs: Entity, intrinsic: components.Intrinsic) !Entity {
-            try self.implicitTypeConversion(rhs, self.builtins.I32);
-            assert(intrinsic == .add);
-            return try self.codebase.createEntity(.{
-                components.AstKind.intrinsic,
-                components.Intrinsic.add_p32_i32,
-                try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
-                lhs.get(components.Type),
-            });
+            const rhs_type = typeOf(rhs);
+            const b = self.builtins;
+            if (eql(rhs_type, b.IntLiteral) or eql(rhs_type, b.I32)) {
+                try self.implicitTypeConversion(rhs, b.I32);
+                assert(intrinsic == .add);
+                return try self.codebase.createEntity(.{
+                    components.AstKind.intrinsic,
+                    components.Intrinsic.add_p32_i32,
+                    try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
+                    lhs.get(components.Type),
+                });
+            }
+            assert(eql(valueType(typeOf(lhs)), valueType(rhs_type)));
+            switch (intrinsic) {
+                .equal => {
+                    return try self.codebase.createEntity(.{
+                        components.AstKind.intrinsic,
+                        intrinsic,
+                        try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
+                        components.Type.init(b.I32),
+                    });
+                },
+                else => panic("\nanalyze pointer arithmetic unsupported intrinsic {}\n", .{intrinsic}),
+            }
         }
 
         // TODO: comparison binary ops should not implicitly convert arguments to i32
@@ -437,7 +453,7 @@ fn Context(comptime FileSystem: type) type {
             const lhs_type = typeOf(lhs);
             const b = self.builtins;
             if (lhs_type.has(components.ParentType)) |parent_type| {
-                assert(eql(parent_type.entity, b.P32));
+                assert(eql(parent_type.entity, b.Ptr));
                 return try self.analyzePointerArithmetic(lhs, rhs, intrinsic);
             }
             const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32, b.IntLiteral, b.FloatLiteral };
@@ -540,7 +556,7 @@ fn Context(comptime FileSystem: type) type {
                     const pointer = try self.analyzeExpression(name.entity.get(components.Value).entity);
                     const pointer_type = typeOf(pointer);
                     const b = self.builtins;
-                    assert(eql(parentType(pointer_type), b.P32));
+                    assert(eql(parentType(pointer_type), b.Ptr));
                     try self.implicitTypeConversion(value, valueType(pointer_type));
                     return try self.codebase.createEntity(.{
                         components.AstKind.intrinsic,
@@ -2008,7 +2024,7 @@ test "analyze semantics of casting int literal to *i64" {
     try expectEqual(start.get(components.Parameters).len(), 0);
     const return_type = start.get(components.ReturnType).entity;
     try expectEqualStrings(literalOf(return_type), "*i64");
-    try expectEqual(parentType(return_type), builtins.P32);
+    try expectEqual(parentType(return_type), builtins.Ptr);
     try expectEqualStrings(literalOf(valueType(return_type)), "i64");
     try expectEqual(valueType(return_type), builtins.I64);
     const body = start.get(components.Body).slice();
@@ -2040,7 +2056,7 @@ test "analyze semantics of casting i32 to *i64" {
     try expectEqual(start.get(components.Parameters).len(), 0);
     const return_type = start.get(components.ReturnType).entity;
     try expectEqualStrings(literalOf(return_type), "*i64");
-    try expectEqual(parentType(return_type), builtins.P32);
+    try expectEqual(parentType(return_type), builtins.Ptr);
     try expectEqualStrings(literalOf(valueType(return_type)), "i64");
     try expectEqual(valueType(return_type), builtins.I64);
     const body = start.get(components.Body).slice();
@@ -2053,7 +2069,7 @@ test "analyze semantics of casting i32 to *i64" {
     const cast = body[1];
     try expectEqual(cast.get(components.AstKind), .cast);
     const pointer_type = typeOf(cast);
-    try expectEqual(parentType(pointer_type), builtins.P32);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
     try expectEqual(valueType(pointer_type), builtins.I64);
     const local = cast.get(components.Value).entity;
     try expectEqual(local.get(components.AstKind), .local);
@@ -2179,4 +2195,42 @@ test "analyze semantics of adding *i64 and int literal" {
     try expectEqual(add.get(components.AstKind), .intrinsic);
     try expectEqual(add.get(components.Intrinsic), .add_p32_i32);
     try expectEqual(typeOf(add), return_type);
+}
+
+test "analyze semantics of comparing two *i64" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i32
+        \\  ptr = cast(*i64, 0)
+        \\  ptr == ptr
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const return_type = start.get(components.ReturnType).entity;
+    try expectEqual(return_type, builtins.I32);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
+    const value = define.get(components.Value).entity;
+    try expectEqualStrings(literalOf(value), "0");
+    try expectEqual(value.get(components.AstKind), .int);
+    const value_type = typeOf(value);
+    try expectEqual(valueType(value_type), builtins.I64);
+    try expectEqual(parentType(value_type), builtins.Ptr);
+    const equal = body[1];
+    try expectEqual(equal.get(components.AstKind), .intrinsic);
+    try expectEqual(equal.get(components.Intrinsic), .equal);
+    try expectEqual(typeOf(equal), builtins.I32);
 }

@@ -389,12 +389,10 @@ pub const Builtins = struct {
     F64: Entity,
     F32: Entity,
     Void: Entity,
-    P32: Entity,
+    Ptr: Entity,
     IntLiteral: Entity,
     FloatLiteral: Entity,
     Cast: Entity,
-    Store: Entity,
-    Load: Entity,
 };
 
 pub const Error = struct {
