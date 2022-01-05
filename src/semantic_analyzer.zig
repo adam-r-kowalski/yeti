@@ -429,7 +429,7 @@ fn Context(comptime FileSystem: type) type {
             }
             assert(eql(valueType(typeOf(lhs)), valueType(rhs_type)));
             switch (intrinsic) {
-                .equal => {
+                .equal, .not_equal, .greater_equal, .greater_than, .less_equal, .less_than => {
                     return try self.codebase.createEntity(.{
                         components.AstKind.intrinsic,
                         intrinsic,
