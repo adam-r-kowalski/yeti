@@ -441,6 +441,14 @@ fn Context(comptime FileSystem: type) type {
                         components.Type.init(b.I32),
                     });
                 },
+                .subtract => {
+                    return try self.codebase.createEntity(.{
+                        components.AstKind.intrinsic,
+                        components.Intrinsic.subtract_ptr_ptr,
+                        try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
+                        components.Type.init(b.I32),
+                    });
+                },
                 else => panic("\nanalyze pointer arithmetic unsupported intrinsic {}\n", .{intrinsic}),
             }
         }

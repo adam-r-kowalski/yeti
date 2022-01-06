@@ -783,6 +783,33 @@ fn codegenPtrI32BinaryOp(context: *Context, entity: Entity, kind: components.Was
     try context.wasm_instructions.append(op);
 }
 
+fn codegenSubPtrPtr(context: *Context, entity: Entity) !void {
+    const arguments = entity.get(components.Arguments).slice();
+    try codegenEntity(context, arguments[0]);
+    try codegenEntity(context, arguments[1]);
+    const bytes = valueType(typeOf(arguments[0])).get(components.Size).bytes;
+    const literal = try std.fmt.allocPrint(context.allocator, "{}", .{bytes});
+    const interned = try context.codebase.getPtr(Strings).intern(literal);
+    const subtract = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.i32_sub,
+    });
+    const result = try context.codebase.createEntity(.{
+        components.Type.init(context.builtins.I32),
+        components.Literal.init(interned),
+        bytes,
+    });
+    const constant = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.i32_const,
+        components.Constant.init(result),
+    });
+    const divide = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.i32_div,
+    });
+    try context.wasm_instructions.append(subtract);
+    try context.wasm_instructions.append(constant);
+    try context.wasm_instructions.append(divide);
+}
+
 fn codegenStore(context: *Context, entity: Entity) !void {
     try context.codebase.set(.{components.UsesMemory{ .value = true }});
     const arguments = entity.get(components.Arguments).slice();
@@ -845,6 +872,7 @@ fn codegenIntrinsic(context: *Context, entity: Entity) !void {
         .load => try codegenLoad(context, entity),
         .add_ptr_i32 => try codegenPtrI32BinaryOp(context, entity, .i32_add),
         .subtract_ptr_i32 => try codegenPtrI32BinaryOp(context, entity, .i32_sub),
+        .subtract_ptr_ptr => try codegenSubPtrPtr(context, entity),
     }
 }
 
@@ -1833,4 +1861,53 @@ test "codegen of comparing two *i64" {
         }
         try expectEqual(wasm_instructions[4].get(components.WasmInstructionKind), ops[i]);
     }
+}
+
+test "codegen of subtracting two *i64" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i32
+        \\  ptr = cast(*i64, 0)
+        \\  ptr - ptr
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const wasm_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(wasm_instructions.len, 7);
+    {
+        const constant = wasm_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    }
+    {
+        const local_set = wasm_instructions[1];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        const local = local_set.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+    }
+    {
+        const local_get = wasm_instructions[2];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+    }
+    {
+        const local_get = wasm_instructions[3];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+    }
+    try expectEqual(wasm_instructions[4].get(components.WasmInstructionKind), .i32_sub);
+    {
+        const constant = wasm_instructions[5];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "8");
+    }
+    try expectEqual(wasm_instructions[6].get(components.WasmInstructionKind), .i32_div);
 }
