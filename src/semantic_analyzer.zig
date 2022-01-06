@@ -243,17 +243,7 @@ fn Context(comptime FileSystem: type) type {
             const to = arguments[0];
             assert(eql(parentType(to), b.Ptr));
             const value = arguments[1];
-            const type_of = typeOf(value);
-            if (eql(type_of, b.IntLiteral)) {
-                return try self.codebase.createEntity(.{
-                    value.get(components.Literal),
-                    components.Type.init(to),
-                    components.TokenKind.int,
-                    components.AstKind.int,
-                    value.get(components.Span),
-                });
-            }
-            assert(eql(type_of, b.I32));
+            try self.implicitTypeConversion(value, b.I32);
             return try self.codebase.createEntity(.{
                 components.AstKind.cast,
                 components.Type.init(to),
@@ -2041,9 +2031,14 @@ test "analyze semantics of casting int literal to *i64" {
     try expectEqual(valueType(return_type), builtins.I64);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 1);
-    const zero = body[0];
+    const cast = body[0];
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
+    try expectEqual(valueType(pointer_type), builtins.I64);
+    const zero = cast.get(components.Value).entity;
     try expectEqual(zero.get(components.AstKind), .int);
-    try expectEqual(typeOf(zero), return_type);
+    try expectEqual(typeOf(zero), builtins.I32);
     try expectEqualStrings(literalOf(zero), "0");
 }
 
@@ -2114,9 +2109,15 @@ test "analyze semantics of pointer store" {
     const define = body[0];
     try expectEqual(define.get(components.AstKind), .define);
     try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const value = define.get(components.Value).entity;
-    try expectEqualStrings(literalOf(value), "0");
-    try expectEqual(value.get(components.AstKind), .int);
+    const cast = define.get(components.Value).entity;
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
+    try expectEqual(valueType(pointer_type), builtins.I64);
+    const zero = cast.get(components.Value).entity;
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), builtins.I32);
+    try expectEqualStrings(literalOf(zero), "0");
     try expectEqual(valueType(typeOf(define)), builtins.I64);
     const store = body[1];
     try expectEqual(store.get(components.AstKind), .intrinsic);
@@ -2158,10 +2159,16 @@ test "analyze semantics of pointer load" {
     const define = body[0];
     try expectEqual(define.get(components.AstKind), .define);
     try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const value = define.get(components.Value).entity;
-    try expectEqualStrings(literalOf(value), "0");
-    try expectEqual(value.get(components.AstKind), .int);
-    try expectEqual(valueType(typeOf(value)), builtins.I64);
+    const cast = define.get(components.Value).entity;
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
+    try expectEqual(valueType(pointer_type), builtins.I64);
+    const zero = cast.get(components.Value).entity;
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), builtins.I32);
+    try expectEqualStrings(literalOf(zero), "0");
+    try expectEqual(valueType(typeOf(define)), builtins.I64);
     const load = body[1];
     try expectEqual(load.get(components.AstKind), .intrinsic);
     try expectEqual(load.get(components.Intrinsic), .load);
@@ -2199,10 +2206,16 @@ test "analyze semantics of adding *i64 and int literal" {
     const define = body[0];
     try expectEqual(define.get(components.AstKind), .define);
     try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const value = define.get(components.Value).entity;
-    try expectEqualStrings(literalOf(value), "0");
-    try expectEqual(value.get(components.AstKind), .int);
-    try expectEqual(typeOf(value), return_type);
+    const cast = define.get(components.Value).entity;
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
+    try expectEqual(valueType(pointer_type), builtins.I64);
+    const zero = cast.get(components.Value).entity;
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), builtins.I32);
+    try expectEqualStrings(literalOf(zero), "0");
+    try expectEqual(valueType(typeOf(define)), builtins.I64);
     const add = body[1];
     try expectEqual(add.get(components.AstKind), .intrinsic);
     try expectEqual(add.get(components.Intrinsic), .add_ptr_i32);
@@ -2235,10 +2248,16 @@ test "analyze semantics of subtracting *i64 and int literal" {
     const define = body[0];
     try expectEqual(define.get(components.AstKind), .define);
     try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const value = define.get(components.Value).entity;
-    try expectEqualStrings(literalOf(value), "0");
-    try expectEqual(value.get(components.AstKind), .int);
-    try expectEqual(typeOf(value), return_type);
+    const cast = define.get(components.Value).entity;
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
+    try expectEqual(valueType(pointer_type), builtins.I64);
+    const zero = cast.get(components.Value).entity;
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), builtins.I32);
+    try expectEqualStrings(literalOf(zero), "0");
+    try expectEqual(valueType(typeOf(define)), builtins.I64);
     const add = body[1];
     try expectEqual(add.get(components.AstKind), .intrinsic);
     try expectEqual(add.get(components.Intrinsic), .subtract_ptr_i32);
@@ -2271,12 +2290,16 @@ test "analyze semantics of comparing two *i64" {
     const define = body[0];
     try expectEqual(define.get(components.AstKind), .define);
     try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const value = define.get(components.Value).entity;
-    try expectEqualStrings(literalOf(value), "0");
-    try expectEqual(value.get(components.AstKind), .int);
-    const value_type = typeOf(value);
-    try expectEqual(valueType(value_type), builtins.I64);
-    try expectEqual(parentType(value_type), builtins.Ptr);
+    const cast = define.get(components.Value).entity;
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
+    try expectEqual(valueType(pointer_type), builtins.I64);
+    const zero = cast.get(components.Value).entity;
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), builtins.I32);
+    try expectEqualStrings(literalOf(zero), "0");
+    try expectEqual(valueType(typeOf(define)), builtins.I64);
     const equal = body[1];
     try expectEqual(equal.get(components.AstKind), .intrinsic);
     try expectEqual(equal.get(components.Intrinsic), .equal);
