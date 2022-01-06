@@ -282,7 +282,8 @@ pub const Intrinsic = enum(u8) {
     greater_equal,
     store,
     load,
-    add_p32_i32,
+    add_ptr_i32,
+    subtract_ptr_i32,
 };
 
 pub const WasmInstructionKind = enum(u8) {

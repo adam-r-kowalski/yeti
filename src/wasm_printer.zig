@@ -1056,6 +1056,33 @@ test "print wasm adding pointer and int literal" {
     );
 }
 
+test "print wasm subtracting pointer and int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\f = fn(ptr: *i64): *i64
+        \\  ptr - 1
+        \\end
+        \\
+        \\foreign_export(f)
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/f.*i64 (param $ptr i32) (result i32)
+        \\    (local.get $ptr)
+        \\    (i32.const 8)
+        \\    i32.sub)
+        \\
+        \\  (export "f" (func $foo/f.*i64)))
+    );
+}
+
 test "print wasm adding pointer and i32" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

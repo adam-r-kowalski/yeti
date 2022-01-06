@@ -419,10 +419,14 @@ fn Context(comptime FileSystem: type) type {
             const b = self.builtins;
             if (eql(rhs_type, b.IntLiteral) or eql(rhs_type, b.I32)) {
                 try self.implicitTypeConversion(rhs, b.I32);
-                assert(intrinsic == .add);
+                const new_intrinsic: components.Intrinsic = switch (intrinsic) {
+                    .add => .add_ptr_i32,
+                    .subtract => .subtract_ptr_i32,
+                    else => panic("\nanalyze pointer arithmetic unsupported intrinsic {}\n", .{intrinsic}),
+                };
                 return try self.codebase.createEntity(.{
                     components.AstKind.intrinsic,
-                    components.Intrinsic.add_p32_i32,
+                    new_intrinsic,
                     try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
                     lhs.get(components.Type),
                 });
@@ -2193,7 +2197,43 @@ test "analyze semantics of adding *i64 and int literal" {
     try expectEqual(typeOf(value), return_type);
     const add = body[1];
     try expectEqual(add.get(components.AstKind), .intrinsic);
-    try expectEqual(add.get(components.Intrinsic), .add_p32_i32);
+    try expectEqual(add.get(components.Intrinsic), .add_ptr_i32);
+    try expectEqual(typeOf(add), return_type);
+}
+
+test "analyze semantics of subtracting *i64 and int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): *i64
+        \\  ptr = cast(*i64, 0)
+        \\  ptr - 1
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const return_type = start.get(components.ReturnType).entity;
+    try expectEqual(valueType(return_type), builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
+    const value = define.get(components.Value).entity;
+    try expectEqualStrings(literalOf(value), "0");
+    try expectEqual(value.get(components.AstKind), .int);
+    try expectEqual(typeOf(value), return_type);
+    const add = body[1];
+    try expectEqual(add.get(components.AstKind), .intrinsic);
+    try expectEqual(add.get(components.Intrinsic), .subtract_ptr_i32);
     try expectEqual(typeOf(add), return_type);
 }
 
