@@ -541,3 +541,5 @@ pub const ParentType = DistinctEntity("Parent Type");
 pub const ValueType = DistinctEntity("Value Type");
 pub const UsesMemory = struct { value: bool };
 pub const Size = struct { bytes: i32 };
+pub const ModuleSource = struct { string: []const u8 };
+pub const ModulePath = struct { string: []const u8 };

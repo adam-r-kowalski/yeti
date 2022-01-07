@@ -2,11 +2,13 @@ const std = @import("std");
 const Arena = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
+const panic = std.debug.panic;
 
 const initCodebase = @import("init_codebase.zig").initCodebase;
 const analyzeSemantics = @import("semantic_analyzer.zig").analyzeSemantics;
 const codegen = @import("codegen.zig").codegen;
 const printWasm = @import("wasm_printer.zig").printWasm;
+const printErrors = @import("error_printer.zig").printErrors;
 const List = @import("list.zig").List;
 const components = @import("components.zig");
 
@@ -45,7 +47,14 @@ pub fn main() !void {
     var fs = FileSystem.init(&arena);
     defer fs.deinit();
     var codebase = try initCodebase(&arena);
-    const module = try analyzeSemantics(codebase, &fs, args[1]);
+    const module = analyzeSemantics(codebase, &fs, args[1]) catch |e| switch (e) {
+        error.CompileError => {
+            const errors = try printErrors(codebase);
+            std.debug.print("{s}", .{errors});
+            return;
+        },
+        else => panic("\ncompiler crashed\n", .{}),
+    };
     try codegen(module);
     const wasm = try printWasm(module);
     const foreign_exports = module.get(components.ForeignExports).slice();

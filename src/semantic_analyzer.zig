@@ -157,12 +157,13 @@ fn Context(comptime FileSystem: type) type {
             panic("\nanalyzeSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
-        fn bestOverload(self: *Self, callable: Entity, arguments: []const Entity) !Entity {
+        fn bestOverload(self: *Self, call: Entity, callable: Entity, arguments: []const Entity) !Entity {
             const top_level = self.module.get(components.TopLevel);
             const literal = callable.get(components.Literal);
             var best_overload: Entity = undefined;
             var best_match = Match.no;
-            for (top_level.findLiteral(literal).get(components.Overloads).slice()) |overload| {
+            const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
+            for (overloads) |overload| {
                 if (!overload.contains(components.AnalyzedParameters)) {
                     var scopes = components.Scopes.init(self.allocator, self.codebase.getPtr(Strings));
                     const scope = try scopes.pushScope();
@@ -203,7 +204,45 @@ fn Context(comptime FileSystem: type) type {
                 best_match = match;
                 best_overload = overload;
             }
-            assert(best_match != .no);
+            if (best_match == .no) {
+                var body = List(u8, .{ .initial_capacity = 1000 }).init(self.allocator);
+                try body.appendSlice("No function overload matching arguments (");
+                for (arguments) |argument, i| {
+                    const argument_type = typeOf(argument);
+                    try body.appendSlice(literalOf(argument_type));
+                    if (i < arguments.len - 1) {
+                        try body.appendSlice(", ");
+                    }
+                }
+                try body.appendSlice(") found");
+                var hint = List(u8, .{ .initial_capacity = 1000 }).init(self.allocator);
+                try hint.appendSlice("Here are the possible candidates:\n\n");
+                for (overloads) |overload| {
+                    try hint.appendSlice(literalOf(overload.get(components.Name).entity));
+                    try hint.appendSlice(" = fn(");
+                    const parameters = overload.get(components.Parameters).slice();
+                    for (parameters) |parameter, i| {
+                        const parameter_type = typeOf(parameter);
+                        try hint.appendSlice(literalOf(parameter));
+                        try hint.appendSlice(": ");
+                        try hint.appendSlice(literalOf(parameter_type));
+                        if (i < parameters.len - 1) {
+                            try hint.appendSlice(", ");
+                        }
+                    }
+                    try hint.append(')');
+                    try hint.appendSlice("\n");
+                }
+                const error_component = components.Error{
+                    .header = "FUNCTION CALL ERROR",
+                    .body = body.mutSlice(),
+                    .span = call.get(components.Span),
+                    .hint = hint.mutSlice(),
+                    .module = self.module,
+                };
+                _ = try call.set(.{error_component});
+                return error.CompileError;
+            }
             return best_overload;
         }
 
@@ -262,7 +301,7 @@ fn Context(comptime FileSystem: type) type {
             if (eql(callable_literal, self.builtins.Cast.get(components.Literal))) {
                 return try self.analyzeCast(analyzed_arguments.slice());
             }
-            const overload = try self.bestOverload(callable, analyzed_arguments.slice());
+            const overload = try self.bestOverload(call, callable, analyzed_arguments.slice());
             if (!overload.contains(components.AnalyzedBody)) {
                 _ = try overload.set(.{components.AnalyzedBody{ .value = true }});
                 const scopes = overload.getPtr(components.Scopes).slice();
@@ -646,7 +685,9 @@ fn Context(comptime FileSystem: type) type {
             return result;
         }
 
-        fn analyzeExpression(self: *Self, entity: Entity) error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes }!Entity {
+        const Error = error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes, CompileError };
+
+        fn analyzeExpression(self: *Self, entity: Entity) Error!Entity {
             const kind = entity.get(components.AstKind);
             return switch (kind) {
                 .symbol => try self.analyzeSymbol(entity),
@@ -736,11 +777,16 @@ pub fn analyzeSemantics(codebase: *ECS, file_system: anytype, module_name: []con
     _ = try codebase.set(.{components.Functions.init(allocator)});
     _ = try codebase.set(.{components.ForeignImports.init(allocator)});
     const contents = try file_system.read(module_name);
-    const module = try codebase.createEntity(.{});
+    const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
+    const source = components.ModuleSource{ .string = contents };
+    const path = components.ModulePath{ .string = module_name };
+    const module = try codebase.createEntity(.{
+        source,
+        path,
+        components.Literal.init(interned),
+    });
     var tokens = try tokenize(module, contents);
     try parse(module, &tokens);
-    const interned = try codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
-    _ = try module.set(.{components.Literal.init(interned)});
     const top_level = module.get(components.TopLevel);
     const foreign_exports = module.get(components.ForeignExports).slice();
     if (foreign_exports.len > 0) {

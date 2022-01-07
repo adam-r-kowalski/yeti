@@ -141,7 +141,7 @@ fn Iterator(components: anytype) type {
             };
         }
 
-        fn next(self: *Self) ?Entity {
+        pub fn next(self: *Self) ?Entity {
             while (self.inverse.len > 0) {
                 const uuid = self.inverse[0];
                 var matches = true;
