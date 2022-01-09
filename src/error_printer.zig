@@ -70,7 +70,7 @@ pub fn printErrors(codebase: *ECS) ![]u8 {
             try errors.append(source[0]);
             source = source[1..];
         }
-        try errors.appendSlice("\n\n");
+        try errors.appendSlice("\n");
         try errors.appendSlice(e.hint);
     }
     return errors.mutSlice();
@@ -101,7 +101,6 @@ test "error printer calling function with to few parameters" {
         \\5| start = fn(): i64
         \\6|   {s}add(5){s}
         \\7| end
-        \\
         \\Here are the possible candidates:
         \\
         \\add = fn(x: i64, {s}y: i64{s}) ----- foo.yeti:1
@@ -138,7 +137,6 @@ test "error printer function overloads are aligned" {
         \\10|   a: i32 = 5
         \\11|   {s}add(a, 7){s}
         \\12| end
-        \\
         \\Here are the possible candidates:
         \\
         \\add = fn({s}x: i64{s}, y: i64) ----- foo.yeti:1
