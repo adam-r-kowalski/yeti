@@ -218,10 +218,14 @@ fn Context(comptime FileSystem: type) type {
                 try body.append(')');
                 var hint = List(u8, .{ .initial_capacity = 1000 }).init(self.allocator);
                 try hint.appendSlice("Here are the possible candidates:\n");
+                var candidates = List(List(u8, .{}), .{ .initial_capacity = 8 }).init(self.allocator);
+                var file_and_lines = List(List(u8, .{}), .{ .initial_capacity = 8 }).init(self.allocator);
+                var candidate_width: usize = 0;
                 for (overloads) |overload| {
-                    try hint.append('\n');
-                    try hint.appendSlice(literalOf(overload.get(components.Name).entity));
-                    try hint.appendSlice(" = fn(");
+                    var candidate = List(u8, .{}).init(self.allocator);
+                    try candidate.append('\n');
+                    try candidate.appendSlice(literalOf(overload.get(components.Name).entity));
+                    try candidate.appendSlice(" = fn(");
                     const parameters = overload.get(components.Parameters).slice();
                     for (parameters) |parameter, i| {
                         const parameter_type = typeOf(parameter);
@@ -232,23 +236,39 @@ fn Context(comptime FileSystem: type) type {
                             mismatch = true;
                         }
                         if (mismatch) {
-                            try hint.appendSlice(colors.RED);
+                            try candidate.appendSlice(colors.RED);
                         }
-                        try hint.appendSlice(literalOf(parameter));
-                        try hint.appendSlice(": ");
-                        try hint.appendSlice(literalOf(parameter_type));
+                        try candidate.appendSlice(literalOf(parameter));
+                        try candidate.appendSlice(": ");
+                        try candidate.appendSlice(literalOf(parameter_type));
                         if (mismatch) {
-                            try hint.appendSlice(colors.RESET);
+                            try candidate.appendSlice(colors.RESET);
                         }
                         if (i < parameters.len - 1) {
-                            try hint.appendSlice(", ");
+                            try candidate.appendSlice(", ");
                         }
                     }
-                    try hint.appendSlice(") ----- ");
-                    try hint.appendSlice(self.module.get(components.ModulePath).string);
-                    try hint.append(':');
+                    try candidate.append(')');
+                    try candidates.append(candidate);
+                    candidate_width = std.math.max(candidate_width, candidate.len);
+                    var file_and_line = List(u8, .{}).init(self.allocator);
+                    try file_and_line.appendSlice(self.module.get(components.ModulePath).string);
+                    try file_and_line.append(':');
                     const result = try std.fmt.allocPrint(self.allocator, "{}", .{overload.get(components.Span).begin.row + 1});
-                    try hint.appendSlice(result);
+                    try file_and_line.appendSlice(result);
+                    try file_and_lines.append(file_and_line);
+                }
+                const file_and_lines_slice = file_and_lines.slice();
+                for (candidates.slice()) |candidate, i| {
+                    const candidate_slice = candidate.slice();
+                    try hint.appendSlice(candidate_slice);
+                    const delta = candidate_width - candidate_slice.len;
+                    var spaces: usize = 0;
+                    while (spaces < delta) : (spaces += 1) {
+                        try hint.append(' ');
+                    }
+                    try hint.appendSlice(" ----- ");
+                    try hint.appendSlice(file_and_lines_slice[i].slice());
                 }
                 const error_component = components.Error{
                     .header = "FUNCTION CALL ERROR",
