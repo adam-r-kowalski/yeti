@@ -28,6 +28,7 @@ const literalOf = test_utils.literalOf;
 const typeOf = test_utils.typeOf;
 const parentType = test_utils.parentType;
 const valueType = test_utils.valueType;
+const colors = @import("colors.zig");
 
 fn Context(comptime FileSystem: type) type {
     return struct {
@@ -206,7 +207,7 @@ fn Context(comptime FileSystem: type) type {
             }
             if (best_match == .no) {
                 var body = List(u8, .{ .initial_capacity = 1000 }).init(self.allocator);
-                try body.appendSlice("No function overload matching arguments (");
+                try body.appendSlice("No matching function overload found for argument types (");
                 for (arguments) |argument, i| {
                     const argument_type = typeOf(argument);
                     try body.appendSlice(literalOf(argument_type));
@@ -214,24 +215,40 @@ fn Context(comptime FileSystem: type) type {
                         try body.appendSlice(", ");
                     }
                 }
-                try body.appendSlice(") found");
+                try body.append(')');
                 var hint = List(u8, .{ .initial_capacity = 1000 }).init(self.allocator);
-                try hint.appendSlice("Here are the possible candidates:\n\n");
+                try hint.appendSlice("Here are the possible candidates:\n");
                 for (overloads) |overload| {
+                    try hint.append('\n');
                     try hint.appendSlice(literalOf(overload.get(components.Name).entity));
                     try hint.appendSlice(" = fn(");
                     const parameters = overload.get(components.Parameters).slice();
                     for (parameters) |parameter, i| {
                         const parameter_type = typeOf(parameter);
+                        var mismatch = false;
+                        if (i < arguments.len) {
+                            mismatch = self.convertibleTo(parameter_type, typeOf(arguments[i])) == .no;
+                        } else {
+                            mismatch = true;
+                        }
+                        if (mismatch) {
+                            try hint.appendSlice(colors.RED);
+                        }
                         try hint.appendSlice(literalOf(parameter));
                         try hint.appendSlice(": ");
                         try hint.appendSlice(literalOf(parameter_type));
+                        if (mismatch) {
+                            try hint.appendSlice(colors.RESET);
+                        }
                         if (i < parameters.len - 1) {
                             try hint.appendSlice(", ");
                         }
                     }
-                    try hint.append(')');
-                    try hint.appendSlice("\n");
+                    try hint.appendSlice(") ----- ");
+                    try hint.appendSlice(self.module.get(components.ModulePath).string);
+                    try hint.append(':');
+                    const result = try std.fmt.allocPrint(self.allocator, "{}", .{overload.get(components.Span).begin.row + 1});
+                    try hint.appendSlice(result);
                 }
                 const error_component = components.Error{
                     .header = "FUNCTION CALL ERROR",

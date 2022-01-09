@@ -20,7 +20,7 @@
 - [x] Overloading
 - [x] Foreign Exports
 - [x] Foreign Imports
-- [ ] Linear Memory
+- [x] Linear Memory
     - [x] p32 type
     - [x] store through pointer
     - [x] load from pointer
@@ -29,13 +29,17 @@
     - [x] *i64 instead of p32(i64)
     - [x] *p := 5 instead of store(p, 5)
     - [x] x = *p instead of x = load(p)
-    - [ ] p32 - i32
-    - [ ] pointer arithmetic (==, !=, >, >=, <, <=, -) between two p32s
+    - [x] p32 - i32
+    - [x] pointer arithmetic (==, !=, >, >=, <, <=, -) between two p32s
 - [ ] Error Messages
-    - [ ] Tokenizer
-    - [ ] Parser
-    - [ ] Semantic Analyzer
-    - [ ] Code Generator
+    - [x] No matching function overload
+    - [ ] Ambiguous function call
+    - [ ] Implicit type conversion failed
+    - [ ] Float literal with multiple decimals
+- [ ] Examples
+    - [ ] Caesar Cipher
+- [ ] Strings
 - [ ] SIMD
+- [ ] User defined types
 - [ ] Templates
 
