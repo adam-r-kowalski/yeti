@@ -62,7 +62,7 @@ pub fn main() !void {
     if (foreign_exports.len > 0) return;
     const result = try std.ChildProcess.exec(.{
         .allocator = arena.allocator(),
-        .argv = &.{ "wasmtime", args[2] },
+        .argv = &.{ "wasmtime", args[2], "--enable-simd" },
     });
     std.debug.print("{s}", .{result.stdout});
 }

@@ -285,6 +285,7 @@ pub const Intrinsic = enum(u8) {
     add_ptr_i32,
     subtract_ptr_i32,
     subtract_ptr_ptr,
+    v128_load,
 };
 
 pub const WasmInstructionKind = enum(u8) {
@@ -379,6 +380,11 @@ pub const WasmInstructionKind = enum(u8) {
     i64_load,
     f32_load,
     f64_load,
+    v128_load,
+    i64x2_add,
+    i64x2_sub,
+    i64x2_mul,
+    i64x2_div,
 };
 
 pub const Builtins = struct {
@@ -394,6 +400,7 @@ pub const Builtins = struct {
     Ptr: Entity,
     IntLiteral: Entity,
     FloatLiteral: Entity,
+    I64X2: Entity,
     Cast: Entity,
 };
 

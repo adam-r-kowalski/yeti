@@ -305,12 +305,30 @@ fn Context(comptime FileSystem: type) type {
                 return pointer_type;
             }
             assert(eql(parentType(type_of), b.Ptr));
-            return try self.codebase.createEntity(.{
-                components.AstKind.intrinsic,
-                components.Intrinsic.load,
-                try components.Arguments.fromSlice(self.allocator, &.{value}),
-                components.Type.init(valueType(type_of)),
-            });
+            const value_type = valueType(type_of);
+            const scalars = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+            for (scalars) |scalar| {
+                if (eql(value_type, scalar)) {
+                    return try self.codebase.createEntity(.{
+                        components.AstKind.intrinsic,
+                        components.Intrinsic.load,
+                        try components.Arguments.fromSlice(self.allocator, &.{value}),
+                        components.Type.init(valueType(type_of)),
+                    });
+                }
+            }
+            const vectors = [_]Entity{b.I64X2};
+            for (vectors) |vector| {
+                if (eql(value_type, vector)) {
+                    return try self.codebase.createEntity(.{
+                        components.AstKind.intrinsic,
+                        components.Intrinsic.v128_load,
+                        try components.Arguments.fromSlice(self.allocator, &.{value}),
+                        components.Type.init(valueType(type_of)),
+                    });
+                }
+            }
+            panic("\npointer of type {s} not supported yet\n", .{literalOf(value_type)});
         }
 
         fn analyzeCast(self: *Self, arguments: []const Entity) !Entity {
@@ -534,7 +552,7 @@ fn Context(comptime FileSystem: type) type {
                 assert(eql(parent_type.entity, b.Ptr));
                 return try self.analyzePointerArithmetic(lhs, rhs, intrinsic);
             }
-            const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32, b.IntLiteral, b.FloatLiteral };
+            const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32, b.IntLiteral, b.FloatLiteral, b.I64X2 };
             for (builtins) |builtin| {
                 if (!eql(lhs_type, builtin)) continue;
                 const result_type = try self.unifyTypes(lhs, rhs);
@@ -2387,4 +2405,105 @@ test "analyze semantics of comparing two *i64" {
     try expectEqual(equal.get(components.AstKind), .intrinsic);
     try expectEqual(equal.get(components.Intrinsic), .equal);
     try expectEqual(typeOf(equal), builtins.I32);
+}
+
+test "analyze semantics of vector load" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64x2
+        \\  ptr = cast(*i64x2, 0)
+        \\  *ptr
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64X2);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
+    const cast = define.get(components.Value).entity;
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
+    try expectEqual(valueType(pointer_type), builtins.I64X2);
+    const zero = cast.get(components.Value).entity;
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), builtins.I32);
+    try expectEqualStrings(literalOf(zero), "0");
+    try expectEqual(valueType(typeOf(define)), builtins.I64X2);
+    const load = body[1];
+    try expectEqual(load.get(components.AstKind), .intrinsic);
+    try expectEqual(load.get(components.Intrinsic), .v128_load);
+    try expectEqual(typeOf(load), builtins.I64X2);
+    const arguments = load.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 1);
+    const ptr = arguments[0];
+    try expectEqual(ptr.get(components.AstKind), .local);
+    try expectEqual(ptr.get(components.Local).entity, define);
+}
+
+test "analyze semantics of adding two vectors" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64x2
+        \\  v = *cast(*i64x2, 0)
+        \\  v + v
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64X2);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const v = body[0];
+    try expectEqual(v.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(v.get(components.Name).entity), "v");
+    const load = v.get(components.Value).entity;
+    try expectEqual(load.get(components.AstKind), .intrinsic);
+    try expectEqual(load.get(components.Intrinsic), .v128_load);
+    try expectEqual(typeOf(load), builtins.I64X2);
+    const arguments = load.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 1);
+    const cast = arguments[0];
+    try expectEqual(cast.get(components.AstKind), .cast);
+    const pointer_type = typeOf(cast);
+    try expectEqual(parentType(pointer_type), builtins.Ptr);
+    try expectEqual(valueType(pointer_type), builtins.I64X2);
+    const zero = cast.get(components.Value).entity;
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), builtins.I32);
+    try expectEqualStrings(literalOf(zero), "0");
+    try expectEqual(typeOf(v), builtins.I64X2);
+    const add = body[1];
+    try expectEqual(add.get(components.AstKind), .intrinsic);
+    try expectEqual(add.get(components.Intrinsic), .add);
+    try expectEqual(typeOf(add), builtins.I64X2);
+    const add_arguments = add.get(components.Arguments).slice();
+    try expectEqual(add_arguments.len, 2);
+    const lhs = add_arguments[0];
+    try expectEqual(lhs.get(components.AstKind), .local);
+    try expectEqual(lhs.get(components.Local).entity, v);
+    const rhs = add_arguments[1];
+    try expectEqual(rhs.get(components.AstKind), .local);
+    try expectEqual(rhs.get(components.Local).entity, v);
 }

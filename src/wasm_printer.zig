@@ -27,8 +27,8 @@ const Wasm = List(u8, .{ .initial_capacity = 1000 });
 
 fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
     const b = type_of.ecs.get(components.Builtins);
-    const builtins = [_]Entity{ b.I64, b.U64, b.I32, b.U32, b.F64, b.F32 };
-    const strings = [_][]const u8{ "i64", "i64", "i32", "i32", "f64", "f32" };
+    const builtins = [_]Entity{ b.I64, b.U64, b.I32, b.U32, b.F64, b.F32, b.I64X2 };
+    const strings = [_][]const u8{ "i64", "i64", "i32", "i32", "f64", "f32", "v128" };
     for (builtins) |builtin, i| {
         if (eql(type_of, builtin)) {
             return try wasm.appendSlice(strings[i]);
@@ -275,6 +275,11 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         .i32_load => try wasm.appendSlice("\n    i32.load"),
         .f64_load => try wasm.appendSlice("\n    f64.load"),
         .f32_load => try wasm.appendSlice("\n    f32.load"),
+        .v128_load => try wasm.appendSlice("\n    v128.load"),
+        .i64x2_add => try wasm.appendSlice("\n    i64x2.add"),
+        .i64x2_sub => try wasm.appendSlice("\n    i64x2.sub"),
+        .i64x2_mul => try wasm.appendSlice("\n    i64x2.mul"),
+        .i64x2_div => try wasm.appendSlice("\n    i64x2.div"),
     }
 }
 
@@ -1109,5 +1114,67 @@ test "print wasm adding pointer and i32" {
         \\    i32.add)
         \\
         \\  (export "f" (func $foo/f.*i64.i32)))
+    );
+}
+
+test "print wasm pointer v128 load" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64x2
+        \\  ptr = cast(*i64x2, 0)
+        \\  *ptr
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result v128)
+        \\    (local $ptr i32)
+        \\    (i32.const 0)
+        \\    (local.set $ptr)
+        \\    (local.get $ptr)
+        \\    v128.load)
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (memory 1))
+    );
+}
+
+test "print wasm add two v128" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64x2
+        \\  v = *cast(*i64x2, 0)
+        \\  v + v
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result v128)
+        \\    (local $v v128)
+        \\    (i32.const 0)
+        \\    v128.load
+        \\    (local.set $v)
+        \\    (local.get $v)
+        \\    (local.get $v)
+        \\    i64x2.add)
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (memory 1))
     );
 }
