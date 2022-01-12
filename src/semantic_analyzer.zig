@@ -679,7 +679,7 @@ fn Context(comptime FileSystem: type) type {
                             });
                         }
                     }
-                    const vectors = [_]Entity{b.I64X2};
+                    const vectors = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16 };
                     for (vectors) |vector| {
                         if (eql(value_type, vector)) {
                             return try self.codebase.createEntity(.{
