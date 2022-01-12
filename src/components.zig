@@ -384,8 +384,17 @@ pub const WasmInstructionKind = enum(u8) {
     v128_load,
     v128_store,
     i64x2_add,
+    i32x4_add,
+    i16x8_add,
+    i8x16_add,
     i64x2_sub,
+    i32x4_sub,
+    i16x8_sub,
+    i8x16_sub,
     i64x2_mul,
+    i32x4_mul,
+    i16x8_mul,
+    i8x16_mul,
 };
 
 pub const Builtins = struct {
@@ -402,6 +411,9 @@ pub const Builtins = struct {
     IntLiteral: Entity,
     FloatLiteral: Entity,
     I64X2: Entity,
+    I32X4: Entity,
+    I16X8: Entity,
+    I8X16: Entity,
     Cast: Entity,
 };
 

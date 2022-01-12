@@ -27,8 +27,8 @@ const Wasm = List(u8, .{ .initial_capacity = 1000 });
 
 fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
     const b = type_of.ecs.get(components.Builtins);
-    const builtins = [_]Entity{ b.I64, b.U64, b.I32, b.U32, b.F64, b.F32, b.I64X2 };
-    const strings = [_][]const u8{ "i64", "i64", "i32", "i32", "f64", "f32", "v128" };
+    const builtins = [_]Entity{ b.I64, b.U64, b.I32, b.U32, b.F64, b.F32, b.I64X2, b.I32X4, b.I16X8, b.I8X16 };
+    const strings = [_][]const u8{ "i64", "i64", "i32", "i32", "f64", "f32", "v128", "v128", "v128", "v128" };
     for (builtins) |builtin, i| {
         if (eql(type_of, builtin)) {
             return try wasm.appendSlice(strings[i]);
@@ -278,8 +278,17 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         .v128_load => try wasm.appendSlice("\n    v128.load"),
         .v128_store => try wasm.appendSlice("\n    v128.store"),
         .i64x2_add => try wasm.appendSlice("\n    i64x2.add"),
+        .i32x4_add => try wasm.appendSlice("\n    i32x4.add"),
+        .i16x8_add => try wasm.appendSlice("\n    i16x8.add"),
+        .i8x16_add => try wasm.appendSlice("\n    i8x16.add"),
         .i64x2_sub => try wasm.appendSlice("\n    i64x2.sub"),
+        .i32x4_sub => try wasm.appendSlice("\n    i32x4.sub"),
+        .i16x8_sub => try wasm.appendSlice("\n    i16x8.sub"),
+        .i8x16_sub => try wasm.appendSlice("\n    i8x16.sub"),
         .i64x2_mul => try wasm.appendSlice("\n    i64x2.mul"),
+        .i32x4_mul => try wasm.appendSlice("\n    i32x4.mul"),
+        .i16x8_mul => try wasm.appendSlice("\n    i16x8.mul"),
+        .i8x16_mul => try wasm.appendSlice("\n    i8x16.mul"),
     }
 }
 
@@ -1183,34 +1192,42 @@ test "print wasm binary op on two i64x2" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
+    const type_strings = [_][]const u8{ "i64x2", "i32x4", "i16x8", "i8x16" };
     const op_strings = [_][]const u8{ "+", "-", "*" };
-    const instructions = [_][]const u8{ "i64x2.add", "i64x2.sub", "i64x2.mul" };
-    for (op_strings) |op_string, i| {
-        var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): i64x2
-            \\  v = *cast(*i64x2, 0)
-            \\  v {s} v
-            \\end
-        , .{op_string}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-        try codegen(module);
-        const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
-            \\(module
-            \\
-            \\  (func $foo/start (result v128)
-            \\    (local $v v128)
-            \\    (i32.const 0)
-            \\    v128.load
-            \\    (local.set $v)
-            \\    (local.get $v)
-            \\    (local.get $v)
-            \\    {s})
-            \\
-            \\  (export "_start" (func $foo/start))
-            \\
-            \\  (memory 1))
-        , .{instructions[i]}));
+    const instructions = [_][3][]const u8{
+        .{ "i64x2.add", "i64x2.sub", "i64x2.mul" },
+        .{ "i32x4.add", "i32x4.sub", "i32x4.mul" },
+        .{ "i16x8.add", "i16x8.sub", "i16x8.mul" },
+        .{ "i8x16.add", "i8x16.sub", "i8x16.mul" },
+    };
+    for (type_strings) |type_string, type_index| {
+        for (op_strings) |op_string, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
+                \\start = fn(): {s}
+                \\  v = *cast(*{s}, 0)
+                \\  v {s} v
+                \\end
+            , .{ type_string, type_string, op_string }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+            try codegen(module);
+            const wasm = try printWasm(module);
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
+                \\(module
+                \\
+                \\  (func $foo/start (result v128)
+                \\    (local $v v128)
+                \\    (i32.const 0)
+                \\    v128.load
+                \\    (local.set $v)
+                \\    (local.get $v)
+                \\    (local.get $v)
+                \\    {s})
+                \\
+                \\  (export "_start" (func $foo/start))
+                \\
+                \\  (memory 1))
+            , .{instructions[type_index][i]}));
+        }
     }
 }

@@ -52,6 +52,9 @@ pub fn initBuiltins(codebase: *ECS) !void {
     const FloatLiteral = try builtinType(codebase, &scope, "FloatLiteral", Type, 0);
     const Void = try builtinType(codebase, &scope, "void", Type, 0);
     const I64X2 = try builtinType(codebase, &scope, "i64x2", Type, 16);
+    const I32X4 = try builtinType(codebase, &scope, "i32x4", Type, 16);
+    const I16X8 = try builtinType(codebase, &scope, "i16x8", Type, 16);
+    const I8X16 = try builtinType(codebase, &scope, "i8x16", Type, 16);
     // TODO: p32 is a function from type to type, not a type itself
     // type_of(p32) == Fn(T: type): type
     // type_of(p32(i64)) == type
@@ -75,6 +78,9 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .IntLiteral = IntLiteral,
         .FloatLiteral = FloatLiteral,
         .I64X2 = I64X2,
+        .I32X4 = I32X4,
+        .I16X8 = I16X8,
+        .I8X16 = I8X16,
         .Cast = Cast,
     };
     try codebase.set(.{ builtins, scope });
