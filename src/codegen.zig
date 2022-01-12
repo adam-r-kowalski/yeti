@@ -403,9 +403,7 @@ const divideOps = ArithmeticBinaryOps{
         .f64_div,
         .f32_div,
     },
-    .simd_kinds = [_]components.WasmInstructionKind{
-        .i64x2_div,
-    },
+    .simd_kinds = [_]components.WasmInstructionKind{undefined},
 };
 
 fn remainderFn(comptime T: type) fn (T, T) T {
@@ -1999,48 +1997,52 @@ test "codegen of loading i64x2 through pointer" {
     try expectEqual(wasm_instructions[3].get(components.WasmInstructionKind), .v128_load);
 }
 
-test "codegen of add two i64x2" {
+test "codegen of binary op on two i64x2" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    var fs = try MockFileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64x2
-        \\  v = *cast(*i64x2, 0)
-        \\  v + v
-        \\end
-    );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const wasm_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(wasm_instructions.len, 6);
-    {
-        const constant = wasm_instructions[0];
-        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
-        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    const op_strings = [_][]const u8{ "+", "-", "*" };
+    const kinds = [_]components.WasmInstructionKind{ .i64x2_add, .i64x2_sub, .i64x2_mul };
+    for (op_strings) |op_string, i| {
+        var fs = try MockFileSystem.init(&arena);
+        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
+            \\start = fn(): i64x2
+            \\  v = *cast(*i64x2, 0)
+            \\  v {s} v
+            \\end
+        , .{op_string}));
+        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+        try codegen(module);
+        const top_level = module.get(components.TopLevel);
+        const start = top_level.findString("start").get(components.Overloads).slice()[0];
+        const wasm_instructions = start.get(components.WasmInstructions).slice();
+        try expectEqual(wasm_instructions.len, 6);
+        {
+            const constant = wasm_instructions[0];
+            try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+            try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+        }
+        try expectEqual(wasm_instructions[1].get(components.WasmInstructionKind), .v128_load);
+        {
+            const local_set = wasm_instructions[2];
+            try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+            const local = local_set.get(components.Local).entity;
+            try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
+        }
+        {
+            const local_get = wasm_instructions[3];
+            try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+            const local = local_get.get(components.Local).entity;
+            try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
+        }
+        {
+            const local_get = wasm_instructions[4];
+            try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+            const local = local_get.get(components.Local).entity;
+            try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
+        }
+        try expectEqual(wasm_instructions[5].get(components.WasmInstructionKind), kinds[i]);
     }
-    try expectEqual(wasm_instructions[1].get(components.WasmInstructionKind), .v128_load);
-    {
-        const local_set = wasm_instructions[2];
-        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
-        const local = local_set.get(components.Local).entity;
-        try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
-    }
-    {
-        const local_get = wasm_instructions[3];
-        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
-        const local = local_get.get(components.Local).entity;
-        try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
-    }
-    {
-        const local_get = wasm_instructions[4];
-        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
-        const local = local_get.get(components.Local).entity;
-        try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
-    }
-    try expectEqual(wasm_instructions[5].get(components.WasmInstructionKind), .i64x2_add);
 }
 
 test "codegen of storing i64x2 through pointer" {

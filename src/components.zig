@@ -386,7 +386,6 @@ pub const WasmInstructionKind = enum(u8) {
     i64x2_add,
     i64x2_sub,
     i64x2_mul,
-    i64x2_div,
 };
 
 pub const Builtins = struct {
