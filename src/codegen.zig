@@ -184,6 +184,7 @@ const ArithmeticBinaryOps = struct {
     f32_fn: fn (lhs: f32, rhs: f32) f32,
     kinds: [6]components.WasmInstructionKind,
     simd_kinds: ?[4]components.WasmInstructionKind = null,
+    float_simd_kinds: ?[2]components.WasmInstructionKind = null,
     types: [6]type = .{ i64, i32, u64, u32, f64, f32 },
     argument_kinds: [6]components.WasmInstructionKind = .{
         .i64_const,
@@ -320,6 +321,10 @@ const addOps = ArithmeticBinaryOps{
         .i16x8_add,
         .i8x16_add,
     },
+    .float_simd_kinds = [_]components.WasmInstructionKind{
+        .f64x2_add,
+        .f32x4_add,
+    },
 };
 
 fn subtractFn(comptime T: type) fn (T, T) T {
@@ -350,6 +355,10 @@ const subtractOps = ArithmeticBinaryOps{
         .i32x4_sub,
         .i16x8_sub,
         .i8x16_sub,
+    },
+    .float_simd_kinds = [_]components.WasmInstructionKind{
+        .f64x2_sub,
+        .f32x4_sub,
     },
 };
 
@@ -382,6 +391,10 @@ const multiplyOps = ArithmeticBinaryOps{
         .i16x8_mul,
         .i8x16_mul,
     },
+    .float_simd_kinds = [_]components.WasmInstructionKind{
+        .f64x2_mul,
+        .f32x4_mul,
+    },
 };
 
 fn divideFn(comptime T: type) fn (T, T) T {
@@ -409,6 +422,10 @@ const divideOps = ArithmeticBinaryOps{
         .u32_div,
         .f64_div,
         .f32_div,
+    },
+    .float_simd_kinds = [_]components.WasmInstructionKind{
+        .f64x2_div,
+        .f32x4_div,
     },
 };
 
@@ -731,6 +748,18 @@ fn codegenBinaryOp(context: *Context, entity: Entity, comptime ops: anytype) !vo
         if (eql(type_of, vector)) {
             if (@hasField(@TypeOf(ops), "simd_kinds")) {
                 if (ops.simd_kinds) |simd_kinds| {
+                    const instruction = try context.codebase.createEntity(.{simd_kinds[i]});
+                    try context.wasm_instructions.append(instruction);
+                    return;
+                }
+            }
+        }
+    }
+    const float_vectors = [_]Entity{ b.F64X2, b.F32X4 };
+    for (float_vectors) |vector, i| {
+        if (eql(type_of, vector)) {
+            if (@hasField(@TypeOf(ops), "float_simd_kinds")) {
+                if (ops.float_simd_kinds) |simd_kinds| {
                     const instruction = try context.codebase.createEntity(.{simd_kinds[i]});
                     try context.wasm_instructions.append(instruction);
                     return;
@@ -2004,7 +2033,7 @@ test "codegen of loading i64x2 through pointer" {
     try expectEqual(wasm_instructions[3].get(components.WasmInstructionKind), .v128_load);
 }
 
-test "codegen of binary op on two i64x2" {
+test "codegen of binary op on two int vectors" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -2015,6 +2044,60 @@ test "codegen of binary op on two i64x2" {
         .{ .i32x4_add, .i32x4_sub, .i32x4_mul },
         .{ .i16x8_add, .i16x8_sub, .i16x8_mul },
         .{ .i8x16_add, .i8x16_sub, .i8x16_mul },
+    };
+    for (type_strings) |type_string, type_index| {
+        for (op_strings) |op_string, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
+                \\start = fn(): {s}
+                \\  v = *cast(*{s}, 0)
+                \\  v {s} v
+                \\end
+            , .{ type_string, type_string, op_string }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+            try codegen(module);
+            const top_level = module.get(components.TopLevel);
+            const start = top_level.findString("start").get(components.Overloads).slice()[0];
+            const wasm_instructions = start.get(components.WasmInstructions).slice();
+            try expectEqual(wasm_instructions.len, 6);
+            {
+                const constant = wasm_instructions[0];
+                try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+                try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+            }
+            try expectEqual(wasm_instructions[1].get(components.WasmInstructionKind), .v128_load);
+            {
+                const local_set = wasm_instructions[2];
+                try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+                const local = local_set.get(components.Local).entity;
+                try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
+            }
+            {
+                const local_get = wasm_instructions[3];
+                try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+                const local = local_get.get(components.Local).entity;
+                try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
+            }
+            {
+                const local_get = wasm_instructions[4];
+                try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+                const local = local_get.get(components.Local).entity;
+                try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
+            }
+            try expectEqual(wasm_instructions[5].get(components.WasmInstructionKind), kinds[type_index][i]);
+        }
+    }
+}
+
+test "codegen of binary op on two float vectors" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const type_strings = [_][]const u8{ "f64x2", "f32x4" };
+    const op_strings = [_][]const u8{ "+", "-", "*", "/" };
+    const kinds = [_][4]components.WasmInstructionKind{
+        .{ .f64x2_add, .f64x2_sub, .f64x2_mul, .f64x2_div },
+        .{ .f32x4_add, .f32x4_sub, .f32x4_mul, .f32x4_div },
     };
     for (type_strings) |type_string, type_index| {
         for (op_strings) |op_string, i| {

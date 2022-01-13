@@ -387,14 +387,22 @@ pub const WasmInstructionKind = enum(u8) {
     i32x4_add,
     i16x8_add,
     i8x16_add,
+    f64x2_add,
+    f32x4_add,
     i64x2_sub,
     i32x4_sub,
     i16x8_sub,
     i8x16_sub,
+    f64x2_sub,
+    f32x4_sub,
     i64x2_mul,
     i32x4_mul,
     i16x8_mul,
     i8x16_mul,
+    f64x2_mul,
+    f32x4_mul,
+    f64x2_div,
+    f32x4_div,
 };
 
 pub const Builtins = struct {
@@ -414,6 +422,8 @@ pub const Builtins = struct {
     I32X4: Entity,
     I16X8: Entity,
     I8X16: Entity,
+    F64X2: Entity,
+    F32X4: Entity,
     Cast: Entity,
 };
 

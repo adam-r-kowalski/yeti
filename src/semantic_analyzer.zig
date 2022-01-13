@@ -317,7 +317,7 @@ fn Context(comptime FileSystem: type) type {
                     });
                 }
             }
-            const vectors = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16 };
+            const vectors = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.F64X2, b.F32X4 };
             for (vectors) |vector| {
                 if (eql(value_type, vector)) {
                     return try self.codebase.createEntity(.{
@@ -575,7 +575,19 @@ fn Context(comptime FileSystem: type) type {
                 if (!eql(lhs_type, vector)) continue;
                 assert(intrinsic != .divide);
                 const result_type = try self.unifyTypes(lhs, rhs);
-                const type_of = components.Type.init(if (result_is_i32) b.I32 else result_type);
+                const type_of = components.Type.init(result_type);
+                return try self.codebase.createEntity(.{
+                    components.AstKind.intrinsic,
+                    intrinsic,
+                    try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
+                    type_of,
+                });
+            }
+            const float_vectors = &[_]Entity{ b.F64X2, b.F32X4 };
+            for (float_vectors) |vector| {
+                if (!eql(lhs_type, vector)) continue;
+                const result_type = try self.unifyTypes(lhs, rhs);
+                const type_of = components.Type.init(result_type);
                 return try self.codebase.createEntity(.{
                     components.AstKind.intrinsic,
                     intrinsic,
@@ -2484,7 +2496,7 @@ test "analyze semantics of vector load" {
     try expectEqual(ptr.get(components.Local).entity, define);
 }
 
-test "analyze semantics of binary operators on two i64x2" {
+test "analyze semantics of binary operators on two int vectors" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -2493,6 +2505,69 @@ test "analyze semantics of binary operators on two i64x2" {
     const builtins = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16 };
     const op_strings = [_][]const u8{ "+", "-", "*" };
     const intrinsics = [_]components.Intrinsic{ .add, .subtract, .multiply };
+    for (type_strings) |type_string, type_index| {
+        for (op_strings) |op_string, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
+                \\start = fn(): {s}
+                \\  v = *cast(*{s}, 0)
+                \\  v {s} v
+                \\end
+            , .{ type_string, type_string, op_string }));
+            _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+            const top_level = module.get(components.TopLevel);
+            const start = top_level.findString("start").get(components.Overloads).slice()[0];
+            try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+            try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+            try expectEqual(start.get(components.Parameters).len(), 0);
+            try expectEqual(start.get(components.ReturnType).entity, builtins[type_index]);
+            const body = start.get(components.Body).slice();
+            try expectEqual(body.len, 2);
+            const v = body[0];
+            try expectEqual(v.get(components.AstKind), .define);
+            try expectEqualStrings(literalOf(v.get(components.Name).entity), "v");
+            const load = v.get(components.Value).entity;
+            try expectEqual(load.get(components.AstKind), .intrinsic);
+            try expectEqual(load.get(components.Intrinsic), .v128_load);
+            try expectEqual(typeOf(load), builtins[type_index]);
+            const arguments = load.get(components.Arguments).slice();
+            try expectEqual(arguments.len, 1);
+            const cast = arguments[0];
+            try expectEqual(cast.get(components.AstKind), .cast);
+            const pointer_type = typeOf(cast);
+            try expectEqual(parentType(pointer_type), b.Ptr);
+            try expectEqual(valueType(pointer_type), builtins[type_index]);
+            const zero = cast.get(components.Value).entity;
+            try expectEqual(zero.get(components.AstKind), .int);
+            try expectEqual(typeOf(zero), b.I32);
+            try expectEqualStrings(literalOf(zero), "0");
+            try expectEqual(typeOf(v), builtins[type_index]);
+            const intrinsic = body[1];
+            try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
+            try expectEqual(intrinsic.get(components.Intrinsic), intrinsics[i]);
+            try expectEqual(typeOf(intrinsic), builtins[type_index]);
+            const intrinsic_arguments = intrinsic.get(components.Arguments).slice();
+            try expectEqual(intrinsic_arguments.len, 2);
+            const lhs = intrinsic_arguments[0];
+            try expectEqual(lhs.get(components.AstKind), .local);
+            try expectEqual(lhs.get(components.Local).entity, v);
+            const rhs = intrinsic_arguments[1];
+            try expectEqual(rhs.get(components.AstKind), .local);
+            try expectEqual(rhs.get(components.Local).entity, v);
+        }
+    }
+}
+
+test "analyze semantics of binary operators on two float vectors" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const b = codebase.get(components.Builtins);
+    const type_strings = [_][]const u8{ "f64x2", "f32x4" };
+    const builtins = [_]Entity{ b.F64X2, b.F32X4 };
+    const op_strings = [_][]const u8{ "+", "-", "*", "/" };
+    const intrinsics = [_]components.Intrinsic{ .add, .subtract, .multiply, .divide };
     for (type_strings) |type_string, type_index| {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
