@@ -31,6 +31,7 @@
     - [x] x = *p instead of x = load(p)
     - [x] p32 - i32
     - [x] pointer arithmetic (==, !=, >, >=, <, <=, -) between two p32s
+- [ ] Assignment and definition should both just be = and remove :=
 - [ ] Error Messages
     - [x] No matching function overload
     - [ ] Ambiguous function call
@@ -40,6 +41,13 @@
     - [ ] Caesar Cipher
 - [ ] Strings
 - [ ] SIMD
+    - [x] i64x2
+    - [x] i32x4
+    - [x] i16x8
+    - [x] i8x16
+    - [x] f64x2
+    - [x] f32x4
+    - [x] binary operators (+, -, *, /)
 - [ ] User defined types
 - [ ] Templates
 
