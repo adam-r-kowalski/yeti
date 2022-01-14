@@ -1652,7 +1652,7 @@ test "codegen assignment" {
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = fn(): {s}
             \\  x: {s} = 10
-            \\  x := 3
+            \\  x = 3
             \\  x
             \\end
         , .{ type_, type_ }));
@@ -1700,7 +1700,7 @@ test "codegen while loop" {
         \\start = fn(): i32
         \\  i = 0
         \\  while i < 10 then
-        \\      i := i + 1
+        \\      i = i + 1
         \\  end
         \\  i
         \\end
@@ -1743,7 +1743,7 @@ test "codegen of storing through pointer" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64, 0)
-        \\  *ptr := 10
+        \\  *ptr = 10
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2151,7 +2151,7 @@ test "codegen of storing i64x2 through pointer" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64x2, 0)
-        \\  *ptr := *ptr
+        \\  *ptr = *ptr
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");

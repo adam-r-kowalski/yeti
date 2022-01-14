@@ -146,7 +146,6 @@ fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
 const NEXT_PRECEDENCE: u64 = 10;
 const LOWEST: u64 = 0;
 const DEFINE: u64 = LOWEST;
-const ASSIGN: u64 = DEFINE;
 const PIPELINE: u64 = DEFINE + NEXT_PRECEDENCE;
 const LESS_THAN: u64 = PIPELINE + NEXT_PRECEDENCE;
 const LESS_EQUAL: u64 = LESS_THAN;
@@ -173,7 +172,6 @@ const InfixParser = union(enum) {
     define_type_infer,
     define,
     call,
-    assign,
 
     fn init(tokens: *Tokens, left: Entity) ?InfixParser {
         if (tokens.peek()) |token| {
@@ -206,7 +204,6 @@ const InfixParser = union(enum) {
                         return null;
                     return InfixParser.call;
                 },
-                .colon_equal => return InfixParser.assign,
                 else => return null,
             }
         } else {
@@ -219,7 +216,6 @@ const InfixParser = union(enum) {
             .binary_op => |binary_op| binary_op.precedence,
             .define_type_infer => DEFINE,
             .define => DEFINE,
-            .assign => ASSIGN,
             .call => CALL,
         };
     }
@@ -236,7 +232,6 @@ const InfixParser = union(enum) {
             ),
             .define_type_infer => parseDefineTypeInfer(codebase, tokens, left, parser_precedence),
             .define => parseDefine(codebase, tokens, left, parser_precedence),
-            .assign => parseAssign(codebase, tokens, left, parser_precedence),
             .call => parseCall(codebase, tokens, left),
         };
     }
@@ -254,7 +249,6 @@ fn parseBinaryOp(codebase: *ECS, tokens: *Tokens, left: Entity, op: components.B
 }
 
 fn parseDefineTypeInfer(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
-    assert(name.get(components.AstKind) == .symbol);
     const value = try parseExpression(codebase, tokens, precedence);
     return try codebase.createEntity(.{
         components.AstKind.define,
@@ -273,16 +267,6 @@ fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !
         components.AstKind.define,
         components.Name.init(name),
         components.TypeAst.init(type_ast),
-        components.Value.init(value),
-        components.Span.init(name.get(components.Span).begin, value.get(components.Span).end),
-    });
-}
-
-fn parseAssign(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
-    const value = try parseExpression(codebase, tokens, precedence);
-    return try codebase.createEntity(.{
-        components.AstKind.assign,
-        components.Name.init(name),
         components.Value.init(value),
         components.Span.init(name.get(components.Span).begin, value.get(components.Span).end),
     });
@@ -1088,40 +1072,6 @@ test "parse multiline if then else" {
     }
 }
 
-test "parse assignment" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const module = try codebase.createEntity(.{});
-    const code =
-        \\start = fn(): u64
-        \\  x: u64 = 10
-        \\  x := 3
-        \\  x
-        \\end
-    ;
-    var tokens = try tokenize(module, code);
-    try parse(module, &tokens);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start");
-    const overloads = start.get(components.Overloads).slice();
-    try expectEqual(overloads.len, 1);
-    const body = overloads[0].get(components.Body).slice();
-    try expectEqual(body.len, 3);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
-    try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
-    try expectEqualStrings(literalOf(define.get(components.TypeAst).entity), "u64");
-    const assign = body[1];
-    try expectEqual(assign.get(components.AstKind), .assign);
-    try expectEqualStrings(literalOf(assign.get(components.Name).entity), "x");
-    try expectEqualStrings(literalOf(assign.get(components.Value).entity), "3");
-    const x = body[2];
-    try expectEqual(x.get(components.AstKind), .symbol);
-    try expectEqualStrings(literalOf(x), "x");
-}
-
 test "parse while" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -1131,7 +1081,7 @@ test "parse while" {
         \\start = fn(): i32
         \\  i = 0
         \\  while i < 10 then
-        \\      i := i + 1
+        \\      i = i + 1
         \\  end
         \\  i
         \\end
@@ -1156,7 +1106,7 @@ test "parse while" {
     const while_body = while_.get(components.Body).slice();
     try expectEqual(while_body.len, 1);
     const assign = while_body[0];
-    try expectEqual(assign.get(components.AstKind), .assign);
+    try expectEqual(assign.get(components.AstKind), .define);
     try expectEqualStrings(literalOf(assign.get(components.Name).entity), "i");
     const value = assign.get(components.Value).entity;
     try expectEqual(value.get(components.AstKind), .binary_op);

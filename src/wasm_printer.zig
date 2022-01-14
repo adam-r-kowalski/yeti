@@ -807,7 +807,7 @@ test "print wasm assignment" {
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = fn(): {s}
             \\  x: {s} = 10
-            \\  x := 3
+            \\  x = 3
             \\  x
             \\end
         , .{ type_of, type_of }));
@@ -839,7 +839,7 @@ test "print wasm while loop" {
         \\start = fn(): i32
         \\  i = 0
         \\  while i < 10 then
-        \\      i := i + 1
+        \\      i = i + 1
         \\  end
         \\  i
         \\end
@@ -973,7 +973,7 @@ test "print wasm pointer store" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64, 0)
-        \\  *ptr := 10
+        \\  *ptr = 10
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1172,7 +1172,7 @@ test "print wasm pointer v128 store" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64x2, 0)
-        \\  *ptr := *ptr
+        \\  *ptr = *ptr
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");

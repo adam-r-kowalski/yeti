@@ -624,54 +624,49 @@ fn Context(comptime FileSystem: type) type {
 
         // TODO: type_of(x = 5) should be void
         fn analyzeDefine(self: *Self, define: Entity) !Entity {
-            const scopes = self.function.getPtr(components.Scopes);
-            const value = try self.analyzeExpression(define.get(components.Value).entity);
-            if (define.has(components.TypeAst)) |type_ast| {
-                const explicit_type = try analyzeExpression(self, type_ast.entity);
-                try self.implicitTypeConversion(value, explicit_type);
-            }
             const name = define.get(components.Name);
-            const analyzed_define = try self.codebase.createEntity(.{
-                components.AstKind.define,
-                components.Value.init(value),
-                name,
-                value.get(components.Type),
-            });
-            const type_of = typeOf(value);
-            const b = self.builtins;
-            if (eql(type_of, b.IntLiteral) or eql(type_of, b.FloatLiteral)) {
-                _ = try analyzed_define.set(.{
-                    try components.DependentEntities.fromSlice(self.allocator, &.{value}),
-                });
-            }
-            try scopes.putName(name, analyzed_define);
-            return analyzed_define;
-        }
-
-        // TODO: type_of(x := 5) should be void
-        fn analyzeAssign(self: *Self, assign: Entity) !Entity {
-            const name = assign.get(components.Name);
-            const value = try self.analyzeExpression(assign.get(components.Value).entity);
+            const value = try self.analyzeExpression(define.get(components.Value).entity);
             const kind = name.entity.get(components.AstKind);
             switch (kind) {
                 .symbol => {
-                    const scopes = self.function.get(components.Scopes);
-                    const define = scopes.findName(name);
-                    _ = try define.set(.{components.Mutable{ .value = true }});
-                    const result_type = try self.unifyTypes(value, define);
-                    const result = try self.codebase.createEntity(.{
-                        components.AstKind.assign,
+                    const scopes = self.function.getPtr(components.Scopes);
+                    if (scopes.hasName(name)) |entity| {
+                        assert(!define.contains(components.TypeAst));
+                        _ = try entity.set(.{components.Mutable{ .value = true }});
+                        const result_type = try self.unifyTypes(value, entity);
+                        const result = try self.codebase.createEntity(.{
+                            components.AstKind.assign,
+                            components.Value.init(value),
+                            name,
+                            components.Type.init(result_type),
+                        });
+                        const b = self.builtins;
+                        if (eql(result_type, b.IntLiteral) or eql(result_type, b.FloatLiteral)) {
+                            const dependent_entities = entity.getPtr(components.DependentEntities);
+                            try dependent_entities.append(result);
+                            try dependent_entities.append(value);
+                        }
+                        return result;
+                    }
+                    if (define.has(components.TypeAst)) |type_ast| {
+                        const explicit_type = try analyzeExpression(self, type_ast.entity);
+                        try self.implicitTypeConversion(value, explicit_type);
+                    }
+                    const analyzed_define = try self.codebase.createEntity(.{
+                        components.AstKind.define,
                         components.Value.init(value),
                         name,
-                        components.Type.init(result_type),
+                        value.get(components.Type),
                     });
+                    const type_of = typeOf(value);
                     const b = self.builtins;
-                    if (eql(result_type, b.IntLiteral) or eql(result_type, b.FloatLiteral)) {
-                        const dependent_entities = define.getPtr(components.DependentEntities);
-                        try dependent_entities.append(result);
-                        try dependent_entities.append(value);
+                    if (eql(type_of, b.IntLiteral) or eql(type_of, b.FloatLiteral)) {
+                        _ = try analyzed_define.set(.{
+                            try components.DependentEntities.fromSlice(self.allocator, &.{value}),
+                        });
                     }
-                    return result;
+                    try scopes.putName(name, analyzed_define);
+                    return analyzed_define;
                 },
                 .pointer => {
                     const pointer = try self.analyzeExpression(name.entity.get(components.Value).entity);
@@ -793,7 +788,6 @@ fn Context(comptime FileSystem: type) type {
                 .call => try self.analyzeCall(entity, self),
                 .binary_op => try self.analyzeBinaryOp(entity),
                 .define => try self.analyzeDefine(entity),
-                .assign => try self.analyzeAssign(entity),
                 .if_ => try self.analyzeIf(entity),
                 .while_ => try self.analyzeWhile(entity),
                 .pointer => try self.analyzePointer(entity),
@@ -1581,7 +1575,7 @@ test "analyze semantics of assignment" {
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start = fn(): {s}
             \\  x: {s} = 10
-            \\  x := 3
+            \\  x = 3
             \\  x
             \\end
         , .{ type_of, type_of }));
@@ -1621,7 +1615,7 @@ test "analyze semantics of while loop" {
         \\start = fn(): i32
         \\  i = 0
         \\  while i < 10 then
-        \\      i := i + 1
+        \\      i = i + 1
         \\  end
         \\  i
         \\end
@@ -1669,7 +1663,7 @@ test "analyze semantics of increment" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): i64
         \\  x = 0
-        \\  x := x + 1
+        \\  x = x + 1
         \\  x
         \\end
     );
@@ -1719,7 +1713,7 @@ test "analyze semantics of add between typed and inferred" {
         \\start = fn(): i64
         \\  a: i64 = 10
         \\  b = 0
-        \\  b := a + b
+        \\  b = a + b
         \\  b
         \\end
     );
@@ -2237,7 +2231,7 @@ test "analyze semantics of pointer store" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64, 0)
-        \\  *ptr := 10
+        \\  *ptr = 10
         \\end
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2631,7 +2625,7 @@ test "analyze semantics of vector store" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): void
         \\  ptr = cast(*i64x2, 0)
-        \\  *ptr := *ptr
+        \\  *ptr = *ptr
         \\end
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
