@@ -153,14 +153,44 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         },
         .i64_add => try wasm.appendSlice("\n    i64.add"),
         .i32_add => try wasm.appendSlice("\n    i32.add"),
+        .i32_add_mod_16 => {
+            try wasm.appendSlice("\n    i32.add");
+            try wasm.appendSlice("\n    (i32.const 65535)");
+            try wasm.appendSlice("\n    i32.and");
+        },
+        .i32_add_mod_8 => {
+            try wasm.appendSlice("\n    i32.add");
+            try wasm.appendSlice("\n    (i32.const 255)");
+            try wasm.appendSlice("\n    i32.and");
+        },
         .f64_add => try wasm.appendSlice("\n    f64.add"),
         .f32_add => try wasm.appendSlice("\n    f32.add"),
         .i64_sub => try wasm.appendSlice("\n    i64.sub"),
         .i32_sub => try wasm.appendSlice("\n    i32.sub"),
+        .i32_sub_mod_16 => {
+            try wasm.appendSlice("\n    i32.sub");
+            try wasm.appendSlice("\n    (i32.const 65535)");
+            try wasm.appendSlice("\n    i32.and");
+        },
+        .i32_sub_mod_8 => {
+            try wasm.appendSlice("\n    i32.sub");
+            try wasm.appendSlice("\n    (i32.const 255)");
+            try wasm.appendSlice("\n    i32.and");
+        },
         .f64_sub => try wasm.appendSlice("\n    f64.sub"),
         .f32_sub => try wasm.appendSlice("\n    f32.sub"),
         .i64_mul => try wasm.appendSlice("\n    i64.mul"),
         .i32_mul => try wasm.appendSlice("\n    i32.mul"),
+        .i32_mul_mod_16 => {
+            try wasm.appendSlice("\n    i32.mul");
+            try wasm.appendSlice("\n    (i32.const 65535)");
+            try wasm.appendSlice("\n    i32.and");
+        },
+        .i32_mul_mod_8 => {
+            try wasm.appendSlice("\n    i32.mul");
+            try wasm.appendSlice("\n    (i32.const 255)");
+            try wasm.appendSlice("\n    i32.and");
+        },
         .f64_mul => try wasm.appendSlice("\n    f64.mul"),
         .f32_mul => try wasm.appendSlice("\n    f32.mul"),
         .i64_div => try wasm.appendSlice("\n    i64.div_s"),
