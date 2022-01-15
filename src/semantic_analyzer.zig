@@ -317,7 +317,7 @@ fn Context(comptime FileSystem: type) type {
                     });
                 }
             }
-            const vectors = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.F64X2, b.F32X4 };
+            const vectors = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.U64X2, b.U32X4, b.U16X8, b.U8X16, b.F64X2, b.F32X4 };
             for (vectors) |vector| {
                 if (eql(value_type, vector)) {
                     return try self.codebase.createEntity(.{
@@ -570,7 +570,7 @@ fn Context(comptime FileSystem: type) type {
                 }
                 return result;
             }
-            const vectors = &[_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16 };
+            const vectors = &[_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.U64X2, b.U32X4, b.U16X8, b.U8X16 };
             for (vectors) |vector| {
                 if (!eql(lhs_type, vector)) continue;
                 assert(intrinsic != .divide);
@@ -2495,8 +2495,8 @@ test "analyze semantics of binary operators on two int vectors" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const b = codebase.get(components.Builtins);
-    const type_strings = [_][]const u8{ "i64x2", "i32x4", "i16x8", "i8x16" };
-    const builtins = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16 };
+    const type_strings = [_][]const u8{ "i64x2", "i32x4", "i16x8", "i8x16", "u64x2", "u32x4", "u16x8", "u8x16" };
+    const builtins = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.U64X2, b.U32X4, b.U16X8, b.U8X16 };
     const op_strings = [_][]const u8{ "+", "-", "*" };
     const intrinsics = [_]components.Intrinsic{ .add, .subtract, .multiply };
     for (type_strings) |type_string, type_index| {

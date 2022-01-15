@@ -55,6 +55,10 @@ pub fn initBuiltins(codebase: *ECS) !void {
     const I32X4 = try builtinType(codebase, &scope, "i32x4", Type, 16);
     const I16X8 = try builtinType(codebase, &scope, "i16x8", Type, 16);
     const I8X16 = try builtinType(codebase, &scope, "i8x16", Type, 16);
+    const U64X2 = try builtinType(codebase, &scope, "u64x2", Type, 16);
+    const U32X4 = try builtinType(codebase, &scope, "u32x4", Type, 16);
+    const U16X8 = try builtinType(codebase, &scope, "u16x8", Type, 16);
+    const U8X16 = try builtinType(codebase, &scope, "u8x16", Type, 16);
     const F64X2 = try builtinType(codebase, &scope, "f64x2", Type, 16);
     const F32X4 = try builtinType(codebase, &scope, "f32x4", Type, 16);
     // TODO: p32 is a function from type to type, not a type itself
@@ -83,6 +87,10 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .I32X4 = I32X4,
         .I16X8 = I16X8,
         .I8X16 = I8X16,
+        .U64X2 = U64X2,
+        .U32X4 = U32X4,
+        .U16X8 = U16X8,
+        .U8X16 = U8X16,
         .F64X2 = F64X2,
         .F32X4 = F32X4,
         .Cast = Cast,

@@ -183,7 +183,7 @@ const ArithmeticBinaryOps = struct {
     f64_fn: fn (lhs: f64, rhs: f64) f64,
     f32_fn: fn (lhs: f32, rhs: f32) f32,
     kinds: [6]components.WasmInstructionKind,
-    simd_kinds: ?[4]components.WasmInstructionKind = null,
+    simd_kinds: ?[8]components.WasmInstructionKind = null,
     float_simd_kinds: ?[2]components.WasmInstructionKind = null,
     types: [6]type = .{ i64, i32, u64, u32, f64, f32 },
     argument_kinds: [6]components.WasmInstructionKind = .{
@@ -320,6 +320,10 @@ const addOps = ArithmeticBinaryOps{
         .i32x4_add,
         .i16x8_add,
         .i8x16_add,
+        .i64x2_add,
+        .i32x4_add,
+        .i16x8_add,
+        .i8x16_add,
     },
     .float_simd_kinds = [_]components.WasmInstructionKind{
         .f64x2_add,
@@ -355,6 +359,10 @@ const subtractOps = ArithmeticBinaryOps{
         .i32x4_sub,
         .i16x8_sub,
         .i8x16_sub,
+        .i64x2_sub,
+        .i32x4_sub,
+        .i16x8_sub,
+        .i8x16_sub,
     },
     .float_simd_kinds = [_]components.WasmInstructionKind{
         .f64x2_sub,
@@ -386,6 +394,10 @@ const multiplyOps = ArithmeticBinaryOps{
         .f32_mul,
     },
     .simd_kinds = [_]components.WasmInstructionKind{
+        .i64x2_mul,
+        .i32x4_mul,
+        .i16x8_mul,
+        .i8x16_mul,
         .i64x2_mul,
         .i32x4_mul,
         .i16x8_mul,
@@ -743,7 +755,7 @@ fn codegenBinaryOp(context: *Context, entity: Entity, comptime ops: anytype) !vo
             return;
         }
     }
-    const vectors = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16 };
+    const vectors = [_]Entity{ b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.U64X2, b.U32X4, b.U16X8, b.U8X16 };
     for (vectors) |vector, i| {
         if (eql(type_of, vector)) {
             if (@hasField(@TypeOf(ops), "simd_kinds")) {
@@ -2037,9 +2049,13 @@ test "codegen of binary op on two int vectors" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const type_strings = [_][]const u8{ "i64x2", "i32x4", "i16x8", "i8x16" };
+    const type_strings = [_][]const u8{ "i64x2", "i32x4", "i16x8", "i8x16", "u64x2", "u32x4", "u16x8", "u8x16" };
     const op_strings = [_][]const u8{ "+", "-", "*" };
     const kinds = [_][3]components.WasmInstructionKind{
+        .{ .i64x2_add, .i64x2_sub, .i64x2_mul },
+        .{ .i32x4_add, .i32x4_sub, .i32x4_mul },
+        .{ .i16x8_add, .i16x8_sub, .i16x8_mul },
+        .{ .i8x16_add, .i8x16_sub, .i8x16_mul },
         .{ .i64x2_add, .i64x2_sub, .i64x2_mul },
         .{ .i32x4_add, .i32x4_sub, .i32x4_mul },
         .{ .i16x8_add, .i16x8_sub, .i16x8_mul },
