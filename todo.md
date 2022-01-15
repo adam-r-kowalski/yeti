@@ -31,7 +31,7 @@
     - [x] x = *p instead of x = load(p)
     - [x] p32 - i32
     - [x] pointer arithmetic (==, !=, >, >=, <, <=, -) between two p32s
-- [ ] Assignment and definition should both just be = and remove :=
+- [x] Assignment and definition should both just be = and remove :=
 - [ ] Error Messages
     - [x] No matching function overload
     - [ ] Ambiguous function call

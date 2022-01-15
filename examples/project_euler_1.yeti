@@ -3,8 +3,8 @@ problem1 = fn(upper_bound: i32): i32
   sum = 0
   while n < upper_bound then
     filter = (n % 3 == 0) | (n % 5 == 0)
-    sum := sum + filter * n
-    n := n + 1
+    sum = sum + filter * n
+    n = n + 1
   end
   sum
 end

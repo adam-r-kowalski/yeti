@@ -4,10 +4,10 @@ problem2 = fn(upper_bound: i32): i32
   sum = 0
   while current < upper_bound then
     filter = current % 2 == 0
-    sum := sum + filter * current
+    sum = sum + filter * current
     next = current + previous
-    previous := current
-    current := next
+    previous = current
+    current = next
   end
   sum
 end
