@@ -237,20 +237,32 @@ const ArithmeticBinaryOps = struct {
 const IntBinaryOps = struct {
     i64_fn: fn (lhs: i64, rhs: i64) i64,
     i32_fn: fn (lhs: i32, rhs: i32) i32,
+    i16_fn: fn (lhs: i16, rhs: i16) i16,
+    i8_fn: fn (lhs: i8, rhs: i8) i8,
     u64_fn: fn (lhs: u64, rhs: u64) u64,
     u32_fn: fn (lhs: u32, rhs: u32) u32,
-    kinds: [4]components.WasmInstructionKind,
-    types: [4]type = .{ i64, i32, u64, u32 },
-    argument_kinds: [4]components.WasmInstructionKind = .{
+    u16_fn: fn (lhs: u16, rhs: u16) u16,
+    u8_fn: fn (lhs: u8, rhs: u8) u8,
+    kinds: [8]components.WasmInstructionKind,
+    types: [8]type = .{ i64, i32, i16, i8, u64, u32, u16, u8 },
+    argument_kinds: [8]components.WasmInstructionKind = .{
         .i64_const,
         .i32_const,
+        .i32_const,
+        .i32_const,
         .i64_const,
+        .i32_const,
+        .i32_const,
         .i32_const,
     },
-    result_kinds: [4]components.WasmInstructionKind = .{
+    result_kinds: [8]components.WasmInstructionKind = .{
         .i64_const,
         .i32_const,
+        .i32_const,
+        .i32_const,
         .i64_const,
+        .i32_const,
+        .i32_const,
         .i32_const,
     },
 
@@ -260,8 +272,12 @@ const IntBinaryOps = struct {
         return switch (T) {
             i64 => self.i64_fn(lhs, rhs),
             i32 => self.i32_fn(lhs, rhs),
+            i16 => self.i16_fn(lhs, rhs),
+            i8 => self.i8_fn(lhs, rhs),
             u64 => self.u64_fn(lhs, rhs),
             u32 => self.u32_fn(lhs, rhs),
+            u16 => self.u16_fn(lhs, rhs),
+            u8 => self.u8_fn(lhs, rhs),
             else => panic("\nunsupported type {s}\n", .{@typeName(T)}),
         };
     }
@@ -330,12 +346,12 @@ const addOps = ArithmeticBinaryOps{
     .kinds = [_]components.WasmInstructionKind{
         .i64_add,
         .i32_add,
-        .i32_add_mod_8,
         .i32_add_mod_16,
+        .i32_add_mod_8,
         .i64_add,
         .i32_add,
-        .i32_add_mod_8,
         .i32_add_mod_16,
+        .i32_add_mod_8,
         .f64_add,
         .f32_add,
     },
@@ -500,12 +516,20 @@ fn remainderFn(comptime T: type) fn (T, T) T {
 const remainderOps = IntBinaryOps{
     .i64_fn = remainderFn(i64),
     .i32_fn = remainderFn(i32),
+    .i16_fn = remainderFn(i16),
+    .i8_fn = remainderFn(i8),
     .u64_fn = remainderFn(u64),
     .u32_fn = remainderFn(u32),
+    .u16_fn = remainderFn(u16),
+    .u8_fn = remainderFn(u8),
     .kinds = [_]components.WasmInstructionKind{
         .i64_rem,
         .i32_rem,
+        .i32_rem,
+        .i32_rem,
         .u64_rem,
+        .u32_rem,
+        .u32_rem,
         .u32_rem,
     },
 };
@@ -521,12 +545,20 @@ fn bitAndFn(comptime T: type) fn (T, T) T {
 const bitAndOps = IntBinaryOps{
     .i64_fn = bitAndFn(i64),
     .i32_fn = bitAndFn(i32),
+    .i16_fn = bitAndFn(i16),
+    .i8_fn = bitAndFn(i8),
     .u64_fn = bitAndFn(u64),
     .u32_fn = bitAndFn(u32),
+    .u16_fn = bitAndFn(u16),
+    .u8_fn = bitAndFn(u8),
     .kinds = [_]components.WasmInstructionKind{
         .i64_and,
         .i32_and,
+        .i32_and,
+        .i32_and,
         .i64_and,
+        .i32_and,
+        .i32_and,
         .i32_and,
     },
 };
@@ -542,12 +574,20 @@ fn bitOrFn(comptime T: type) fn (T, T) T {
 const bitOrOps = IntBinaryOps{
     .i64_fn = bitOrFn(i64),
     .i32_fn = bitOrFn(i32),
+    .i16_fn = bitOrFn(i16),
+    .i8_fn = bitOrFn(i8),
     .u64_fn = bitOrFn(u64),
     .u32_fn = bitOrFn(u32),
+    .u16_fn = bitOrFn(u16),
+    .u8_fn = bitOrFn(u8),
     .kinds = [_]components.WasmInstructionKind{
         .i64_or,
         .i32_or,
+        .i32_or,
+        .i32_or,
         .i64_or,
+        .i32_or,
+        .i32_or,
         .i32_or,
     },
 };
@@ -563,12 +603,20 @@ fn bitXorFn(comptime T: type) fn (T, T) T {
 const bitXorOps = IntBinaryOps{
     .i64_fn = bitXorFn(i64),
     .i32_fn = bitXorFn(i32),
+    .i16_fn = bitXorFn(i16),
+    .i8_fn = bitXorFn(i8),
     .u64_fn = bitXorFn(u64),
     .u32_fn = bitXorFn(u32),
+    .u16_fn = bitXorFn(u16),
+    .u8_fn = bitXorFn(u8),
     .kinds = [_]components.WasmInstructionKind{
         .i64_xor,
         .i32_xor,
+        .i32_xor,
+        .i32_xor,
         .i64_xor,
+        .i32_xor,
+        .i32_xor,
         .i32_xor,
     },
 };
@@ -584,12 +632,20 @@ fn leftShiftFn(comptime T: type) fn (T, T) T {
 const leftShiftOps = IntBinaryOps{
     .i64_fn = leftShiftFn(i64),
     .i32_fn = leftShiftFn(i32),
+    .i16_fn = leftShiftFn(i16),
+    .i8_fn = leftShiftFn(i8),
     .u64_fn = leftShiftFn(u64),
     .u32_fn = leftShiftFn(u32),
+    .u16_fn = leftShiftFn(u16),
+    .u8_fn = leftShiftFn(u8),
     .kinds = [_]components.WasmInstructionKind{
         .i64_shl,
         .i32_shl,
+        .i32_shl,
+        .i32_shl,
         .u64_shl,
+        .u32_shl,
+        .u32_shl,
         .u32_shl,
     },
 };
@@ -605,12 +661,20 @@ fn rightShiftFn(comptime T: type) fn (T, T) T {
 const rightShiftOps = IntBinaryOps{
     .i64_fn = rightShiftFn(i64),
     .i32_fn = rightShiftFn(i32),
+    .i16_fn = rightShiftFn(i16),
+    .i8_fn = rightShiftFn(i8),
     .u64_fn = rightShiftFn(u64),
     .u32_fn = rightShiftFn(u32),
+    .u16_fn = rightShiftFn(u16),
+    .u8_fn = rightShiftFn(u8),
     .kinds = [_]components.WasmInstructionKind{
         .i64_shr,
         .i32_shr,
+        .i32_shr,
+        .i32_shr,
         .u64_shr,
+        .u32_shr,
+        .u32_shr,
         .u32_shr,
     },
 };
@@ -1394,13 +1458,13 @@ test "codegen arithmethic binary op non constant" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
-    const op_kinds = [_][6]components.WasmInstructionKind{
-        [_]components.WasmInstructionKind{ .i64_add, .i32_add, .i64_add, .i32_add, .f64_add, .f32_add },
-        [_]components.WasmInstructionKind{ .i64_sub, .i32_sub, .i64_sub, .i32_sub, .f64_sub, .f32_sub },
-        [_]components.WasmInstructionKind{ .i64_mul, .i32_mul, .i64_mul, .i32_mul, .f64_mul, .f32_mul },
-        [_]components.WasmInstructionKind{ .i64_div, .i32_div, .u64_div, .u32_div, .f64_div, .f32_div },
+    const types = [_][]const u8{ "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "f64", "f32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i32_const, .i32_const, .i64_const, .i32_const, .i32_const, .i32_const, .f64_const, .f32_const };
+    const op_kinds = [_][10]components.WasmInstructionKind{
+        [_]components.WasmInstructionKind{ .i64_add, .i32_add, .i32_add_mod_16, .i32_add_mod_8, .i64_add, .i32_add, .i32_add_mod_16, .i32_add_mod_8, .f64_add, .f32_add },
+        [_]components.WasmInstructionKind{ .i64_sub, .i32_sub, .i32_sub_mod_16, .i32_sub_mod_8, .i64_sub, .i32_sub, .i32_sub_mod_16, .i32_sub_mod_8, .f64_sub, .f32_sub },
+        [_]components.WasmInstructionKind{ .i64_mul, .i32_mul, .i32_mul_mod_16, .i32_mul_mod_8, .i64_mul, .i32_mul, .i32_mul_mod_16, .i32_mul_mod_8, .f64_mul, .f32_mul },
+        [_]components.WasmInstructionKind{ .i64_div, .i32_div, .i32_div, .i32_div, .u64_div, .u32_div, .u32_div, .u32_div, .f64_div, .f32_div },
     };
     const op_strings = [_][]const u8{ "+", "-", "*", "/" };
     for (op_strings) |op_string, op_index| {
