@@ -44,8 +44,12 @@ pub fn initBuiltins(codebase: *ECS) !void {
     const Module = try builtinType(codebase, &scope, "module", Type, 0);
     const I64 = try builtinType(codebase, &scope, "i64", Type, 8);
     const I32 = try builtinType(codebase, &scope, "i32", Type, 4);
+    const I16 = try builtinType(codebase, &scope, "i16", Type, 2);
+    const I8 = try builtinType(codebase, &scope, "i8", Type, 1);
     const U64 = try builtinType(codebase, &scope, "u64", Type, 8);
     const U32 = try builtinType(codebase, &scope, "u32", Type, 4);
+    const U16 = try builtinType(codebase, &scope, "u16", Type, 2);
+    const U8 = try builtinType(codebase, &scope, "u8", Type, 1);
     const F64 = try builtinType(codebase, &scope, "f64", Type, 8);
     const F32 = try builtinType(codebase, &scope, "f32", Type, 4);
     const IntLiteral = try builtinType(codebase, &scope, "IntLiteral", Type, 0);
@@ -75,8 +79,12 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .Module = Module,
         .I64 = I64,
         .I32 = I32,
+        .I16 = I16,
+        .I8 = I8,
         .U64 = U64,
         .U32 = U32,
+        .U16 = U16,
+        .U8 = U8,
         .F64 = F64,
         .F32 = F32,
         .Void = Void,

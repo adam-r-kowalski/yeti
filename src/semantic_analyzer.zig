@@ -51,7 +51,7 @@ fn Context(comptime FileSystem: type) type {
         fn convertibleTo(self: *Self, to: Entity, from: Entity) Match {
             if (eql(to, from)) return .exact;
             const b = self.builtins;
-            const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+            const builtins = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
             const float_builtins = [_]Entity{ b.F64, b.F32 };
             if (eql(from, b.IntLiteral)) {
                 for (builtins) |builtin| {
@@ -552,7 +552,7 @@ fn Context(comptime FileSystem: type) type {
                 assert(eql(parent_type.entity, b.Ptr));
                 return try self.analyzePointerArithmetic(lhs, rhs, intrinsic);
             }
-            const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32, b.IntLiteral, b.FloatLiteral };
+            const builtins = &[_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32, b.IntLiteral, b.FloatLiteral };
             for (builtins) |builtin| {
                 if (!eql(lhs_type, builtin)) continue;
                 const result_type = try self.unifyTypes(lhs, rhs);
@@ -1303,8 +1303,8 @@ test "analyze semantics binary op two comptime known" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    const types = [_][]const u8{ "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "f64", "f32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.I16, builtins.I8, builtins.U64, builtins.U32, builtins.U16, builtins.U8, builtins.F64, builtins.F32 };
     const op_strings = [_][]const u8{ "+", "-", "*", "/" };
     const intrinsics = [_]components.Intrinsic{ .add, .subtract, .multiply, .divide };
     for (op_strings) |op_string, op_index| {
@@ -1357,8 +1357,8 @@ test "analyze semantics comparison op two comptime known" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
+    const types = [_][]const u8{ "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "f64", "f32" };
+    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.I16, builtins.I8, builtins.U64, builtins.U32, builtins.U16, builtins.U8, builtins.F64, builtins.F32 };
     const op_strings = [_][]const u8{ "==", "!=", "<", "<=", ">", ">=" };
     const intrinsics = [_]components.Intrinsic{
         .equal,

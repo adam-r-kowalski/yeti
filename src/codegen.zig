@@ -40,8 +40,8 @@ fn codegenNumber(context: *Context, entity: Entity) !void {
             return;
         }
     }
-    const builtins = &[_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
-    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const builtins = &[_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
+    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i32_const, .i32_const, .i64_const, .i32_const, .i32_const, .i32_const, .f64_const, .f32_const };
     for (builtins) |builtin, i| {
         if (!eql(type_of, builtin)) continue;
         const wasm_instruction = try context.codebase.createEntity(.{
@@ -83,8 +83,8 @@ fn codegenDefine(context: *Context, entity: Entity) !void {
             if (!eql(type_of, builtin)) continue;
             return;
         }
-        const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
-        const types = [_]type{ i64, i32, u64, u32, f64, f32 };
+        const builtins = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
+        const types = [_]type{ i64, i32, i16, i8, u64, u32, u16, u8, f64, f32 };
         inline for (&types) |T, i| {
             if (eql(builtins[i], type_of)) {
                 if (try valueOf(T, value)) |_| {
@@ -122,9 +122,9 @@ fn codegenLocal(context: *Context, entity: Entity) !void {
             if (!eql(type_of, builtin)) continue;
             return;
         }
-        const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
-        const types = [_]type{ i64, i32, u64, u32, f64, f32 };
-        const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+        const builtins = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
+        const types = [_]type{ i64, i32, i16, i8, u64, u32, u16, u8, f64, f32 };
+        const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i32_const, .i32_const, .i64_const, .i32_const, .i32_const, .i32_const, .f64_const, .f32_const };
         if (local.entity.has(components.Value)) |value_component| {
             const value = value_component.entity;
             inline for (&types) |T, i| {
@@ -154,7 +154,7 @@ fn valueOf(comptime T: type, entity: Entity) !?T {
     }
     if (entity.has(components.Literal)) |literal| {
         const string = entity.ecs.get(Strings).get(literal.interned);
-        const types = [_]type{ i64, i32, u64, u32 };
+        const types = [_]type{ i64, i32, i16, i8, u64, u32, u16, u8 };
         inline for (&types) |E| {
             if (T == E) {
                 const value = try std.fmt.parseInt(T, string, 10);
@@ -178,26 +178,38 @@ fn valueOf(comptime T: type, entity: Entity) !?T {
 const ArithmeticBinaryOps = struct {
     i64_fn: fn (lhs: i64, rhs: i64) i64,
     i32_fn: fn (lhs: i32, rhs: i32) i32,
+    i16_fn: fn (lhs: i16, rhs: i16) i16,
+    i8_fn: fn (lhs: i8, rhs: i8) i8,
     u64_fn: fn (lhs: u64, rhs: u64) u64,
     u32_fn: fn (lhs: u32, rhs: u32) u32,
+    u16_fn: fn (lhs: u16, rhs: u16) u16,
+    u8_fn: fn (lhs: u8, rhs: u8) u8,
     f64_fn: fn (lhs: f64, rhs: f64) f64,
     f32_fn: fn (lhs: f32, rhs: f32) f32,
-    kinds: [6]components.WasmInstructionKind,
+    kinds: [10]components.WasmInstructionKind,
     simd_kinds: ?[8]components.WasmInstructionKind = null,
     float_simd_kinds: ?[2]components.WasmInstructionKind = null,
-    types: [6]type = .{ i64, i32, u64, u32, f64, f32 },
-    argument_kinds: [6]components.WasmInstructionKind = .{
+    types: [10]type = .{ i64, i32, i16, i8, u64, u32, u16, u8, f64, f32 },
+    argument_kinds: [10]components.WasmInstructionKind = .{
         .i64_const,
         .i32_const,
+        .i32_const,
+        .i32_const,
         .i64_const,
+        .i32_const,
+        .i32_const,
         .i32_const,
         .f64_const,
         .f32_const,
     },
-    result_kinds: [6]components.WasmInstructionKind = .{
+    result_kinds: [10]components.WasmInstructionKind = .{
         .i64_const,
         .i32_const,
+        .i32_const,
+        .i32_const,
         .i64_const,
+        .i32_const,
+        .i32_const,
         .i32_const,
         .f64_const,
         .f32_const,
@@ -209,8 +221,12 @@ const ArithmeticBinaryOps = struct {
         return switch (T) {
             i64 => self.i64_fn(lhs, rhs),
             i32 => self.i32_fn(lhs, rhs),
+            i16 => self.i16_fn(lhs, rhs),
+            i8 => self.i8_fn(lhs, rhs),
             u64 => self.u64_fn(lhs, rhs),
             u32 => self.u32_fn(lhs, rhs),
+            u16 => self.u16_fn(lhs, rhs),
+            u8 => self.u8_fn(lhs, rhs),
             f64 => self.f64_fn(lhs, rhs),
             f32 => self.f32_fn(lhs, rhs),
             else => panic("\nunsupported type {s}\n", .{@typeName(T)}),
@@ -303,15 +319,23 @@ fn addFn(comptime T: type) fn (T, T) T {
 const addOps = ArithmeticBinaryOps{
     .i64_fn = addFn(i64),
     .i32_fn = addFn(i32),
+    .i16_fn = addFn(i16),
+    .i8_fn = addFn(i8),
     .u64_fn = addFn(u64),
     .u32_fn = addFn(u32),
+    .u16_fn = addFn(u16),
+    .u8_fn = addFn(u8),
     .f64_fn = addFn(f64),
     .f32_fn = addFn(f32),
     .kinds = [_]components.WasmInstructionKind{
         .i64_add,
         .i32_add,
+        .i32_add_mod_8,
+        .i32_add_mod_16,
         .i64_add,
         .i32_add,
+        .i32_add_mod_8,
+        .i32_add_mod_16,
         .f64_add,
         .f32_add,
     },
@@ -342,15 +366,23 @@ fn subtractFn(comptime T: type) fn (T, T) T {
 const subtractOps = ArithmeticBinaryOps{
     .i64_fn = subtractFn(i64),
     .i32_fn = subtractFn(i32),
+    .i16_fn = subtractFn(i16),
+    .i8_fn = subtractFn(i8),
     .u64_fn = subtractFn(u64),
     .u32_fn = subtractFn(u32),
+    .u16_fn = subtractFn(u16),
+    .u8_fn = subtractFn(u8),
     .f64_fn = subtractFn(f64),
     .f32_fn = subtractFn(f32),
     .kinds = [_]components.WasmInstructionKind{
         .i64_sub,
         .i32_sub,
+        .i32_sub_mod_16,
+        .i32_sub_mod_8,
         .i64_sub,
         .i32_sub,
+        .i32_sub_mod_16,
+        .i32_sub_mod_8,
         .f64_sub,
         .f32_sub,
     },
@@ -381,15 +413,23 @@ fn multiplyFn(comptime T: type) fn (T, T) T {
 const multiplyOps = ArithmeticBinaryOps{
     .i64_fn = multiplyFn(i64),
     .i32_fn = multiplyFn(i32),
+    .i16_fn = multiplyFn(i16),
+    .i8_fn = multiplyFn(i8),
     .u64_fn = multiplyFn(u64),
     .u32_fn = multiplyFn(u32),
+    .u16_fn = multiplyFn(u16),
+    .u8_fn = multiplyFn(u8),
     .f64_fn = multiplyFn(f64),
     .f32_fn = multiplyFn(f32),
     .kinds = [_]components.WasmInstructionKind{
         .i64_mul,
         .i32_mul,
+        .i32_mul_mod_16,
+        .i32_mul_mod_8,
         .i64_mul,
         .i32_mul,
+        .i32_mul_mod_16,
+        .i32_mul_mod_8,
         .f64_mul,
         .f32_mul,
     },
@@ -413,7 +453,7 @@ fn divideFn(comptime T: type) fn (T, T) T {
     return struct {
         fn f(lhs: T, rhs: T) T {
             return switch (T) {
-                i64, i32, u64, u32 => @divFloor(lhs, rhs),
+                i64, i32, i16, i8, u64, u32, u16, u8 => @divFloor(lhs, rhs),
                 else => lhs / rhs,
             };
         }
@@ -423,14 +463,22 @@ fn divideFn(comptime T: type) fn (T, T) T {
 const divideOps = ArithmeticBinaryOps{
     .i64_fn = divideFn(i64),
     .i32_fn = divideFn(i32),
+    .i16_fn = divideFn(i16),
+    .i8_fn = divideFn(i8),
     .u64_fn = divideFn(u64),
     .u32_fn = divideFn(u32),
+    .u16_fn = divideFn(u16),
+    .u8_fn = divideFn(u8),
     .f64_fn = divideFn(f64),
     .f32_fn = divideFn(f32),
     .kinds = [_]components.WasmInstructionKind{
         .i64_div,
         .i32_div,
+        .i32_div,
+        .i32_div,
         .u64_div,
+        .u32_div,
+        .u32_div,
         .u32_div,
         .f64_div,
         .f32_div,
@@ -723,7 +771,7 @@ fn codegenBinaryOp(context: *Context, entity: Entity, comptime ops: anytype) !vo
     try codegenEntity(context, arguments[1]);
     const type_of = typeOf(arguments[0]);
     const b = context.builtins;
-    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32, b.I64X2 };
+    const builtins = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
     inline for (&ops.types) |T, i| {
         if (eql(type_of, builtins[i])) {
             const instructions = context.wasm_instructions.mutSlice();
@@ -1200,14 +1248,14 @@ test "codegen binary op two literals" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const types = [_][]const u8{ "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "f64", "f32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i32_const, .i32_const, .i64_const, .i32_const, .i32_const, .i32_const, .f64_const, .f32_const };
     const op_strings = [_][]const u8{ "+", "-", "*", "/" };
-    const results = [_][6][]const u8{
-        [_][]const u8{ "10", "10", "10", "10", "1.0e+01", "1.0e+01" },
-        [_][]const u8{ "6", "6", "6", "6", "6.0e+00", "6.0e+00" },
-        [_][]const u8{ "16", "16", "16", "16", "1.6e+01", "1.6e+01" },
-        [_][]const u8{ "4", "4", "4", "4", "4.0e+00", "4.0e+00" },
+    const results = [_][10][]const u8{
+        [_][]const u8{ "10", "10", "10", "10", "10", "10", "10", "10", "1.0e+01", "1.0e+01" },
+        [_][]const u8{ "6", "6", "6", "6", "6", "6", "6", "6", "6.0e+00", "6.0e+00" },
+        [_][]const u8{ "16", "16", "16", "16", "16", "16", "16", "16", "1.6e+01", "1.6e+01" },
+        [_][]const u8{ "4", "4", "4", "4", "4", "4", "4", "4", "4.0e+00", "4.0e+00" },
     };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
@@ -1234,14 +1282,14 @@ test "codegen arithmetic binary op two local constants" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
-    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i64_const, .i32_const, .f64_const, .f32_const };
+    const types = [_][]const u8{ "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "f64", "f32" };
+    const const_kinds = [_]components.WasmInstructionKind{ .i64_const, .i32_const, .i32_const, .i32_const, .i64_const, .i32_const, .i32_const, .i32_const, .f64_const, .f32_const };
     const op_strings = [_][]const u8{ "+", "-", "*", "/" };
-    const results = [_][6][]const u8{
-        [_][]const u8{ "10", "10", "10", "10", "1.0e+01", "1.0e+01" },
-        [_][]const u8{ "6", "6", "6", "6", "6.0e+00", "6.0e+00" },
-        [_][]const u8{ "16", "16", "16", "16", "1.6e+01", "1.6e+01" },
-        [_][]const u8{ "4", "4", "4", "4", "4.0e+00", "4.0e+00" },
+    const results = [_][10][]const u8{
+        [_][]const u8{ "10", "10", "10", "10", "10", "10", "10", "10", "1.0e+01", "1.0e+01" },
+        [_][]const u8{ "6", "6", "6", "6", "6", "6", "6", "6", "6.0e+00", "6.0e+00" },
+        [_][]const u8{ "16", "16", "16", "16", "16", "16", "16", "16", "1.6e+01", "1.6e+01" },
+        [_][]const u8{ "4", "4", "4", "4", "4", "4", "4", "4", "4.0e+00", "4.0e+00" },
     };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
