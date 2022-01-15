@@ -27,8 +27,8 @@ const Wasm = List(u8, .{ .initial_capacity = 1000 });
 
 fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
     const b = type_of.ecs.get(components.Builtins);
-    const builtins = [_]Entity{ b.I64, b.U64, b.I32, b.U32, b.F64, b.F32, b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.U64X2, b.U32X4, b.U16X8, b.U8X16, b.F64X2, b.F32X4 };
-    const strings = [_][]const u8{ "i64", "i64", "i32", "i32", "f64", "f32", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128" };
+    const builtins = [_]Entity{ b.I64, b.U64, b.I32, b.U32, b.I16, b.U16, b.I8, b.U8, b.F64, b.F32, b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.U64X2, b.U32X4, b.U16X8, b.U8X16, b.F64X2, b.F32X4 };
+    const strings = [_][]const u8{ "i64", "i64", "i32", "i32", "i32", "i32", "i32", "i32", "f64", "f32", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128" };
     for (builtins) |builtin, i| {
         if (eql(type_of, builtin)) {
             return try wasm.appendSlice(strings[i]);
@@ -393,8 +393,8 @@ test "print wasm int literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
-    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
+    const types = [_][]const u8{ "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8", "f64", "f32" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i32", "i32", "i64", "i32", "i32", "i32", "f64", "f32" };
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
@@ -676,21 +676,81 @@ test "print wasm arithmetic binary op non constant" {
     }
 }
 
+test "print wasm arithmetic binary op non constant modulo" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const op_strings = [_][]const u8{ "+", "-", "*" };
+    const instructions = [_][4][]const u8{
+        [_][]const u8{ "i32.add", "i32.add", "i32.add", "i32.add" },
+        [_][]const u8{ "i32.sub", "i32.sub", "i32.sub", "i32.sub" },
+        [_][]const u8{ "i32.mul", "i32.mul", "i32.mul", "i32.mul" },
+    };
+    const types = [_][]const u8{ "i16", "i8", "u16", "u8" };
+    const wasm_types = [_][]const u8{ "i32", "i32", "i32", "i32" };
+    const constants = [_][]const u8{ "65535", "255", "65535", "255" };
+    for (op_strings) |op_string, op_index| {
+        for (types) |type_, i| {
+            var fs = try MockFileSystem.init(&arena);
+            _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
+                \\start = fn(): {s}
+                \\  id(10) {s} id(25)
+                \\end
+                \\
+                \\id = fn(x: {s}): {s}
+                \\  x
+                \\end
+            , .{ type_, op_string, type_, type_ }));
+            const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+            try codegen(module);
+            const wasm = try printWasm(module);
+            try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
+                \\(module
+                \\
+                \\  (func $foo/start (result {s})
+                \\    ({s}.const 10)
+                \\    (call $foo/id.{s})
+                \\    ({s}.const 25)
+                \\    (call $foo/id.{s})
+                \\    {s}
+                \\    (i32.const {s})
+                \\    i32.and)
+                \\
+                \\  (func $foo/id.{s} (param $x {s}) (result {s})
+                \\    (local.get $x))
+                \\
+                \\  (export "_start" (func $foo/start)))
+            , .{
+                wasm_types[i],
+                wasm_types[i],
+                type_,
+                wasm_types[i],
+                type_,
+                instructions[op_index][i],
+                constants[i],
+                type_,
+                wasm_types[i],
+                wasm_types[i],
+            }));
+        }
+    }
+}
+
 test "print wasm int binary op non constant" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const op_strings = [_][]const u8{ "%", "&", "|", "^", "<<", ">>" };
-    const instructions = [_][4][]const u8{
-        [_][]const u8{ "i64.rem_s", "i32.rem_s", "i64.rem_u", "i32.rem_u" },
-        [_][]const u8{ "i64.and", "i32.and", "i64.and", "i32.and" },
-        [_][]const u8{ "i64.or", "i32.or", "i64.or", "i32.or" },
-        [_][]const u8{ "i64.xor", "i32.xor", "i64.xor", "i32.xor" },
-        [_][]const u8{ "i64.shl", "i32.shl", "i64.shl", "i32.shl" },
-        [_][]const u8{ "i64.shr_s", "i32.shr_s", "i64.shr_u", "i32.shr_u" },
+    const instructions = [_][8][]const u8{
+        [_][]const u8{ "i64.rem_s", "i32.rem_s", "i32.rem_s", "i32.rem_s", "i64.rem_u", "i32.rem_u", "i32.rem_u", "i32.rem_u" },
+        [_][]const u8{ "i64.and", "i32.and", "i32.and", "i32.and", "i64.and", "i32.and", "i32.and", "i32.and" },
+        [_][]const u8{ "i64.or", "i32.or", "i32.or", "i32.or", "i64.or", "i32.or", "i32.or", "i32.or" },
+        [_][]const u8{ "i64.xor", "i32.xor", "i32.xor", "i32.xor", "i64.xor", "i32.xor", "i32.xor", "i32.xor" },
+        [_][]const u8{ "i64.shl", "i32.shl", "i32.shl", "i32.shl", "i64.shl", "i32.shl", "i32.shl", "i32.shl" },
+        [_][]const u8{ "i64.shr_s", "i32.shr_s", "i32.shr_s", "i32.shr_s", "i64.shr_u", "i32.shr_u", "i32.shr_u", "i32.shr_u" },
     };
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32" };
-    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32" };
+    const types = [_][]const u8{ "i64", "i32", "i16", "i8", "u64", "u32", "u16", "u8" };
+    const wasm_types = [_][]const u8{ "i64", "i32", "i32", "i32", "i64", "i32", "i32", "i32" };
     for (op_strings) |op_string, op_index| {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
