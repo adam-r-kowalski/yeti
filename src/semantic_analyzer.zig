@@ -152,6 +152,13 @@ fn Context(comptime FileSystem: type) type {
                         _ = try top_level.set(.{components.Module.init(module)});
                         return module;
                     },
+                    .overload_set => {
+                        const overloads = top_level.get(components.Overloads).slice();
+                        assert(overloads.len == 1);
+                        const overload = overloads[0];
+                        assert(overload.get(components.AstKind) == .struct_);
+                        return overload;
+                    },
                     else => panic("\nanalyzeSumbol unspported top level kind {}\n", .{kind}),
                 }
             }
@@ -165,6 +172,43 @@ fn Context(comptime FileSystem: type) type {
             var best_match = Match.no;
             const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
             for (overloads) |overload| {
+                const kind = overload.get(components.AstKind);
+                if (kind == .struct_) {
+                    const fields = overload.get(components.Fields).slice();
+                    if (!overload.contains(components.AnalyzedFields)) {
+                        for (fields) |field| {
+                            const field_type = try self.analyzeExpression(field.get(components.TypeAst).entity);
+                            _ = try field.set(.{
+                                components.Type.init(field_type),
+                                components.Name.init(field),
+                            });
+                        }
+                        _ = try overload.set(.{components.AnalyzedFields{ .value = true }});
+                    }
+                    var match = Match.exact;
+                    for (fields) |field, i| {
+                        const field_type = typeOf(field);
+                        const argument_type = typeOf(arguments[i]);
+                        switch (self.convertibleTo(field_type, argument_type)) {
+                            .exact => continue,
+                            .implicit_conversion => if (match == .exact) {
+                                match = .implicit_conversion;
+                            },
+                            .no => {
+                                match = .no;
+                                break;
+                            },
+                        }
+                    }
+                    if (@enumToInt(match) < @enumToInt(best_match)) continue;
+                    if (match != .no and match == best_match) {
+                        panic("ambiguous overload set overload match {} best match {}", .{ match, best_match });
+                    }
+                    best_match = match;
+                    best_overload = overload;
+                    continue;
+                }
+                assert(kind == .function);
                 if (!overload.contains(components.AnalyzedParameters)) {
                     var scopes = components.Scopes.init(self.allocator, self.codebase.getPtr(Strings));
                     const scope = try scopes.pushScope();
@@ -357,31 +401,44 @@ fn Context(comptime FileSystem: type) type {
                 return try self.analyzeCast(analyzed_arguments.slice());
             }
             const overload = try self.bestOverload(call, callable, analyzed_arguments.slice());
-            if (!overload.contains(components.AnalyzedBody)) {
-                _ = try overload.set(.{components.AnalyzedBody{ .value = true }});
-                const scopes = overload.getPtr(components.Scopes).slice();
-                assert(scopes.len == 1);
-                const active_scopes = [_]u64{0};
-                var context = Self{
-                    .allocator = self.allocator,
-                    .codebase = self.codebase,
-                    .file_system = self.file_system,
-                    .module = self.module,
-                    .function = overload,
-                    .active_scopes = &active_scopes,
-                    .builtins = self.builtins,
-                };
-                try context.analyzeFunction();
+            const kind = overload.get(components.AstKind);
+            if (kind == .function) {
+                if (!overload.contains(components.AnalyzedBody)) {
+                    _ = try overload.set(.{components.AnalyzedBody{ .value = true }});
+                    const scopes = overload.getPtr(components.Scopes).slice();
+                    assert(scopes.len == 1);
+                    const active_scopes = [_]u64{0};
+                    var context = Self{
+                        .allocator = self.allocator,
+                        .codebase = self.codebase,
+                        .file_system = self.file_system,
+                        .module = self.module,
+                        .function = overload,
+                        .active_scopes = &active_scopes,
+                        .builtins = self.builtins,
+                    };
+                    try context.analyzeFunction();
+                }
+                const parameters = overload.get(components.Parameters).slice();
+                for (analyzed_arguments.slice()) |argument, i| {
+                    try self.implicitTypeConversion(argument, typeOf(parameters[i]));
+                }
+                const return_type = overload.get(components.ReturnType).entity;
+                return try self.codebase.createEntity(.{
+                    components.Type.init(return_type),
+                    components.Callable.init(overload),
+                    components.AstKind.call,
+                    analyzed_arguments,
+                });
             }
-            const parameters = overload.get(components.Parameters).slice();
+            assert(kind == .struct_);
+            const fields = overload.get(components.Fields).slice();
             for (analyzed_arguments.slice()) |argument, i| {
-                try self.implicitTypeConversion(argument, typeOf(parameters[i]));
+                try self.implicitTypeConversion(argument, typeOf(fields[i]));
             }
-            const return_type = overload.get(components.ReturnType).entity;
             return try self.codebase.createEntity(.{
-                components.Type.init(return_type),
-                components.Callable.init(overload),
-                components.AstKind.call,
+                components.Type.init(overload),
+                components.AstKind.construct,
                 analyzed_arguments,
             });
         }
@@ -2660,4 +2717,39 @@ test "analyze semantics of vector store" {
     const ptr = arguments[0];
     try expectEqual(ptr.get(components.AstKind), .local);
     try expectEqual(ptr.get(components.Local).entity, define);
+}
+
+test "analyze semantics of struct" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+        \\
+        \\start = fn(): Rectangle
+        \\  Rectangle(10, 30)
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const rectangle = start.get(components.ReturnType).entity;
+    try expectEqualStrings(literalOf(rectangle.get(components.Name).entity), "Rectangle");
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const construct = body[0];
+    try expectEqual(construct.get(components.AstKind), .construct);
+    try expectEqual(typeOf(construct), rectangle);
+    const arguments = construct.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    try expectEqualStrings(literalOf(arguments[0]), "10");
+    try expectEqualStrings(literalOf(arguments[1]), "30");
 }

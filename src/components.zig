@@ -212,6 +212,7 @@ pub const TokenKind = enum(u8) {
     foreign_export,
     foreign_import,
     new_line,
+    struct_,
 };
 
 pub const Literal = struct {
@@ -240,6 +241,8 @@ pub const AstKind = enum(u8) {
     underscore,
     cast,
     pointer,
+    struct_,
+    construct,
 };
 
 pub const BinaryOp = enum(u8) {
@@ -557,6 +560,7 @@ pub const Parameters = DistinctList("Parameters", Entity);
 pub const Body = DistinctList("Body", Entity);
 pub const Arguments = DistinctList("Arguments", Entity);
 pub const Overloads = DistinctList("Overloads", Entity);
+pub const Fields = DistinctList("Fields", Entity);
 pub const TopLevel = DistinctEntityMap("Top Level");
 pub const Path = DistinctEntity("Path");
 pub const Module = DistinctEntity("Module");
@@ -575,6 +579,7 @@ pub const Label = struct { value: u64 };
 pub const Mutable = struct { value: bool };
 pub const AnalyzedParameters = struct { value: bool };
 pub const AnalyzedBody = struct { value: bool };
+pub const AnalyzedFields = struct { value: bool };
 pub const WasmName = DistinctList("Wasm Name", u8);
 pub const ForeignImports = DistinctList("Foreign Imports", Entity);
 pub const ForeignExports = DistinctList("Foreign Exports", Entity);

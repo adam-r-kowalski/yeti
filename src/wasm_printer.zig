@@ -25,7 +25,7 @@ const InternedString = strings_module.InternedString;
 
 const Wasm = List(u8, .{ .initial_capacity = 1000 });
 
-fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
+fn printWasmType(wasm: *Wasm, type_of: Entity) error{OutOfMemory}!void {
     const b = type_of.ecs.get(components.Builtins);
     const builtins = [_]Entity{ b.I64, b.U64, b.I32, b.U32, b.I16, b.U16, b.I8, b.U8, b.F64, b.F32, b.I64X2, b.I32X4, b.I16X8, b.I8X16, b.U64X2, b.U32X4, b.U16X8, b.U8X16, b.F64X2, b.F32X4 };
     const strings = [_][]const u8{ "i64", "i64", "i32", "i32", "i32", "i32", "i32", "i32", "f64", "f32", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128", "v128" };
@@ -37,6 +37,17 @@ fn printWasmType(wasm: *Wasm, type_of: Entity) !void {
     if (type_of.has(components.ParentType)) |parent_type| {
         assert(eql(parent_type.entity, b.Ptr));
         return try wasm.appendSlice("i32");
+    }
+    if (type_of.has(components.Fields)) |field_component| {
+        const fields = field_component.slice();
+        const last = fields.len - 1;
+        for (fields) |field, i| {
+            try printWasmType(wasm, typeOf(field));
+            if (i < last) {
+                try wasm.append(' ');
+            }
+        }
+        return;
     }
     panic("\nwasm wasm unsupported type {s}\n", .{literalOf(type_of)});
 }
@@ -1374,4 +1385,33 @@ test "print wasm binary op on two float vectors" {
             , .{instructions[type_index][i]}));
         }
     }
+}
+
+test "print wasm struct" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+        \\
+        \\start = fn(): Rectangle
+        \\  Rectangle(10, 30)
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result f64 f64)
+        \\    (f64.const 10)
+        \\    (f64.const 30))
+        \\
+        \\  (export "_start" (func $foo/start)))
+    );
 }

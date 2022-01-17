@@ -1222,6 +1222,12 @@ fn codegenWhile(context: *Context, entity: Entity) !void {
     context.label -= 2;
 }
 
+fn codegenConstruct(context: *Context, entity: Entity) !void {
+    for (entity.get(components.Arguments).slice()) |argument| {
+        try codegenEntity(context, argument);
+    }
+}
+
 fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow, InvalidCharacter }!void {
     const kind = entity.get(components.AstKind);
     switch (kind) {
@@ -1234,6 +1240,7 @@ fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow
         .if_ => try codegenIf(context, entity),
         .while_ => try codegenWhile(context, entity),
         .cast => try codegenEntity(context, entity.get(components.Value).entity),
+        .construct => try codegenConstruct(context, entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }
 }
@@ -2377,4 +2384,37 @@ test "codegen of storing i64x2 through pointer" {
     }
     try expectEqual(wasm_instructions[4].get(components.WasmInstructionKind), .v128_load);
     try expectEqual(wasm_instructions[5].get(components.WasmInstructionKind), .v128_store);
+}
+
+test "codegen of struct" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+        \\
+        \\start = fn(): Rectangle
+        \\  Rectangle(10, 30)
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const wasm_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(wasm_instructions.len, 2);
+    {
+        const constant = wasm_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), .f64_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
+    }
+    {
+        const constant = wasm_instructions[1];
+        try expectEqual(constant.get(components.WasmInstructionKind), .f64_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "30");
+    }
 }

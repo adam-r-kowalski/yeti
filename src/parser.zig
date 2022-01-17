@@ -746,6 +746,36 @@ fn overloadFunction(top_level: *components.TopLevel, function: Entity, name: com
     }
 }
 
+fn parseStruct(codebase: *ECS, tokens: *Tokens) !Entity {
+    const begin = tokens.consume(.struct_).get(components.Span).begin;
+    var fields = components.Fields.init(codebase.arena.allocator());
+    while (tokens.next()) |token| {
+        const kind = token.get(components.TokenKind);
+        switch (kind) {
+            .end => {
+                const end = token.get(components.Span).end;
+                const span = components.Span.init(begin, end);
+                return try codebase.createEntity(.{
+                    components.AstKind.struct_,
+                    fields,
+                    span,
+                    components.Type.init(codebase.get(components.Builtins).Type),
+                });
+            },
+            .new_line => continue,
+            .symbol => {
+                _ = tokens.consume(.colon);
+                _ = try token.set(.{
+                    components.TypeAst.init(try parseExpression(codebase, tokens, LOWEST)),
+                });
+                try fields.append(token);
+            },
+            else => panic("\ninvalid token kind, {}\n", .{kind}),
+        }
+    }
+    panic("\ncompiler bug in parse struct\n", .{});
+}
+
 fn parseTopLevel(tokens: *Tokens, top_level: *components.TopLevel, token: Entity) !void {
     const name = components.Name.init(token);
     _ = tokens.consume(.equal);
@@ -763,6 +793,11 @@ fn parseTopLevel(tokens: *Tokens, top_level: *components.TopLevel, token: Entity
         .foreign_import => {
             const function = try parseForeignImport(token.ecs, tokens);
             try overloadFunction(top_level, function, name);
+        },
+        .struct_ => {
+            const struct_ = try parseStruct(token.ecs, tokens);
+            _ = try struct_.set(.{token.get(components.Literal)});
+            try overloadFunction(top_level, struct_, name);
         },
         else => panic("\ncannot parse top level expression {}\n", .{kind}),
     }
@@ -1278,4 +1313,33 @@ test "parse pointer load after new line" {
     const value = load.get(components.Value).entity;
     try expectEqual(value.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(value), "ptr");
+}
+
+test "parse struct" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const rectangle = top_level.findString("Rectangle");
+    const overloads = rectangle.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const overload = overloads[0];
+    try expectEqual(overload.get(components.AstKind), .struct_);
+    const fields = overload.get(components.Fields).slice();
+    try expectEqual(fields.len, 2);
+    const width = fields[0];
+    try expectEqualStrings(literalOf(width), "width");
+    try expectEqualStrings(literalOf(width.get(components.TypeAst).entity), "f64");
+    const height = fields[1];
+    try expectEqualStrings(literalOf(height), "height");
+    try expectEqualStrings(literalOf(height.get(components.TypeAst).entity), "f64");
 }
