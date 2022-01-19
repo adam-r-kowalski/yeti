@@ -126,10 +126,25 @@ fn printWasmFunctionLocals(wasm: *Wasm, function: Entity) !void {
         if (found) {
             continue;
         }
+        const type_of = typeOf(local);
+        if (type_of.has(components.AstKind)) |ast_kind| {
+            if (ast_kind == .struct_) {
+                for (type_of.get(components.Fields).slice()) |field| {
+                    try wasm.appendSlice("\n    (local $");
+                    try wasm.appendSlice(strings.get(local_name));
+                    try wasm.append('.');
+                    try wasm.appendSlice(literalOf(field));
+                    try wasm.append(' ');
+                    try printWasmType(wasm, typeOf(field));
+                    try wasm.append(')');
+                }
+                return;
+            }
+        }
         try wasm.appendSlice("\n    (local $");
         try wasm.appendSlice(strings.get(local_name));
         try wasm.append(' ');
-        try printWasmType(wasm, local.get(components.Type).entity);
+        try printWasmType(wasm, type_of);
         try wasm.append(')');
     }
 }
@@ -138,6 +153,50 @@ fn printWasmLabel(wasm: *Wasm, wasm_instruction: Entity) !void {
     const label = wasm_instruction.get(components.Label).value;
     const result = try std.fmt.allocPrint(wasm.allocator, "$.label.{}", .{label});
     try wasm.appendSlice(result);
+}
+
+fn printWasmLocalSet(wasm: *Wasm, wasm_instruction: Entity) !void {
+    const local = wasm_instruction.get(components.Local).entity;
+    const type_of = typeOf(local);
+    const literal = literalOf(local.get(components.Name).entity);
+    if (type_of.has(components.AstKind)) |ast_kind| {
+        if (ast_kind == .struct_) {
+            const fields = type_of.get(components.Fields).slice();
+            var i = fields.len;
+            while (i > 0) : (i -= 1) {
+                try wasm.appendSlice("\n    (local.set $");
+                try wasm.appendSlice(literal);
+                try wasm.append('.');
+                try wasm.appendSlice(literalOf(fields[i - 1].get(components.Name).entity));
+                try wasm.append(')');
+            }
+            return;
+        }
+    }
+    try wasm.appendSlice("\n    (local.set $");
+    try wasm.appendSlice(literal);
+    try wasm.append(')');
+}
+
+fn printWasmLocalGet(wasm: *Wasm, wasm_instruction: Entity) !void {
+    const local = wasm_instruction.get(components.Local).entity;
+    const type_of = typeOf(local);
+    const literal = literalOf(local.get(components.Name).entity);
+    if (type_of.has(components.AstKind)) |ast_kind| {
+        if (ast_kind == .struct_) {
+            for (type_of.get(components.Fields).slice()) |field| {
+                try wasm.appendSlice("\n    (local.get $");
+                try wasm.appendSlice(literal);
+                try wasm.append('.');
+                try wasm.appendSlice(literalOf(field.get(components.Name).entity));
+                try wasm.append(')');
+            }
+            return;
+        }
+    }
+    try wasm.appendSlice("\n    (local.get $");
+    try wasm.appendSlice(literalOf(local.get(components.Name).entity));
+    try wasm.append(')');
 }
 
 fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
@@ -267,18 +326,8 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
             try wasm.appendSlice(try functionName(callable));
             try wasm.append(')');
         },
-        .local_get => {
-            try wasm.appendSlice("\n    (local.get $");
-            const local = wasm_instruction.get(components.Local).entity;
-            try wasm.appendSlice(literalOf(local.get(components.Name).entity));
-            try wasm.append(')');
-        },
-        .local_set => {
-            try wasm.appendSlice("\n    (local.set $");
-            const local = wasm_instruction.get(components.Local).entity;
-            try wasm.appendSlice(literalOf(local.get(components.Name).entity));
-            try wasm.append(')');
-        },
+        .local_get => try printWasmLocalGet(wasm, wasm_instruction),
+        .local_set => try printWasmLocalSet(wasm, wasm_instruction),
         .if_ => {
             try wasm.appendSlice("\n    if (result ");
             try printWasmType(wasm, wasm_instruction.get(components.Type).entity);
@@ -1411,6 +1460,42 @@ test "print wasm struct" {
         \\  (func $foo/start (result f64 f64)
         \\    (f64.const 10)
         \\    (f64.const 30))
+        \\
+        \\  (export "_start" (func $foo/start)))
+    );
+}
+
+test "print wasm assign struct to variable" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+        \\
+        \\start = fn(): Rectangle
+        \\  r = Rectangle(10, 30)
+        \\  r
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result f64 f64)
+        \\    (local $r.width f64)
+        \\    (local $r.height f64)
+        \\    (f64.const 10)
+        \\    (f64.const 30)
+        \\    (local.set $r.height)
+        \\    (local.set $r.width)
+        \\    (local.get $r.width)
+        \\    (local.get $r.height))
         \\
         \\  (export "_start" (func $foo/start)))
     );
