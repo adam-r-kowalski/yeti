@@ -90,10 +90,26 @@ fn printWasmFunctionName(wasm: *Wasm, function: Entity) !void {
 
 fn printWasmFunctionParameters(wasm: *Wasm, function: Entity) !void {
     for (function.get(components.Parameters).slice()) |parameter| {
+        const type_of = typeOf(parameter);
+        const literal = literalOf(parameter.get(components.Name).entity);
+        if (type_of.has(components.AstKind)) |ast_kind| {
+            if (ast_kind == .struct_) {
+                for (type_of.get(components.Fields).slice()) |field| {
+                    try wasm.appendSlice(" (param $");
+                    try wasm.appendSlice(literal);
+                    try wasm.append('.');
+                    try wasm.appendSlice(literalOf(field));
+                    try wasm.append(' ');
+                    try printWasmType(wasm, typeOf(field));
+                    try wasm.append(')');
+                }
+                return;
+            }
+        }
         try wasm.appendSlice(" (param $");
-        try wasm.appendSlice(literalOf(parameter.get(components.Name).entity));
+        try wasm.appendSlice(literal);
         try wasm.append(' ');
-        try printWasmType(wasm, parameter.get(components.Type).entity);
+        try printWasmType(wasm, type_of);
         try wasm.append(')');
     }
 }
@@ -1494,6 +1510,44 @@ test "print wasm assign struct to variable" {
         \\    (f64.const 30)
         \\    (local.set $r.height)
         \\    (local.set $r.width)
+        \\    (local.get $r.width)
+        \\    (local.get $r.height))
+        \\
+        \\  (export "_start" (func $foo/start)))
+    );
+}
+
+test "print wasm pass struct to function" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+        \\
+        \\id = fn(r: Rectangle): Rectangle
+        \\  r
+        \\end
+        \\
+        \\start = fn(): Rectangle
+        \\  id(Rectangle(10, 30))
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result f64 f64)
+        \\    (f64.const 10)
+        \\    (f64.const 30)
+        \\    (call $foo/id.Rectangle))
+        \\
+        \\  (func $foo/id.Rectangle (param $r.width f64) (param $r.height f64) (result f64 f64)
         \\    (local.get $r.width)
         \\    (local.get $r.height))
         \\
