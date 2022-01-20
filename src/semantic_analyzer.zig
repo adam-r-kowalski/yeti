@@ -445,20 +445,37 @@ fn Context(comptime FileSystem: type) type {
 
         fn analyzeDot(self: *Self, entity: Entity) !Entity {
             const dot_arguments = entity.get(components.Arguments).slice();
-            const module = try self.analyzeExpression(dot_arguments[0]);
-            assert(eql(typeOf(module), self.codebase.get(components.Builtins).Module));
-            const call = dot_arguments[1];
-            assert(call.get(components.AstKind) == .call);
-            var context = Self{
-                .allocator = self.allocator,
-                .codebase = self.codebase,
-                .file_system = self.file_system,
-                .module = module,
-                .function = self.function,
-                .active_scopes = self.active_scopes,
-                .builtins = self.builtins,
-            };
-            return try context.analyzeCall(call, self);
+            const lhs = try self.analyzeExpression(dot_arguments[0]);
+            const b = self.builtins;
+            const lhs_type = typeOf(lhs);
+            const rhs = dot_arguments[1];
+            if (eql(lhs_type, b.Module)) {
+                assert(rhs.get(components.AstKind) == .call);
+                var context = Self{
+                    .allocator = self.allocator,
+                    .codebase = self.codebase,
+                    .file_system = self.file_system,
+                    .module = lhs,
+                    .function = self.function,
+                    .active_scopes = self.active_scopes,
+                    .builtins = self.builtins,
+                };
+                return try context.analyzeCall(rhs, self);
+            }
+            assert(lhs.get(components.AstKind) == .local);
+            assert(lhs_type.get(components.AstKind) == .struct_);
+            assert(rhs.get(components.AstKind) == .symbol);
+            const rhs_literal = rhs.get(components.Literal);
+            for (lhs_type.get(components.Fields).slice()) |field| {
+                if (!eql(field.get(components.Literal), rhs_literal)) continue;
+                return try self.codebase.createEntity(.{
+                    components.AstKind.field,
+                    components.Type.init(typeOf(field)),
+                    lhs.get(components.Local),
+                    components.Field.init(field),
+                });
+            }
+            panic("\nanalyze dot invalid field {s}\n", .{literalOf(rhs)});
         }
 
         fn pipelineArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
@@ -2752,4 +2769,49 @@ test "analyze semantics of struct" {
     try expectEqual(arguments.len, 2);
     try expectEqualStrings(literalOf(arguments[0]), "10");
     try expectEqualStrings(literalOf(arguments[1]), "30");
+}
+
+test "analyze semantics of struct field access" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    const builtins = codebase.get(components.Builtins);
+    _ = try fs.newFile("foo.yeti",
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+        \\
+        \\start = fn(): f64
+        \\  r = Rectangle(10, 30)
+        \\  r.width
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.F64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 2);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    const rectangle = typeOf(define);
+    try expectEqualStrings(literalOf(rectangle.get(components.Name).entity), "Rectangle");
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "r");
+    const construct = define.get(components.Value).entity;
+    try expectEqual(construct.get(components.AstKind), .construct);
+    try expectEqual(typeOf(construct), rectangle);
+    const arguments = construct.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    try expectEqualStrings(literalOf(arguments[0]), "10");
+    try expectEqualStrings(literalOf(arguments[1]), "30");
+    const field = body[1];
+    try expectEqual(typeOf(field), builtins.F64);
+    try expectEqual(field.get(components.Local).entity, define);
+    try expectEqualStrings(literalOf(field.get(components.Field).entity), "width");
 }

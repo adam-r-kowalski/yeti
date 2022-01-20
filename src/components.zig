@@ -243,6 +243,7 @@ pub const AstKind = enum(u8) {
     pointer,
     struct_,
     construct,
+    field,
 };
 
 pub const BinaryOp = enum(u8) {
@@ -572,6 +573,7 @@ pub const Then = DistinctList("Then", Entity);
 pub const Else = DistinctList("Else", Entity);
 pub const DependentEntities = DistinctList("Dependent Entities", Entity);
 pub const Local = DistinctEntity("Local");
+pub const Field = DistinctEntity("Field");
 pub const Constant = DistinctEntity("Constant");
 pub const Scope = DistinctEntityMap("Scope");
 pub const ActiveScopes = DistinctList("Active Scopes", u64);
