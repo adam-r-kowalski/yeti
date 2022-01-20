@@ -413,6 +413,7 @@ pub const WasmInstructionKind = enum(u8) {
     f32x4_mul,
     f64x2_div,
     f32x4_div,
+    field,
 };
 
 pub const Builtins = struct {
