@@ -154,7 +154,7 @@ fn printWasmFunctionLocals(wasm: *Wasm, function: Entity) !void {
                     try printWasmType(wasm, typeOf(field));
                     try wasm.append(')');
                 }
-                return;
+                continue;
             }
         }
         try wasm.appendSlice("\n    (local $");
