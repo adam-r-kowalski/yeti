@@ -773,6 +773,28 @@ fn Context(comptime FileSystem: type) type {
                     }
                     panic("\nunsupported store for value type {s}\n", .{literalOf(value_type)});
                 },
+                .binary_op => {
+                    const arguments = name.entity.get(components.Arguments).slice();
+                    const lhs = try self.analyzeExpression(arguments[0]);
+                    const type_of = typeOf(lhs);
+                    assert(type_of.get(components.AstKind) == .struct_);
+                    const fields = type_of.get(components.Fields).slice();
+                    const rhs = arguments[1];
+                    assert(rhs.get(components.AstKind) == .symbol);
+                    const literal = rhs.get(components.Literal);
+                    for (fields) |field| {
+                        if (!eql(field.get(components.Literal), literal)) continue;
+                        try self.implicitTypeConversion(value, typeOf(field));
+                        return try self.codebase.createEntity(.{
+                            components.AstKind.assign_field,
+                            components.Type.init(self.builtins.Void),
+                            lhs.get(components.Local),
+                            components.Field.init(field),
+                            components.Value.init(value),
+                        });
+                    }
+                    panic("\nassigning to invalid field {s}\n", .{literalOf(rhs)});
+                },
                 else => panic("\nassigning to unsupported kind {}\n", .{kind}),
             }
         }
@@ -2814,4 +2836,54 @@ test "analyze semantics of struct field access" {
     try expectEqual(typeOf(field), builtins.F64);
     try expectEqual(field.get(components.Local).entity, define);
     try expectEqualStrings(literalOf(field.get(components.Field).entity), "width");
+}
+
+test "analyze semantics of struct field write" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    const builtins = codebase.get(components.Builtins);
+    _ = try fs.newFile("foo.yeti",
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+        \\
+        \\start = fn(): Rectangle
+        \\  r = Rectangle(10, 30)
+        \\  r.width = 45
+        \\  r
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const rectangle = start.get(components.ReturnType).entity;
+    try expectEqualStrings(literalOf(rectangle.get(components.Name).entity), "Rectangle");
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqual(typeOf(define), rectangle);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "r");
+    const construct = define.get(components.Value).entity;
+    try expectEqual(construct.get(components.AstKind), .construct);
+    try expectEqual(typeOf(construct), rectangle);
+    const arguments = construct.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    try expectEqualStrings(literalOf(arguments[0]), "10");
+    try expectEqualStrings(literalOf(arguments[1]), "30");
+    const assign_field = body[1];
+    try expectEqual(assign_field.get(components.AstKind), .assign_field);
+    try expectEqual(typeOf(assign_field), builtins.Void);
+    try expectEqual(assign_field.get(components.Local).entity, define);
+    try expectEqualStrings(literalOf(assign_field.get(components.Field).entity), "width");
+    try expectEqualStrings(literalOf(assign_field.get(components.Value).entity), "45");
+    const local = body[2];
+    try expectEqual(local.get(components.AstKind), .local);
 }

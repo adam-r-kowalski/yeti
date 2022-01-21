@@ -224,6 +224,15 @@ fn printWasmField(wasm: *Wasm, wasm_instruction: Entity) !void {
     try wasm.append(')');
 }
 
+fn printWasmAssignField(wasm: *Wasm, wasm_instruction: Entity) !void {
+    const local = wasm_instruction.get(components.Local).entity;
+    try wasm.appendSlice("\n    (local.set $");
+    try wasm.appendSlice(literalOf(local.get(components.Name).entity));
+    try wasm.append('.');
+    try wasm.appendSlice(literalOf(wasm_instruction.get(components.Field).entity));
+    try wasm.append(')');
+}
+
 fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
     switch (wasm_instruction.get(components.WasmInstructionKind)) {
         .i64_const => {
@@ -413,6 +422,7 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         .f64x2_div => try wasm.appendSlice("\n    f64x2.div"),
         .f32x4_div => try wasm.appendSlice("\n    f32x4.div"),
         .field => try printWasmField(wasm, wasm_instruction),
+        .assign_field => try printWasmAssignField(wasm, wasm_instruction),
     }
 }
 
@@ -1595,6 +1605,45 @@ test "print wasm struct field access" {
         \\    (local.set $r.height)
         \\    (local.set $r.width)
         \\    (local.get $r.width))
+        \\
+        \\  (export "_start" (func $foo/start)))
+    );
+}
+
+test "print wasm struct field write" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\Rectangle = struct
+        \\  width: f64
+        \\  height: f64
+        \\end
+        \\
+        \\start = fn(): Rectangle
+        \\  r = Rectangle(10, 30)
+        \\  r.width = 45
+        \\  r
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result f64 f64)
+        \\    (local $r.width f64)
+        \\    (local $r.height f64)
+        \\    (f64.const 10)
+        \\    (f64.const 30)
+        \\    (local.set $r.height)
+        \\    (local.set $r.width)
+        \\    (f64.const 45)
+        \\    (local.set $r.width)
+        \\    (local.get $r.width)
+        \\    (local.get $r.height))
         \\
         \\  (export "_start" (func $foo/start)))
     );

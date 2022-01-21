@@ -1233,6 +1233,13 @@ fn codegenField(context: *Context, entity: Entity) !void {
     try context.wasm_instructions.append(entity);
 }
 
+fn codegenAssignField(context: *Context, entity: Entity) !void {
+    const value = entity.get(components.Value).entity;
+    try codegenEntity(context, value);
+    _ = try entity.set(.{components.WasmInstructionKind.assign_field});
+    _ = try context.wasm_instructions.append(entity);
+}
+
 fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow, InvalidCharacter }!void {
     const kind = entity.get(components.AstKind);
     switch (kind) {
@@ -1247,6 +1254,7 @@ fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow
         .cast => try codegenEntity(context, entity.get(components.Value).entity),
         .construct => try codegenConstruct(context, entity),
         .field => try codegenField(context, entity),
+        .assign_field => try codegenAssignField(context, entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }
 }
@@ -2425,7 +2433,7 @@ test "codegen of struct" {
     }
 }
 
-test "codegen of struct field access" {
+test "codegen of struct field write" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -2436,9 +2444,10 @@ test "codegen of struct field access" {
         \\  height: f64
         \\end
         \\
-        \\start = fn(): f64
+        \\start = fn(): Rectangle
         \\  r = Rectangle(10, 30)
-        \\  r.width
+        \\  r.width = 45
+        \\  r
         \\end
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2446,7 +2455,7 @@ test "codegen of struct field access" {
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const wasm_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(wasm_instructions.len, 4);
+    try expectEqual(wasm_instructions.len, 6);
     {
         const constant = wasm_instructions[0];
         try expectEqual(constant.get(components.WasmInstructionKind), .f64_const);
@@ -2464,10 +2473,21 @@ test "codegen of struct field access" {
         try expectEqualStrings(literalOf(local.get(components.Name).entity), "r");
     }
     {
-        const field = wasm_instructions[3];
-        try expectEqual(field.get(components.WasmInstructionKind), .field);
-        const local = field.get(components.Local).entity;
+        const constant = wasm_instructions[3];
+        try expectEqual(constant.get(components.WasmInstructionKind), .f64_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "45");
+    }
+    {
+        const assign_field = wasm_instructions[4];
+        try expectEqual(assign_field.get(components.WasmInstructionKind), .assign_field);
+        const local = assign_field.get(components.Local).entity;
         try expectEqualStrings(literalOf(local.get(components.Name).entity), "r");
-        try expectEqualStrings(literalOf(field.get(components.Field).entity), "width");
+        try expectEqualStrings(literalOf(assign_field.get(components.Field).entity), "width");
+    }
+    {
+        const local_get = wasm_instructions[5];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "r");
     }
 }

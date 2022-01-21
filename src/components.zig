@@ -244,6 +244,7 @@ pub const AstKind = enum(u8) {
     struct_,
     construct,
     field,
+    assign_field,
 };
 
 pub const BinaryOp = enum(u8) {
@@ -414,6 +415,7 @@ pub const WasmInstructionKind = enum(u8) {
     f64x2_div,
     f32x4_div,
     field,
+    assign_field,
 };
 
 pub const Builtins = struct {
