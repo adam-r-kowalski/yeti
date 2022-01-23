@@ -1,6 +1,6 @@
 fill = fn(ptr: *i32, len: i32): void
   i = 0
-  while i < len then
+  while i < len do
     *ptr = i
     ptr = ptr + 1
     i = i + 1
@@ -10,7 +10,7 @@ end
 sum = fn(ptr: *i32, len: i32): i32
   i = 0
   total = 0
-  while i < len then
+  while i < len do
     total = total + *ptr
     ptr = ptr + 1
     i = i + 1

@@ -85,11 +85,43 @@ fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
 fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
     const begin = while_.get(components.Span).begin;
     const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
-    _ = tokens.consume(.then);
+    _ = tokens.consume(.do);
     var body = components.Body.init(codebase.arena.allocator());
     const result = try codebase.createEntity(.{
         components.AstKind.while_,
         conditional,
+    });
+    while (true) {
+        if (tokens.peek()) |token| {
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .end => {
+                    const end = tokens.next().?.get(components.Span).end;
+                    _ = try result.set(.{
+                        body,
+                        components.Span.init(begin, end),
+                    });
+                    break;
+                },
+                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
+            }
+        } else break;
+    }
+    return result;
+}
+
+fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
+    const begin = for_.get(components.Span).begin;
+    const loop_variable = tokens.consume(.symbol);
+    _ = tokens.consume(.in);
+    const range = try parseExpression(codebase, tokens, LOWEST);
+    assert(range.get(components.AstKind) == .range);
+    _ = tokens.consume(.do);
+    var body = components.Body.init(codebase.arena.allocator());
+    const result = try codebase.createEntity(.{
+        components.AstKind.for_,
+        components.LoopVariable.init(loop_variable),
+        components.Range.init(range),
     });
     while (true) {
         if (tokens.peek()) |token| {
@@ -137,6 +169,7 @@ fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
         .left_paren => parseGrouping(token.ecs, tokens),
         .if_ => parseIf(token.ecs, tokens, token),
         .while_ => parseWhile(token.ecs, tokens, token),
+        .for_ => parseFor(token.ecs, tokens, token),
         .underscore => token.set(.{components.AstKind.underscore}),
         .times => parsePointer(token.ecs, tokens, token),
         else => panic("\nno prefix parser for = {}\n", .{kind}),
@@ -170,7 +203,7 @@ const HIGHEST: u64 = CALL;
 const InfixParser = union(enum) {
     binary_op: struct { op: components.BinaryOp, precedence: u64 },
     define_type_infer,
-    define,
+    define_or_range,
     call,
 
     fn init(tokens: *Tokens, left: Entity) ?InfixParser {
@@ -196,7 +229,7 @@ const InfixParser = union(enum) {
                 .caret => return InfixParser{ .binary_op = .{ .op = .bit_xor, .precedence = BIT_XOR } },
                 .ampersand => return InfixParser{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
                 .equal => return InfixParser.define_type_infer,
-                .colon => return InfixParser.define,
+                .colon => return InfixParser.define_or_range,
                 .left_paren => {
                     const left_end = left.get(components.Span).end;
                     const paren_begin = token.get(components.Span).begin;
@@ -215,7 +248,7 @@ const InfixParser = union(enum) {
         return switch (self) {
             .binary_op => |binary_op| binary_op.precedence,
             .define_type_infer => DEFINE,
-            .define => DEFINE,
+            .define_or_range => DEFINE,
             .call => CALL,
         };
     }
@@ -231,7 +264,7 @@ const InfixParser = union(enum) {
                 parser_precedence,
             ),
             .define_type_infer => parseDefineTypeInfer(codebase, tokens, left, parser_precedence),
-            .define => parseDefine(codebase, tokens, left, parser_precedence),
+            .define_or_range => parseDefineOrRange(codebase, tokens, left, parser_precedence),
             .call => parseCall(codebase, tokens, left),
         };
     }
@@ -258,18 +291,32 @@ fn parseDefineTypeInfer(codebase: *ECS, tokens: *Tokens, name: Entity, precedenc
     });
 }
 
-fn parseDefine(codebase: *ECS, tokens: *Tokens, name: Entity, precedence: u64) !Entity {
-    assert(name.get(components.AstKind) == .symbol);
-    const type_ast = try parseExpression(codebase, tokens, DEFINE + NEXT_PRECEDENCE);
-    _ = tokens.consume(components.TokenKind.equal);
-    const value = try parseExpression(codebase, tokens, precedence);
-    return try codebase.createEntity(.{
-        components.AstKind.define,
-        components.Name.init(name),
-        components.TypeAst.init(type_ast),
-        components.Value.init(value),
-        components.Span.init(name.get(components.Span).begin, value.get(components.Span).end),
-    });
+fn parseDefineOrRange(codebase: *ECS, tokens: *Tokens, lhs: Entity, precedence: u64) !Entity {
+    const kind = lhs.get(components.AstKind);
+    switch (kind) {
+        .symbol => {
+            const type_ast = try parseExpression(codebase, tokens, DEFINE + NEXT_PRECEDENCE);
+            _ = tokens.consume(.equal);
+            const value = try parseExpression(codebase, tokens, precedence);
+            return try codebase.createEntity(.{
+                components.AstKind.define,
+                components.Name.init(lhs),
+                components.TypeAst.init(type_ast),
+                components.Value.init(value),
+                components.Span.init(lhs.get(components.Span).begin, value.get(components.Span).end),
+            });
+        },
+        .int => {
+            const last = tokens.consume(.int);
+            return try codebase.createEntity(.{
+                components.AstKind.range,
+                components.Span.init(lhs.get(components.Span).begin, last.get(components.Span).end),
+                components.First.init(lhs),
+                components.Last.init(last),
+            });
+        },
+        else => panic("\nparsing define or range got kind {}\n", .{kind}),
+    }
 }
 
 fn parseCall(codebase: *ECS, tokens: *Tokens, callable: Entity) !Entity {
@@ -1115,7 +1162,7 @@ test "parse while" {
     const code =
         \\start = fn(): i32
         \\  i = 0
-        \\  while i < 10 then
+        \\  while i < 10 do
         \\      i = i + 1
         \\  end
         \\  i
@@ -1149,6 +1196,53 @@ test "parse while" {
     const i = body[2];
     try expectEqual(i.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(i), "i");
+}
+
+test "parse for loop" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = fn(): i32
+        \\  sum = 0
+        \\  for i in 0:10 do
+        \\      sum = sum + i
+        \\  end
+        \\  sum
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "sum");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+    const for_ = body[1];
+    try expectEqual(for_.get(components.AstKind), .for_);
+    const range = for_.get(components.Range).entity;
+    try expectEqual(range.get(components.AstKind), .range);
+    try expectEqualStrings(literalOf(range.get(components.First).entity), "0");
+    try expectEqualStrings(literalOf(range.get(components.Last).entity), "10");
+    const i = for_.get(components.LoopVariable).entity;
+    try expectEqualStrings(literalOf(i), "i");
+    const for_body = for_.get(components.Body).slice();
+    try expectEqual(for_body.len, 1);
+    const assign = for_body[0];
+    try expectEqual(assign.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(assign.get(components.Name).entity), "sum");
+    const value = assign.get(components.Value).entity;
+    try expectEqual(value.get(components.AstKind), .binary_op);
+    try expectEqual(value.get(components.BinaryOp), .add);
+    const sum = body[2];
+    try expectEqual(sum.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(sum), "sum");
 }
 
 test "parse pipeline" {

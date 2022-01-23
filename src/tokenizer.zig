@@ -132,10 +132,10 @@ fn tokenizeSymbol(module: Entity, source: *Source) !Entity {
     const string = source.advance(i);
     const span = components.Span{ .begin = begin, .end = source.position };
     const symbols = [_][]const u8{
-        "import", "fn", "end", "if", "then", "else", "while", "foreign_export", "foreign_import", "struct", "_",
+        "import", "fn", "end", "if", "then", "else", "while", "for", "in", "do", "foreign_export", "foreign_import", "struct", "_",
     };
     const tokens = [_]components.TokenKind{
-        .import, .fn_, .end, .if_, .then, .else_, .while_, .foreign_export, .foreign_import, .struct_, .underscore,
+        .import, .fn_, .end, .if_, .then, .else_, .while_, .for_, .in, .do, .foreign_export, .foreign_import, .struct_, .underscore,
     };
     for (symbols) |symbol, j| {
         if (std.mem.eql(u8, string, symbol)) {

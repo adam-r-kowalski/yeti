@@ -1908,7 +1908,7 @@ test "codegen while loop" {
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): i32
         \\  i = 0
-        \\  while i < 10 then
+        \\  while i < 10 do
         \\      i = i + 1
         \\  end
         \\  i

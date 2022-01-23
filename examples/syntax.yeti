@@ -10,7 +10,7 @@ end
 
 while_loop = fn(): void
   i = 0
-  while i < 10 then
+  while i < 10 do
     print(i)
     i += 1
   end
@@ -32,7 +32,7 @@ end
 
 sum_of_even_perfect_squares_under_50_imperative = fn(): u64
   sum = 0
-  for x in 1:50
+  for x in 1:50 do
     x2 = x * x
     if x2 % 2 == 0 then
       sum += x2

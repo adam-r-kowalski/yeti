@@ -208,6 +208,9 @@ pub const TokenKind = enum(u8) {
     then,
     else_,
     while_,
+    for_,
+    do,
+    in,
     underscore,
     foreign_export,
     foreign_import,
@@ -236,6 +239,7 @@ pub const AstKind = enum(u8) {
     overload_set,
     if_,
     while_,
+    for_,
     local,
     intrinsic,
     underscore,
@@ -245,6 +249,7 @@ pub const AstKind = enum(u8) {
     construct,
     field,
     assign_field,
+    range,
 };
 
 pub const BinaryOp = enum(u8) {
@@ -593,6 +598,10 @@ pub const ForeignName = DistinctEntity("Foreign Name");
 pub const Memoized = DistinctMap("Memoized", Entity, Entity);
 pub const ParentType = DistinctEntity("Parent Type");
 pub const ValueType = DistinctEntity("Value Type");
+pub const LoopVariable = DistinctEntity("Loop Variable");
+pub const Range = DistinctEntity("Range");
+pub const First = DistinctEntity("First");
+pub const Last = DistinctEntity("Last");
 pub const UsesMemory = struct { value: bool };
 pub const Size = struct { bytes: i32 };
 pub const ModuleSource = struct { string: []const u8 };
