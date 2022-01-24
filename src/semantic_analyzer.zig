@@ -123,12 +123,35 @@ fn Context(comptime FileSystem: type) type {
             const literal = entity.get(components.Literal);
             const scopes = self.function.get(components.Scopes);
             if (scopes.hasLiteral(literal)) |local| {
-                return try self.codebase.createEntity(.{
+                const b = self.builtins;
+                if (local.has(components.Value)) |value| {
+                    const type_of = value.entity.get(components.Type);
+                    const result = try self.codebase.createEntity(.{
+                        components.AstKind.local,
+                        components.Local.init(local),
+                        type_of,
+                    });
+                    const T = type_of.entity;
+                    if (eql(T, b.IntLiteral) or eql(T, b.FloatLiteral)) {
+                        _ = try result.set(.{
+                            try components.DependentEntities.fromSlice(self.allocator, &.{value.entity}),
+                        });
+                    }
+                    return result;
+                }
+                const type_of = local.get(components.Type);
+                const result = try self.codebase.createEntity(.{
                     components.AstKind.local,
                     components.Local.init(local),
-                    local.get(components.Type),
-                    try components.DependentEntities.fromSlice(self.allocator, &.{local}),
+                    type_of,
                 });
+                const T = type_of.entity;
+                if (eql(T, b.IntLiteral) or eql(T, b.FloatLiteral)) {
+                    _ = try result.set(.{
+                        try components.DependentEntities.fromSlice(self.allocator, &.{local}),
+                    });
+                }
+                return result;
             }
             const global_scope = self.codebase.get(components.Scope);
             if (global_scope.hasLiteral(literal)) |global| {
@@ -696,7 +719,6 @@ fn Context(comptime FileSystem: type) type {
             };
         }
 
-        // TODO: type_of(x = 5) should be void
         fn analyzeDefine(self: *Self, define: Entity) !Entity {
             const name = define.get(components.Name);
             const value = try self.analyzeExpression(define.get(components.Value).entity);
@@ -707,7 +729,7 @@ fn Context(comptime FileSystem: type) type {
                     if (scopes.hasName(name)) |entity| {
                         assert(!define.contains(components.TypeAst));
                         _ = try entity.set(.{components.Mutable{ .value = true }});
-                        const result_type = try self.unifyTypes(value, entity);
+                        const result_type = try self.unifyTypes(value, entity.get(components.Value).entity);
                         const b = self.builtins;
                         const result = try self.codebase.createEntity(.{
                             components.AstKind.assign,
@@ -726,14 +748,14 @@ fn Context(comptime FileSystem: type) type {
                         const explicit_type = try analyzeExpression(self, type_ast.entity);
                         try self.implicitTypeConversion(value, explicit_type);
                     }
+                    const b = self.builtins;
                     const analyzed_define = try self.codebase.createEntity(.{
                         components.AstKind.define,
                         components.Value.init(value),
                         name,
-                        value.get(components.Type),
+                        components.Type.init(b.Void),
                     });
                     const type_of = typeOf(value);
-                    const b = self.builtins;
                     if (eql(type_of, b.IntLiteral) or eql(type_of, b.FloatLiteral)) {
                         _ = try analyzed_define.set(.{
                             try components.DependentEntities.fromSlice(self.allocator, &.{value}),
@@ -884,7 +906,7 @@ fn Context(comptime FileSystem: type) type {
                 components.AstKind.define,
                 components.Value.init(range.first),
                 name,
-                range.first.get(components.Type),
+                components.Type.init(self.builtins.Void),
             });
             try scopes.putName(name, define);
             const active_scopes = self.active_scopes;
@@ -1239,7 +1261,7 @@ test "analyze semantics define" {
         try expectEqual(body.len, 2);
         const define = body[0];
         try expectEqual(define.get(components.AstKind), .define);
-        try expectEqual(typeOf(define), builtin_types[i]);
+        try expectEqual(typeOf(define), builtins.Void);
         try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
         try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
         const local = body[1];
@@ -1275,13 +1297,17 @@ test "analyze semantics two defines" {
         const body = start.get(components.Body).slice();
         try expectEqual(body.len, 3);
         const x = body[0];
-        try expectEqual(x.get(components.AstKind), .define);
-        try expectEqual(typeOf(x), builtin_types[i]);
-        try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-        try expectEqualStrings(literalOf(x.get(components.Value).entity), "10");
+        {
+            try expectEqual(x.get(components.AstKind), .define);
+            try expectEqual(typeOf(x), builtins.Void);
+            try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+            const value = x.get(components.Value).entity;
+            try expectEqual(typeOf(value), builtin_types[i]);
+            try expectEqualStrings(literalOf(value), "10");
+        }
         const y = body[1];
         try expectEqual(y.get(components.AstKind), .define);
-        try expectEqual(typeOf(y), builtins.IntLiteral);
+        try expectEqual(typeOf(y), builtins.Void);
         try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
         try expectEqualStrings(literalOf(y.get(components.Value).entity), "15");
         const local = body[2];
@@ -1317,7 +1343,7 @@ test "analyze semantics define with explicit float type" {
         try expectEqual(body.len, 2);
         const define = body[0];
         try expectEqual(define.get(components.AstKind), .define);
-        try expectEqual(typeOf(define), builtin_types[i]);
+        try expectEqual(typeOf(define), builtins.Void);
         try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
         try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
         const local = body[1];
@@ -1358,7 +1384,7 @@ test "analyze semantics function with argument" {
             try expectEqual(body.len, 2);
             const define = body[0];
             try expectEqual(define.get(components.AstKind), .define);
-            try expectEqual(typeOf(define), builtin_types[i]);
+            try expectEqual(typeOf(define), builtins.Void);
             try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
             try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
             const call = body[1];
@@ -1420,9 +1446,10 @@ test "analyze semantics function call twice" {
         const id = blk: {
             const define = start_body[0];
             try expectEqual(define.get(components.AstKind), .define);
-            try expectEqual(typeOf(define), builtin_types[i]);
+            try expectEqual(typeOf(define), builtins.Void);
             try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
             const call = define.get(components.Value).entity;
+            try expectEqual(typeOf(call), builtin_types[i]);
             try expectEqual(call.get(components.AstKind), .call);
             const arguments = call.get(components.Arguments).slice();
             try expectEqual(arguments.len, 1);
@@ -1487,15 +1514,23 @@ test "analyze semantics binary op two comptime known" {
             const body = start.get(components.Body).slice();
             try expectEqual(body.len, 3);
             const x = body[0];
-            try expectEqual(x.get(components.AstKind), .define);
-            try expectEqual(typeOf(x), builtin_types[i]);
-            try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-            try expectEqualStrings(literalOf(x.get(components.Value).entity), "10");
+            {
+                try expectEqual(x.get(components.AstKind), .define);
+                try expectEqual(typeOf(x), builtins.Void);
+                try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+                const value = x.get(components.Value).entity;
+                try expectEqual(typeOf(value), builtin_types[i]);
+                try expectEqualStrings(literalOf(value), "10");
+            }
             const y = body[1];
-            try expectEqual(y.get(components.AstKind), .define);
-            try expectEqual(typeOf(y), builtin_types[i]);
-            try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
-            try expectEqualStrings(literalOf(y.get(components.Value).entity), "32");
+            {
+                try expectEqual(y.get(components.AstKind), .define);
+                try expectEqual(typeOf(y), builtins.Void);
+                try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
+                const value = y.get(components.Value).entity;
+                try expectEqual(typeOf(value), builtin_types[i]);
+                try expectEqualStrings(literalOf(value), "32");
+            }
             const intrinsic = body[2];
             try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
             try expectEqual(intrinsic.get(components.Intrinsic), intrinsics[op_index]);
@@ -1548,15 +1583,23 @@ test "analyze semantics comparison op two comptime known" {
             const body = start.get(components.Body).slice();
             try expectEqual(body.len, 3);
             const x = body[0];
-            try expectEqual(x.get(components.AstKind), .define);
-            try expectEqual(typeOf(x), builtin_types[i]);
-            try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
-            try expectEqualStrings(literalOf(x.get(components.Value).entity), "10");
+            {
+                try expectEqual(x.get(components.AstKind), .define);
+                try expectEqual(typeOf(x), builtins.Void);
+                try expectEqualStrings(literalOf(x.get(components.Name).entity), "x");
+                const value = x.get(components.Value).entity;
+                try expectEqual(typeOf(value), builtin_types[i]);
+                try expectEqualStrings(literalOf(value), "10");
+            }
             const y = body[1];
-            try expectEqual(y.get(components.AstKind), .define);
-            try expectEqual(typeOf(y), builtin_types[i]);
-            try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
-            try expectEqualStrings(literalOf(y.get(components.Value).entity), "32");
+            {
+                try expectEqual(y.get(components.AstKind), .define);
+                try expectEqual(typeOf(y), builtins.Void);
+                try expectEqualStrings(literalOf(y.get(components.Name).entity), "y");
+                const value = y.get(components.Value).entity;
+                try expectEqual(typeOf(value), builtin_types[i]);
+                try expectEqualStrings(literalOf(value), "32");
+            }
             const intrinsic = body[2];
             try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
             try expectEqual(intrinsic.get(components.Intrinsic), intrinsics[op_index]);
@@ -1749,10 +1792,14 @@ test "analyze semantics of assignment" {
         const body = start.get(components.Body).slice();
         try expectEqual(body.len, 3);
         const define = body[0];
-        try expectEqual(define.get(components.AstKind), .define);
-        try expectEqual(typeOf(define), builtin_types[i]);
-        try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
-        try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+        {
+            try expectEqual(define.get(components.AstKind), .define);
+            try expectEqual(typeOf(define), builtins.Void);
+            try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+            const value = define.get(components.Value).entity;
+            try expectEqual(typeOf(value), builtin_types[i]);
+            try expectEqualStrings(literalOf(value), "10");
+        }
         const assign = body[1];
         try expectEqual(assign.get(components.AstKind), .assign);
         try expectEqual(typeOf(assign), builtins.Void);
@@ -1790,10 +1837,14 @@ test "analyze semantics of while loop" {
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 3);
     const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqual(typeOf(define), builtins.I32);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "i");
-    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+    {
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        try expectEqualStrings(literalOf(define.get(components.Name).entity), "i");
+        const value = define.get(components.Value).entity;
+        try expectEqual(typeOf(value), builtins.I32);
+        try expectEqualStrings(literalOf(value), "0");
+    }
     const while_ = body[1];
     try expectEqual(while_.get(components.AstKind), .while_);
     try expectEqual(typeOf(while_), builtins.Void);
@@ -1841,7 +1892,7 @@ test "analyze semantics of for loop" {
     const define = body[0];
     {
         try expectEqual(define.get(components.AstKind), .define);
-        try expectEqual(typeOf(define), builtins.I32);
+        try expectEqual(typeOf(define), builtins.Void);
         try expectEqualStrings(literalOf(define.get(components.Name).entity), "sum");
         const value = define.get(components.Value).entity;
         try expectEqual(typeOf(value), builtins.I32);
@@ -1853,7 +1904,7 @@ test "analyze semantics of for loop" {
     const i = for_.get(components.LoopVariable).entity;
     {
         try expectEqual(i.get(components.AstKind), .define);
-        try expectEqual(typeOf(i), builtins.I32);
+        try expectEqual(typeOf(i), builtins.Void);
         try expectEqualStrings(literalOf(i.get(components.Name).entity), "i");
         const value = i.get(components.Value).entity;
         try expectEqual(typeOf(value), builtins.IntLiteral);
