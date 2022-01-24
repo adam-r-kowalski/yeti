@@ -70,6 +70,8 @@ pub fn initBuiltins(codebase: *ECS) !void {
     // type_of(p32(i64)) == type
     const Ptr = try builtinType(codebase, &scope, "ptr", Type, 4);
     _ = try Ptr.set(.{components.Memoized.init(allocator)});
+    const Range = try builtinType(codebase, &scope, "Range", Type, 0);
+    _ = try Range.set(.{components.Memoized.init(allocator)});
     // TODO: cast is a function from type, and value to value of new type
     // type_of(cast) == Fn(T: type, value: U): T
     // type_of(cast(i64, 5)) == i64
@@ -89,6 +91,7 @@ pub fn initBuiltins(codebase: *ECS) !void {
         .F32 = F32,
         .Void = Void,
         .Ptr = Ptr,
+        .Range = Range,
         .IntLiteral = IntLiteral,
         .FloatLiteral = FloatLiteral,
         .I64X2 = I64X2,

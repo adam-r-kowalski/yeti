@@ -438,6 +438,7 @@ pub const Builtins = struct {
     F32: Entity,
     Void: Entity,
     Ptr: Entity,
+    Range: Entity,
     IntLiteral: Entity,
     FloatLiteral: Entity,
     I64X2: Entity,
@@ -599,9 +600,8 @@ pub const Memoized = DistinctMap("Memoized", Entity, Entity);
 pub const ParentType = DistinctEntity("Parent Type");
 pub const ValueType = DistinctEntity("Value Type");
 pub const LoopVariable = DistinctEntity("Loop Variable");
-pub const Range = DistinctEntity("Range");
-pub const First = DistinctEntity("First");
-pub const Last = DistinctEntity("Last");
+pub const Iterator = DistinctEntity("Iterator");
+pub const Range = struct { first: Entity, last: Entity };
 pub const UsesMemory = struct { value: bool };
 pub const Size = struct { bytes: i32 };
 pub const ModuleSource = struct { string: []const u8 };

@@ -114,14 +114,14 @@ fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
     const begin = for_.get(components.Span).begin;
     const loop_variable = tokens.consume(.symbol);
     _ = tokens.consume(.in);
-    const range = try parseExpression(codebase, tokens, LOWEST);
-    assert(range.get(components.AstKind) == .range);
+    const iterator = try parseExpression(codebase, tokens, LOWEST);
+    assert(iterator.get(components.AstKind) == .range);
     _ = tokens.consume(.do);
     var body = components.Body.init(codebase.arena.allocator());
     const result = try codebase.createEntity(.{
         components.AstKind.for_,
         components.LoopVariable.init(loop_variable),
-        components.Range.init(range),
+        components.Iterator.init(iterator),
     });
     while (true) {
         if (tokens.peek()) |token| {
@@ -307,12 +307,13 @@ fn parseDefineOrRange(codebase: *ECS, tokens: *Tokens, lhs: Entity, precedence: 
             });
         },
         .int => {
-            const last = tokens.consume(.int);
+            const last = try parseExpression(codebase, tokens, LOWEST);
+            assert(last.get(components.AstKind) == .int);
+            const range = components.Range{ .first = lhs, .last = last };
             return try codebase.createEntity(.{
                 components.AstKind.range,
                 components.Span.init(lhs.get(components.Span).begin, last.get(components.Span).end),
-                components.First.init(lhs),
-                components.Last.init(last),
+                range,
             });
         },
         else => panic("\nparsing define or range got kind {}\n", .{kind}),
@@ -1226,10 +1227,11 @@ test "parse for loop" {
     try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
     const for_ = body[1];
     try expectEqual(for_.get(components.AstKind), .for_);
-    const range = for_.get(components.Range).entity;
-    try expectEqual(range.get(components.AstKind), .range);
-    try expectEqualStrings(literalOf(range.get(components.First).entity), "0");
-    try expectEqualStrings(literalOf(range.get(components.Last).entity), "10");
+    const iterator = for_.get(components.Iterator).entity;
+    try expectEqual(iterator.get(components.AstKind), .range);
+    const range = iterator.get(components.Range);
+    try expectEqualStrings(literalOf(range.first), "0");
+    try expectEqualStrings(literalOf(range.last), "10");
     const i = for_.get(components.LoopVariable).entity;
     try expectEqualStrings(literalOf(i), "i");
     const for_body = for_.get(components.Body).slice();

@@ -708,13 +708,13 @@ fn Context(comptime FileSystem: type) type {
                         assert(!define.contains(components.TypeAst));
                         _ = try entity.set(.{components.Mutable{ .value = true }});
                         const result_type = try self.unifyTypes(value, entity);
+                        const b = self.builtins;
                         const result = try self.codebase.createEntity(.{
                             components.AstKind.assign,
                             components.Value.init(value),
                             name,
-                            components.Type.init(result_type),
+                            components.Type.init(b.Void),
                         });
-                        const b = self.builtins;
                         if (eql(result_type, b.IntLiteral) or eql(result_type, b.FloatLiteral)) {
                             const dependent_entities = entity.getPtr(components.DependentEntities);
                             try dependent_entities.append(result);
@@ -874,6 +874,68 @@ fn Context(comptime FileSystem: type) type {
             return result;
         }
 
+        fn analyzeFor(self: *Self, for_: Entity) !Entity {
+            const scopes = self.function.getPtr(components.Scopes);
+            const iterator = try self.analyzeExpression(for_.get(components.Iterator).entity);
+            const range = iterator.get(components.Range);
+            const loop_variable = for_.get(components.LoopVariable).entity;
+            const name = components.Name.init(loop_variable);
+            const define = try self.codebase.createEntity(.{
+                components.AstKind.define,
+                components.Value.init(range.first),
+                name,
+                range.first.get(components.Type),
+            });
+            try scopes.putName(name, define);
+            const active_scopes = self.active_scopes;
+            const body = for_.get(components.Body).slice();
+            assert(body.len > 0);
+            const body_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
+            std.mem.copy(u64, body_scopes, active_scopes);
+            body_scopes[active_scopes.len] = try scopes.pushScope();
+            self.active_scopes = body_scopes;
+            var analyzed_body = try components.Body.withCapacity(self.allocator, body.len);
+            for (body) |entity| {
+                analyzed_body.appendAssumeCapacity(try self.analyzeExpression(entity));
+            }
+            const result = try self.codebase.createEntity(.{
+                components.AstKind.for_,
+                components.Type.init(self.builtins.Void),
+                components.LoopVariable.init(define),
+                components.Iterator.init(iterator),
+                analyzed_body,
+            });
+            const finally_scopes = try self.allocator.alloc(u64, active_scopes.len + 1);
+            std.mem.copy(u64, finally_scopes, active_scopes);
+            finally_scopes[active_scopes.len] = try scopes.pushScope();
+            self.active_scopes = finally_scopes;
+            return result;
+        }
+
+        fn analyzeRange(self: *Self, entity: Entity) !Entity {
+            const b = self.builtins;
+            const range = entity.get(components.Range);
+            const first = try self.analyzeExpression(range.first);
+            const last = try self.analyzeExpression(range.last);
+            const type_of = try self.unifyTypes(first, last);
+            const range_type = blk: {
+                const memoized = b.Range.getPtr(components.Memoized);
+                const result = try memoized.getOrPut(type_of);
+                if (result.found_existing) {
+                    break :blk result.value_ptr.*;
+                }
+                const string = try std.fmt.allocPrint(self.allocator, "Range({s})", .{literalOf(type_of)});
+                const interned = try self.codebase.getPtr(Strings).intern(string);
+                break :blk try self.codebase.createEntity(.{
+                    components.Literal.init(interned),
+                    components.Type.init(b.Type),
+                    components.ParentType.init(b.Range),
+                    components.ValueType.init(type_of),
+                });
+            };
+            return try entity.set(.{components.Type.init(range_type)});
+        }
+
         const Error = error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes, CompileError };
 
         fn analyzeExpression(self: *Self, entity: Entity) Error!Entity {
@@ -886,7 +948,9 @@ fn Context(comptime FileSystem: type) type {
                 .define => try self.analyzeDefine(entity),
                 .if_ => try self.analyzeIf(entity),
                 .while_ => try self.analyzeWhile(entity),
+                .for_ => try self.analyzeFor(entity),
                 .pointer => try self.analyzePointer(entity),
+                .range => try self.analyzeRange(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
             };
         }
@@ -1691,7 +1755,7 @@ test "analyze semantics of assignment" {
         try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
         const assign = body[1];
         try expectEqual(assign.get(components.AstKind), .assign);
-        try expectEqual(typeOf(assign), builtin_types[i]);
+        try expectEqual(typeOf(assign), builtins.Void);
         try expectEqualStrings(literalOf(assign.get(components.Name).entity), "x");
         try expectEqualStrings(literalOf(assign.get(components.Value).entity), "3");
         const local = body[2];
@@ -1740,10 +1804,59 @@ test "analyze semantics of while loop" {
     try expectEqual(while_body.len, 1);
     const assign = while_body[0];
     try expectEqual(assign.get(components.AstKind), .assign);
-    try expectEqual(typeOf(assign), builtins.I32);
+    try expectEqual(typeOf(assign), builtins.Void);
     try expectEqualStrings(literalOf(assign.get(components.Name).entity), "i");
     const value = assign.get(components.Value).entity;
     try expectEqual(value.get(components.AstKind), .intrinsic);
+    const local = body[2];
+    try expectEqual(local.get(components.AstKind), .local);
+    try expectEqual(local.get(components.Local).entity, define);
+    try expectEqual(typeOf(local), builtins.I32);
+}
+
+test "analyze semantics of for loop" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i32
+        \\  sum = 0
+        \\  for i in 0:10 do
+        \\      sum = sum + i
+        \\  end
+        \\  sum
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I32);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqual(typeOf(define), builtins.I32);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "sum");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+    const for_ = body[1];
+    try expectEqual(for_.get(components.AstKind), .for_);
+    try expectEqual(typeOf(for_), builtins.Void);
+    // const conditional = while_.get(components.Conditional).entity;
+    // try expectEqual(conditional.get(components.AstKind), .intrinsic);
+    // try expectEqual(typeOf(conditional), builtins.I32);
+    // const while_body = while_.get(components.Body).slice();
+    // try expectEqual(while_body.len, 1);
+    // const assign = while_body[0];
+    // try expectEqual(assign.get(components.AstKind), .assign);
+    // try expectEqual(typeOf(assign), builtins.I32);
+    // try expectEqualStrings(literalOf(assign.get(components.Name).entity), "i");
+    // const value = assign.get(components.Value).entity;
+    // try expectEqual(value.get(components.AstKind), .intrinsic);
     const local = body[2];
     try expectEqual(local.get(components.AstKind), .local);
     try expectEqual(local.get(components.Local).entity, define);
@@ -1779,7 +1892,7 @@ test "analyze semantics of increment" {
     try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
     const assign = body[1];
     try expectEqual(assign.get(components.AstKind), .assign);
-    try expectEqual(typeOf(assign), builtins.I64);
+    try expectEqual(typeOf(assign), builtins.Void);
     try expectEqualStrings(literalOf(assign.get(components.Name).entity), "x");
     const intrinsic = assign.get(components.Value).entity;
     try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
@@ -1834,7 +1947,7 @@ test "analyze semantics of add between typed and inferred" {
     try expectEqualStrings(literalOf(b.get(components.Value).entity), "0");
     const assign = body[2];
     try expectEqual(assign.get(components.AstKind), .assign);
-    try expectEqual(typeOf(assign), builtins.I64);
+    try expectEqual(typeOf(assign), builtins.Void);
     try expectEqualStrings(literalOf(assign.get(components.Name).entity), "b");
     const intrinsic = assign.get(components.Value).entity;
     try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
