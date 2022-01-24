@@ -70,12 +70,23 @@ fn Context(comptime FileSystem: type) type {
 
         fn implicitTypeConversion(self: *Self, value: Entity, expected_type: Entity) error{OutOfMemory}!void {
             const actual_type = typeOf(value);
+            std.debug.print("\nimplicit type conversion", .{});
+            if (value.has(components.Local)) |local| {
+                std.debug.print(" name {s}", .{
+                    literalOf(local.entity.get(components.Name).entity),
+                });
+            }
+            std.debug.print(" from {s} to {s}", .{
+                literalOf(actual_type),
+                literalOf(expected_type),
+            });
             const b = self.builtins;
             assert(self.convertibleTo(expected_type, actual_type) != .no);
             _ = try value.set(.{components.Type.init(expected_type)});
             if (value.has(components.DependentEntities)) |dependent_entities| {
                 for (dependent_entities.slice()) |entity| {
                     const t = typeOf(entity);
+                    std.debug.print("\ndependent entity type {s}", .{literalOf(t)});
                     if (!eql(t, b.IntLiteral) and !eql(t, b.FloatLiteral)) continue;
                     try self.implicitTypeConversion(entity, expected_type);
                 }
@@ -133,9 +144,7 @@ fn Context(comptime FileSystem: type) type {
                     });
                     const T = type_of.entity;
                     if (eql(T, b.IntLiteral) or eql(T, b.FloatLiteral)) {
-                        _ = try result.set(.{
-                            try components.DependentEntities.fromSlice(self.allocator, &.{value.entity}),
-                        });
+                        try addDependentEntities(result, &.{value.entity});
                     }
                     return result;
                 }
@@ -147,9 +156,7 @@ fn Context(comptime FileSystem: type) type {
                 });
                 const T = type_of.entity;
                 if (eql(T, b.IntLiteral) or eql(T, b.FloatLiteral)) {
-                    _ = try result.set(.{
-                        try components.DependentEntities.fromSlice(self.allocator, &.{local}),
-                    });
+                    try addDependentEntities(result, &.{local});
                 }
                 return result;
             }
@@ -661,9 +668,7 @@ fn Context(comptime FileSystem: type) type {
                     type_of,
                 });
                 if (eql(builtin, b.IntLiteral) or eql(builtin, b.FloatLiteral)) {
-                    _ = try result.set(.{
-                        try components.DependentEntities.fromSlice(self.allocator, &.{ lhs, rhs }),
-                    });
+                    try addDependentEntities(result, &.{ lhs, rhs });
                 }
                 return result;
             }
@@ -738,9 +743,7 @@ fn Context(comptime FileSystem: type) type {
                             components.Type.init(b.Void),
                         });
                         if (eql(result_type, b.IntLiteral) or eql(result_type, b.FloatLiteral)) {
-                            const dependent_entities = entity.getPtr(components.DependentEntities);
-                            try dependent_entities.append(result);
-                            try dependent_entities.append(value);
+                            try addDependentEntities(entity, &.{ result, value });
                         }
                         return result;
                     }
@@ -757,9 +760,7 @@ fn Context(comptime FileSystem: type) type {
                     });
                     const type_of = typeOf(value);
                     if (eql(type_of, b.IntLiteral) or eql(type_of, b.FloatLiteral)) {
-                        _ = try analyzed_define.set(.{
-                            try components.DependentEntities.fromSlice(self.allocator, &.{value}),
-                        });
+                        try addDependentEntities(analyzed_define, &.{value});
                     }
                     try scopes.putName(name, analyzed_define);
                     return analyzed_define;
@@ -1023,6 +1024,18 @@ fn Context(comptime FileSystem: type) type {
             }
         }
     };
+}
+
+fn addDependentEntities(entity: Entity, entities: []const Entity) !void {
+    if (entity.has(components.DependentEntities)) |*dependent_entities| {
+        for (entities) |e| {
+            try dependent_entities.append(e);
+        }
+    } else {
+        _ = try entity.set(.{
+            try components.DependentEntities.fromSlice(entity.ecs.arena.allocator(), entities),
+        });
+    }
 }
 
 fn analyzeOverload(file_system: anytype, module: Entity, overload: Entity) !void {
@@ -1880,7 +1893,9 @@ test "analyze semantics of for loop" {
         \\  sum
         \\end
     );
+    std.debug.print("\n", .{});
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    std.debug.print("\n", .{});
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
@@ -1907,7 +1922,7 @@ test "analyze semantics of for loop" {
         try expectEqual(typeOf(i), builtins.Void);
         try expectEqualStrings(literalOf(i.get(components.Name).entity), "i");
         const value = i.get(components.Value).entity;
-        try expectEqual(typeOf(value), builtins.IntLiteral);
+        try expectEqual(typeOf(value), builtins.I32);
         try expectEqualStrings(literalOf(value), "0");
     }
     const iterator = for_.get(components.Iterator).entity;
@@ -1963,10 +1978,14 @@ test "analyze semantics of increment" {
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 3);
     const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqual(typeOf(define), builtins.I64);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
-    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+    {
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+        const value = define.get(components.Value).entity;
+        try expectEqualStrings(literalOf(value), "0");
+        try expectEqual(typeOf(value), builtins.I64);
+    }
     const assign = body[1];
     try expectEqual(assign.get(components.AstKind), .assign);
     try expectEqual(typeOf(assign), builtins.Void);
