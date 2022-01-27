@@ -722,6 +722,7 @@ fn Context(comptime FileSystem: type) type {
                         components.AstKind.local,
                         name,
                         components.Type.init(type_of),
+                        components.Value.init(value),
                     });
                     const analyzed_define = try self.codebase.createEntity(.{
                         components.AstKind.define,
@@ -959,6 +960,7 @@ fn Context(comptime FileSystem: type) type {
                 _ = try parameter.set(.{
                     components.Type.init(parameter_type),
                     components.Name.init(parameter),
+                    components.AstKind.local,
                 });
                 try scopes.putLiteral(parameter.get(components.Literal), parameter);
             }

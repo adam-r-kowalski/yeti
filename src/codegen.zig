@@ -76,8 +76,9 @@ fn codegenCall(context: *Context, entity: Entity) !void {
 
 fn codegenDefine(context: *Context, entity: Entity) !void {
     const value = entity.get(components.Value).entity;
-    if (!entity.contains(components.Mutable)) {
-        const type_of = typeOf(entity);
+    const local = entity.get(components.Local).entity;
+    if (!local.contains(components.Mutable)) {
+        const type_of = typeOf(local);
         const b = context.builtins;
         for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
             if (!eql(type_of, builtin)) continue;
@@ -96,10 +97,10 @@ fn codegenDefine(context: *Context, entity: Entity) !void {
     try codegenEntity(context, value);
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.local_set,
-        components.Local.init(entity),
+        components.Local.init(local),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
-    try context.locals.put(entity);
+    try context.locals.put(local);
 }
 
 fn codegenAssign(context: *Context, entity: Entity) !void {
@@ -107,16 +108,15 @@ fn codegenAssign(context: *Context, entity: Entity) !void {
     try codegenEntity(context, value);
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.local_set,
-        components.Local.init(entity),
+        entity.get(components.Local),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
     return;
 }
 
-fn codegenLocal(context: *Context, entity: Entity) !void {
-    const local = entity.get(components.Local);
-    if (!local.entity.contains(components.Mutable)) {
-        const type_of = typeOf(entity);
+fn codegenLocal(context: *Context, local: Entity) !void {
+    if (!local.contains(components.Mutable)) {
+        const type_of = typeOf(local);
         const b = context.builtins;
         for (&[_]Entity{ b.IntLiteral, b.FloatLiteral }) |builtin| {
             if (!eql(type_of, builtin)) continue;
@@ -125,7 +125,7 @@ fn codegenLocal(context: *Context, entity: Entity) !void {
         const builtins = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
         const types = [_]type{ i64, i32, i16, i8, u64, u32, u16, u8, f64, f32 };
         const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i32_const, .i32_const, .i64_const, .i32_const, .i32_const, .i32_const, .f64_const, .f32_const };
-        if (local.entity.has(components.Value)) |value_component| {
+        if (local.has(components.Value)) |value_component| {
             const value = value_component.entity;
             inline for (&types) |T, i| {
                 if (eql(builtins[i], type_of)) {
@@ -143,7 +143,7 @@ fn codegenLocal(context: *Context, entity: Entity) !void {
     }
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.local_get,
-        local,
+        components.Local.init(local),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
 }
@@ -1593,9 +1593,10 @@ test "codegen arithmethic binary op non constant" {
             try expectEqual(op.get(components.WasmInstructionKind), op_kinds[op_index][i]);
             const id_instructions = id.get(components.WasmInstructions).slice();
             try expectEqual(id_instructions.len, 1);
-            const local = id_instructions[0];
-            try expectEqual(local.get(components.WasmInstructionKind), .local_get);
-            try expectEqualStrings(literalOf(local.get(components.Local).entity), "x");
+            const local_get = id_instructions[0];
+            try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+            const local = local_get.get(components.Local).entity;
+            try expectEqualStrings(literalOf(local), "x");
         }
     }
 }
