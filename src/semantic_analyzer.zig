@@ -466,7 +466,7 @@ fn Context(comptime FileSystem: type) type {
                 return try self.codebase.createEntity(.{
                     components.AstKind.field,
                     components.Type.init(typeOf(field)),
-                    lhs.get(components.Local),
+                    components.Local.init(lhs),
                     components.Field.init(field),
                 });
             }
@@ -781,7 +781,7 @@ fn Context(comptime FileSystem: type) type {
                         return try self.codebase.createEntity(.{
                             components.AstKind.assign_field,
                             components.Type.init(self.builtins.Void),
-                            lhs.get(components.Local),
+                            components.Local.init(lhs),
                             components.Field.init(field),
                             components.Value.init(value),
                         });
@@ -1971,60 +1971,65 @@ test "analyze semantics of increment" {
     try expectEqual(body[2], x);
 }
 
-// test "analyze semantics of add between typed and inferred" {
-//     var arena = Arena.init(std.heap.page_allocator);
-//     defer arena.deinit();
-//     var codebase = try initCodebase(&arena);
-//     const builtins = codebase.get(components.Builtins);
-//     var fs = try MockFileSystem.init(&arena);
-//     _ = try fs.newFile("foo.yeti",
-//         \\start = fn(): i64
-//         \\  a: i64 = 10
-//         \\  b = 0
-//         \\  b = a + b
-//         \\  b
-//         \\end
-//     );
-//     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-//     const top_level = module.get(components.TopLevel);
-//     const start = top_level.findString("start").get(components.Overloads).slice()[0];
-//     try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
-//     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
-//     try expectEqual(start.get(components.Parameters).len(), 0);
-//     try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
-//     const body = start.get(components.Body).slice();
-//     try expectEqual(body.len, 4);
-//     const a = body[0];
-//     try expectEqual(a.get(components.AstKind), .define);
-//     try expectEqual(typeOf(a), builtins.I64);
-//     try expectEqualStrings(literalOf(a.get(components.Name).entity), "a");
-//     try expectEqualStrings(literalOf(a.get(components.Value).entity), "10");
-//     const b = body[1];
-//     try expectEqual(b.get(components.AstKind), .define);
-//     try expectEqual(typeOf(b), builtins.I64);
-//     try expectEqualStrings(literalOf(b.get(components.Name).entity), "b");
-//     try expectEqualStrings(literalOf(b.get(components.Value).entity), "0");
-//     const assign = body[2];
-//     try expectEqual(assign.get(components.AstKind), .assign);
-//     try expectEqual(typeOf(assign), builtins.Void);
-//     try expectEqualStrings(literalOf(assign.get(components.Name).entity), "b");
-//     const intrinsic = assign.get(components.Value).entity;
-//     try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
-//     try expectEqual(intrinsic.get(components.Intrinsic), .add);
-//     try expectEqual(typeOf(intrinsic), builtins.I64);
-//     const arguments = intrinsic.get(components.Arguments).slice();
-//     try expectEqual(arguments.len, 2);
-//     const lhs = arguments[0];
-//     try expectEqual(lhs.get(components.AstKind), .local);
-//     try expectEqual(lhs.get(components.Local).entity, a);
-//     const rhs = arguments[1];
-//     try expectEqual(rhs.get(components.AstKind), .local);
-//     try expectEqual(rhs.get(components.Local).entity, b);
-//     const local = body[3];
-//     try expectEqual(local.get(components.AstKind), .local);
-//     try expectEqual(local.get(components.Local).entity, b);
-//     try expectEqual(typeOf(local), builtins.I64);
-// }
+test "analyze semantics of add between typed and inferred" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64
+        \\  a: i64 = 10
+        \\  b = 0
+        \\  b = a + b
+        \\  b
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 4);
+    const a = blk: {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "a");
+        try expectEqual(typeOf(local), builtins.I64);
+        break :blk local;
+    };
+    const b = blk: {
+        const define = body[1];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "b");
+        try expectEqual(typeOf(local), builtins.I64);
+        break :blk local;
+    };
+    const assign = body[2];
+    try expectEqual(assign.get(components.AstKind), .assign);
+    try expectEqual(typeOf(assign), builtins.Void);
+    try expectEqual(assign.get(components.Local).entity, b);
+    const intrinsic = assign.get(components.Value).entity;
+    try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
+    try expectEqual(intrinsic.get(components.Intrinsic), .add);
+    try expectEqual(typeOf(intrinsic), builtins.I64);
+    const arguments = intrinsic.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    try expectEqual(arguments[0], a);
+    try expectEqual(arguments[1], b);
+    try expectEqual(body[3], b);
+}
 
 test "analyze semantics of pipeline" {
     var arena = Arena.init(std.heap.page_allocator);
@@ -2474,24 +2479,23 @@ test "analyze semantics of casting i32 to *i64" {
     try expectEqual(valueType(return_type), builtins.I64);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    {
+    const i = blk: {
+        const define = body[0];
         try expectEqual(define.get(components.AstKind), .define);
         try expectEqual(typeOf(define), builtins.Void);
-        try expectEqualStrings(literalOf(define.get(components.Name).entity), "i");
-        const value = define.get(components.Value).entity;
-        try expectEqual(typeOf(value), builtins.I32);
-        try expectEqualStrings(literalOf(value), "0");
-    }
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "i");
+        try expectEqual(typeOf(local), builtins.I32);
+        break :blk local;
+    };
     const cast = body[1];
     try expectEqual(cast.get(components.AstKind), .cast);
     const pointer_type = typeOf(cast);
     try expectEqual(parentType(pointer_type), builtins.Ptr);
     try expectEqual(valueType(pointer_type), builtins.I64);
-    const local = cast.get(components.Value).entity;
-    try expectEqual(local.get(components.AstKind), .local);
-    try expectEqual(local.get(components.Local).entity, define);
-    try expectEqual(typeOf(local), builtins.I32);
+    try expectEqual(cast.get(components.Value).entity, i);
 }
 
 test "analyze semantics of pointer store" {
@@ -2516,28 +2520,32 @@ test "analyze semantics of pointer store" {
     try expectEqual(start.get(components.ReturnType).entity, builtins.Void);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const cast = define.get(components.Value).entity;
-    try expectEqual(cast.get(components.AstKind), .cast);
-    const pointer_type = typeOf(cast);
-    try expectEqual(parentType(pointer_type), builtins.Ptr);
-    try expectEqual(valueType(pointer_type), builtins.I64);
-    const zero = cast.get(components.Value).entity;
-    try expectEqual(zero.get(components.AstKind), .int);
-    try expectEqual(typeOf(zero), builtins.I32);
-    try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(typeOf(define), builtins.Void);
+    const ptr = blk: {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const cast = define.get(components.Value).entity;
+        try expectEqual(cast.get(components.AstKind), .cast);
+        const pointer_type = typeOf(cast);
+        try expectEqual(parentType(pointer_type), builtins.Ptr);
+        try expectEqual(valueType(pointer_type), builtins.I64);
+        const zero = cast.get(components.Value).entity;
+        try expectEqual(zero.get(components.AstKind), .int);
+        try expectEqual(typeOf(zero), builtins.I32);
+        try expectEqualStrings(literalOf(zero), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+        try expectEqual(typeOf(local), pointer_type);
+        break :blk local;
+    };
     const store = body[1];
     try expectEqual(store.get(components.AstKind), .intrinsic);
     try expectEqual(store.get(components.Intrinsic), .store);
     try expectEqual(typeOf(store), builtins.Void);
     const arguments = store.get(components.Arguments).slice();
     try expectEqual(arguments.len, 2);
-    const lhs = arguments[0];
-    try expectEqual(lhs.get(components.AstKind), .local);
-    try expectEqual(lhs.get(components.Local).entity, define);
+    try expectEqual(arguments[0], ptr);
     const rhs = arguments[1];
     try expectEqual(rhs.get(components.AstKind), .int);
     try expectEqual(typeOf(rhs), builtins.I64);
@@ -2566,28 +2574,32 @@ test "analyze semantics of pointer load" {
     try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const cast = define.get(components.Value).entity;
-    try expectEqual(cast.get(components.AstKind), .cast);
-    const pointer_type = typeOf(cast);
-    try expectEqual(parentType(pointer_type), builtins.Ptr);
-    try expectEqual(valueType(pointer_type), builtins.I64);
-    const zero = cast.get(components.Value).entity;
-    try expectEqual(zero.get(components.AstKind), .int);
-    try expectEqual(typeOf(zero), builtins.I32);
-    try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(typeOf(define), builtins.Void);
+    const ptr = blk: {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const cast = define.get(components.Value).entity;
+        try expectEqual(cast.get(components.AstKind), .cast);
+        const pointer_type = typeOf(cast);
+        try expectEqual(parentType(pointer_type), builtins.Ptr);
+        try expectEqual(valueType(pointer_type), builtins.I64);
+        const zero = cast.get(components.Value).entity;
+        try expectEqual(zero.get(components.AstKind), .int);
+        try expectEqual(typeOf(zero), builtins.I32);
+        try expectEqualStrings(literalOf(zero), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+        try expectEqual(typeOf(local), pointer_type);
+        break :blk local;
+    };
     const load = body[1];
     try expectEqual(load.get(components.AstKind), .intrinsic);
     try expectEqual(load.get(components.Intrinsic), .load);
     try expectEqual(typeOf(load), builtins.I64);
     const arguments = load.get(components.Arguments).slice();
     try expectEqual(arguments.len, 1);
-    const ptr = arguments[0];
-    try expectEqual(ptr.get(components.AstKind), .local);
-    try expectEqual(ptr.get(components.Local).entity, define);
+    try expectEqual(arguments[0], ptr);
 }
 
 test "analyze semantics of adding *i64 and int literal" {
@@ -2613,19 +2625,24 @@ test "analyze semantics of adding *i64 and int literal" {
     try expectEqual(valueType(return_type), builtins.I64);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const cast = define.get(components.Value).entity;
-    try expectEqual(cast.get(components.AstKind), .cast);
-    const pointer_type = typeOf(cast);
-    try expectEqual(parentType(pointer_type), builtins.Ptr);
-    try expectEqual(valueType(pointer_type), builtins.I64);
-    const zero = cast.get(components.Value).entity;
-    try expectEqual(zero.get(components.AstKind), .int);
-    try expectEqual(typeOf(zero), builtins.I32);
-    try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(typeOf(define), builtins.Void);
+    {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const cast = define.get(components.Value).entity;
+        try expectEqual(cast.get(components.AstKind), .cast);
+        const pointer_type = typeOf(cast);
+        try expectEqual(parentType(pointer_type), builtins.Ptr);
+        try expectEqual(valueType(pointer_type), builtins.I64);
+        const zero = cast.get(components.Value).entity;
+        try expectEqual(zero.get(components.AstKind), .int);
+        try expectEqual(typeOf(zero), builtins.I32);
+        try expectEqualStrings(literalOf(zero), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+        try expectEqual(typeOf(local), pointer_type);
+    }
     const add = body[1];
     try expectEqual(add.get(components.AstKind), .intrinsic);
     try expectEqual(add.get(components.Intrinsic), .add_ptr_i32);
@@ -2655,19 +2672,24 @@ test "analyze semantics of subtracting *i64 and int literal" {
     try expectEqual(valueType(return_type), builtins.I64);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const cast = define.get(components.Value).entity;
-    try expectEqual(cast.get(components.AstKind), .cast);
-    const pointer_type = typeOf(cast);
-    try expectEqual(parentType(pointer_type), builtins.Ptr);
-    try expectEqual(valueType(pointer_type), builtins.I64);
-    const zero = cast.get(components.Value).entity;
-    try expectEqual(zero.get(components.AstKind), .int);
-    try expectEqual(typeOf(zero), builtins.I32);
-    try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(typeOf(define), builtins.Void);
+    {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const cast = define.get(components.Value).entity;
+        try expectEqual(cast.get(components.AstKind), .cast);
+        const pointer_type = typeOf(cast);
+        try expectEqual(parentType(pointer_type), builtins.Ptr);
+        try expectEqual(valueType(pointer_type), builtins.I64);
+        const zero = cast.get(components.Value).entity;
+        try expectEqual(zero.get(components.AstKind), .int);
+        try expectEqual(typeOf(zero), builtins.I32);
+        try expectEqualStrings(literalOf(zero), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+        try expectEqual(typeOf(local), pointer_type);
+    }
     const add = body[1];
     try expectEqual(add.get(components.AstKind), .intrinsic);
     try expectEqual(add.get(components.Intrinsic), .subtract_ptr_i32);
@@ -2697,19 +2719,24 @@ test "analyze semantics of comparing two *i64" {
     try expectEqual(return_type, builtins.I32);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const cast = define.get(components.Value).entity;
-    try expectEqual(cast.get(components.AstKind), .cast);
-    const pointer_type = typeOf(cast);
-    try expectEqual(parentType(pointer_type), builtins.Ptr);
-    try expectEqual(valueType(pointer_type), builtins.I64);
-    const zero = cast.get(components.Value).entity;
-    try expectEqual(zero.get(components.AstKind), .int);
-    try expectEqual(typeOf(zero), builtins.I32);
-    try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(typeOf(define), builtins.Void);
+    {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const cast = define.get(components.Value).entity;
+        try expectEqual(cast.get(components.AstKind), .cast);
+        const pointer_type = typeOf(cast);
+        try expectEqual(parentType(pointer_type), builtins.Ptr);
+        try expectEqual(valueType(pointer_type), builtins.I64);
+        const zero = cast.get(components.Value).entity;
+        try expectEqual(zero.get(components.AstKind), .int);
+        try expectEqual(typeOf(zero), builtins.I32);
+        try expectEqualStrings(literalOf(zero), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+        try expectEqual(typeOf(local), pointer_type);
+    }
     const equal = body[1];
     try expectEqual(equal.get(components.AstKind), .intrinsic);
     try expectEqual(equal.get(components.Intrinsic), .equal);
@@ -2738,28 +2765,32 @@ test "analyze semantics of vector load" {
     try expectEqual(start.get(components.ReturnType).entity, builtins.I64X2);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const cast = define.get(components.Value).entity;
-    try expectEqual(cast.get(components.AstKind), .cast);
-    const pointer_type = typeOf(cast);
-    try expectEqual(parentType(pointer_type), builtins.Ptr);
-    try expectEqual(valueType(pointer_type), builtins.I64X2);
-    const zero = cast.get(components.Value).entity;
-    try expectEqual(zero.get(components.AstKind), .int);
-    try expectEqual(typeOf(zero), builtins.I32);
-    try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(typeOf(define), builtins.Void);
+    const ptr = blk: {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const cast = define.get(components.Value).entity;
+        try expectEqual(cast.get(components.AstKind), .cast);
+        const pointer_type = typeOf(cast);
+        try expectEqual(parentType(pointer_type), builtins.Ptr);
+        try expectEqual(valueType(pointer_type), builtins.I64X2);
+        const zero = cast.get(components.Value).entity;
+        try expectEqual(zero.get(components.AstKind), .int);
+        try expectEqual(typeOf(zero), builtins.I32);
+        try expectEqualStrings(literalOf(zero), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+        try expectEqual(typeOf(local), pointer_type);
+        break :blk local;
+    };
     const load = body[1];
     try expectEqual(load.get(components.AstKind), .intrinsic);
     try expectEqual(load.get(components.Intrinsic), .v128_load);
     try expectEqual(typeOf(load), builtins.I64X2);
     const arguments = load.get(components.Arguments).slice();
     try expectEqual(arguments.len, 1);
-    const ptr = arguments[0];
-    try expectEqual(ptr.get(components.AstKind), .local);
-    try expectEqual(ptr.get(components.Local).entity, define);
+    try expectEqual(arguments[0], ptr);
 }
 
 test "analyze semantics of binary operators on two int vectors" {
@@ -2790,37 +2821,39 @@ test "analyze semantics of binary operators on two int vectors" {
             try expectEqual(start.get(components.ReturnType).entity, builtins[type_index]);
             const body = start.get(components.Body).slice();
             try expectEqual(body.len, 2);
-            const v = body[0];
-            try expectEqual(v.get(components.AstKind), .define);
-            try expectEqualStrings(literalOf(v.get(components.Name).entity), "v");
-            const load = v.get(components.Value).entity;
-            try expectEqual(load.get(components.AstKind), .intrinsic);
-            try expectEqual(load.get(components.Intrinsic), .v128_load);
-            try expectEqual(typeOf(load), builtins[type_index]);
-            const arguments = load.get(components.Arguments).slice();
-            try expectEqual(arguments.len, 1);
-            const cast = arguments[0];
-            try expectEqual(cast.get(components.AstKind), .cast);
-            const pointer_type = typeOf(cast);
-            try expectEqual(parentType(pointer_type), b.Ptr);
-            try expectEqual(valueType(pointer_type), builtins[type_index]);
-            const zero = cast.get(components.Value).entity;
-            try expectEqual(zero.get(components.AstKind), .int);
-            try expectEqual(typeOf(zero), b.I32);
-            try expectEqualStrings(literalOf(zero), "0");
-            try expectEqual(typeOf(v), b.Void);
+            const v = blk: {
+                const define = body[0];
+                try expectEqual(define.get(components.AstKind), .define);
+                try expectEqual(typeOf(define), b.Void);
+                const load = define.get(components.Value).entity;
+                try expectEqual(load.get(components.AstKind), .intrinsic);
+                try expectEqual(load.get(components.Intrinsic), .v128_load);
+                try expectEqual(typeOf(load), builtins[type_index]);
+                const arguments = load.get(components.Arguments).slice();
+                try expectEqual(arguments.len, 1);
+                const cast = arguments[0];
+                try expectEqual(cast.get(components.AstKind), .cast);
+                const pointer_type = typeOf(cast);
+                try expectEqual(parentType(pointer_type), b.Ptr);
+                try expectEqual(valueType(pointer_type), builtins[type_index]);
+                const zero = cast.get(components.Value).entity;
+                try expectEqual(zero.get(components.AstKind), .int);
+                try expectEqual(typeOf(zero), b.I32);
+                try expectEqualStrings(literalOf(zero), "0");
+                const local = define.get(components.Local).entity;
+                try expectEqual(local.get(components.AstKind), .local);
+                try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
+                try expectEqual(typeOf(local), builtins[type_index]);
+                break :blk local;
+            };
             const intrinsic = body[1];
             try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
             try expectEqual(intrinsic.get(components.Intrinsic), intrinsics[i]);
             try expectEqual(typeOf(intrinsic), builtins[type_index]);
             const intrinsic_arguments = intrinsic.get(components.Arguments).slice();
             try expectEqual(intrinsic_arguments.len, 2);
-            const lhs = intrinsic_arguments[0];
-            try expectEqual(lhs.get(components.AstKind), .local);
-            try expectEqual(lhs.get(components.Local).entity, v);
-            const rhs = intrinsic_arguments[1];
-            try expectEqual(rhs.get(components.AstKind), .local);
-            try expectEqual(rhs.get(components.Local).entity, v);
+            try expectEqual(intrinsic_arguments[0], v);
+            try expectEqual(intrinsic_arguments[1], v);
         }
     }
 }
@@ -2853,37 +2886,39 @@ test "analyze semantics of binary operators on two float vectors" {
             try expectEqual(start.get(components.ReturnType).entity, builtins[type_index]);
             const body = start.get(components.Body).slice();
             try expectEqual(body.len, 2);
-            const v = body[0];
-            try expectEqual(v.get(components.AstKind), .define);
-            try expectEqualStrings(literalOf(v.get(components.Name).entity), "v");
-            const load = v.get(components.Value).entity;
-            try expectEqual(load.get(components.AstKind), .intrinsic);
-            try expectEqual(load.get(components.Intrinsic), .v128_load);
-            try expectEqual(typeOf(load), builtins[type_index]);
-            const arguments = load.get(components.Arguments).slice();
-            try expectEqual(arguments.len, 1);
-            const cast = arguments[0];
-            try expectEqual(cast.get(components.AstKind), .cast);
-            const pointer_type = typeOf(cast);
-            try expectEqual(parentType(pointer_type), b.Ptr);
-            try expectEqual(valueType(pointer_type), builtins[type_index]);
-            const zero = cast.get(components.Value).entity;
-            try expectEqual(zero.get(components.AstKind), .int);
-            try expectEqual(typeOf(zero), b.I32);
-            try expectEqualStrings(literalOf(zero), "0");
-            try expectEqual(typeOf(v), b.Void);
+            const v = blk: {
+                const define = body[0];
+                try expectEqual(define.get(components.AstKind), .define);
+                try expectEqual(typeOf(define), b.Void);
+                const load = define.get(components.Value).entity;
+                try expectEqual(load.get(components.AstKind), .intrinsic);
+                try expectEqual(load.get(components.Intrinsic), .v128_load);
+                try expectEqual(typeOf(load), builtins[type_index]);
+                const arguments = load.get(components.Arguments).slice();
+                try expectEqual(arguments.len, 1);
+                const cast = arguments[0];
+                try expectEqual(cast.get(components.AstKind), .cast);
+                const pointer_type = typeOf(cast);
+                try expectEqual(parentType(pointer_type), b.Ptr);
+                try expectEqual(valueType(pointer_type), builtins[type_index]);
+                const zero = cast.get(components.Value).entity;
+                try expectEqual(zero.get(components.AstKind), .int);
+                try expectEqual(typeOf(zero), b.I32);
+                try expectEqualStrings(literalOf(zero), "0");
+                const local = define.get(components.Local).entity;
+                try expectEqual(local.get(components.AstKind), .local);
+                try expectEqualStrings(literalOf(local.get(components.Name).entity), "v");
+                try expectEqual(typeOf(local), builtins[type_index]);
+                break :blk local;
+            };
             const intrinsic = body[1];
             try expectEqual(intrinsic.get(components.AstKind), .intrinsic);
             try expectEqual(intrinsic.get(components.Intrinsic), intrinsics[i]);
             try expectEqual(typeOf(intrinsic), builtins[type_index]);
             const intrinsic_arguments = intrinsic.get(components.Arguments).slice();
             try expectEqual(intrinsic_arguments.len, 2);
-            const lhs = intrinsic_arguments[0];
-            try expectEqual(lhs.get(components.AstKind), .local);
-            try expectEqual(lhs.get(components.Local).entity, v);
-            const rhs = intrinsic_arguments[1];
-            try expectEqual(rhs.get(components.AstKind), .local);
-            try expectEqual(rhs.get(components.Local).entity, v);
+            try expectEqual(intrinsic_arguments[0], v);
+            try expectEqual(intrinsic_arguments[1], v);
         }
     }
 }
@@ -2910,28 +2945,39 @@ test "analyze semantics of vector store" {
     try expectEqual(start.get(components.ReturnType).entity, builtins.Void);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "ptr");
-    const cast = define.get(components.Value).entity;
-    try expectEqual(cast.get(components.AstKind), .cast);
-    const pointer_type = typeOf(cast);
-    try expectEqual(parentType(pointer_type), builtins.Ptr);
-    try expectEqual(valueType(pointer_type), builtins.I64X2);
-    const zero = cast.get(components.Value).entity;
-    try expectEqual(zero.get(components.AstKind), .int);
-    try expectEqual(typeOf(zero), builtins.I32);
-    try expectEqualStrings(literalOf(zero), "0");
-    try expectEqual(typeOf(define), builtins.Void);
+    const ptr = blk: {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const cast = define.get(components.Value).entity;
+        try expectEqual(cast.get(components.AstKind), .cast);
+        const pointer_type = typeOf(cast);
+        try expectEqual(parentType(pointer_type), builtins.Ptr);
+        try expectEqual(valueType(pointer_type), builtins.I64X2);
+        const zero = cast.get(components.Value).entity;
+        try expectEqual(zero.get(components.AstKind), .int);
+        try expectEqual(typeOf(zero), builtins.I32);
+        try expectEqualStrings(literalOf(zero), "0");
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "ptr");
+        try expectEqual(typeOf(local), pointer_type);
+        break :blk local;
+    };
     const store = body[1];
     try expectEqual(store.get(components.AstKind), .intrinsic);
     try expectEqual(store.get(components.Intrinsic), .v128_store);
     try expectEqual(typeOf(store), builtins.Void);
     const arguments = store.get(components.Arguments).slice();
     try expectEqual(arguments.len, 2);
-    const ptr = arguments[0];
-    try expectEqual(ptr.get(components.AstKind), .local);
-    try expectEqual(ptr.get(components.Local).entity, define);
+    try expectEqual(arguments[0], ptr);
+    const load = arguments[1];
+    try expectEqual(load.get(components.AstKind), .intrinsic);
+    try expectEqual(load.get(components.Intrinsic), .v128_load);
+    try expectEqual(typeOf(load), builtins.I64X2);
+    const load_arguments = load.get(components.Arguments).slice();
+    try expectEqual(load_arguments.len, 1);
+    try expectEqual(load_arguments[0], ptr);
 }
 
 test "analyze semantics of struct" {
@@ -2996,22 +3042,30 @@ test "analyze semantics of struct field access" {
     try expectEqual(start.get(components.ReturnType).entity, builtins.F64);
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 2);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqual(typeOf(define), builtins.Void);
-    const construct = define.get(components.Value).entity;
-    const rectangle = typeOf(construct);
-    try expectEqualStrings(literalOf(rectangle.get(components.Name).entity), "Rectangle");
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "r");
-    try expectEqual(construct.get(components.AstKind), .construct);
-    try expectEqual(typeOf(construct), rectangle);
-    const arguments = construct.get(components.Arguments).slice();
-    try expectEqual(arguments.len, 2);
-    try expectEqualStrings(literalOf(arguments[0]), "10");
-    try expectEqualStrings(literalOf(arguments[1]), "30");
+    const r = blk: {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "r");
+        const construct = define.get(components.Value).entity;
+        const rectangle = typeOf(construct);
+        try expectEqual(typeOf(local), rectangle);
+        try expectEqualStrings(literalOf(rectangle.get(components.Name).entity), "Rectangle");
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "r");
+        try expectEqual(construct.get(components.AstKind), .construct);
+        try expectEqual(typeOf(construct), rectangle);
+        const arguments = construct.get(components.Arguments).slice();
+        try expectEqual(arguments.len, 2);
+        try expectEqualStrings(literalOf(arguments[0]), "10");
+        try expectEqualStrings(literalOf(arguments[1]), "30");
+        break :blk local;
+    };
     const field = body[1];
+    try expectEqual(field.get(components.AstKind), .field);
     try expectEqual(typeOf(field), builtins.F64);
-    try expectEqual(field.get(components.Local).entity, define);
+    try expectEqual(field.get(components.Local).entity, r);
     try expectEqualStrings(literalOf(field.get(components.Field).entity), "width");
 }
 
@@ -3044,23 +3098,30 @@ test "analyze semantics of struct field write" {
     try expectEqualStrings(literalOf(rectangle.get(components.Name).entity), "Rectangle");
     const body = start.get(components.Body).slice();
     try expectEqual(body.len, 3);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqual(typeOf(define), builtins.Void);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "r");
-    const construct = define.get(components.Value).entity;
-    try expectEqual(construct.get(components.AstKind), .construct);
-    try expectEqual(typeOf(construct), rectangle);
-    const arguments = construct.get(components.Arguments).slice();
-    try expectEqual(arguments.len, 2);
-    try expectEqualStrings(literalOf(arguments[0]), "10");
-    try expectEqualStrings(literalOf(arguments[1]), "30");
+    const r = blk: {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "r");
+        const construct = define.get(components.Value).entity;
+        try expectEqual(typeOf(construct), rectangle);
+        try expectEqual(typeOf(local), rectangle);
+        try expectEqualStrings(literalOf(rectangle.get(components.Name).entity), "Rectangle");
+        try expectEqual(construct.get(components.AstKind), .construct);
+        try expectEqual(typeOf(construct), rectangle);
+        const arguments = construct.get(components.Arguments).slice();
+        try expectEqual(arguments.len, 2);
+        try expectEqualStrings(literalOf(arguments[0]), "10");
+        try expectEqualStrings(literalOf(arguments[1]), "30");
+        break :blk local;
+    };
     const assign_field = body[1];
     try expectEqual(assign_field.get(components.AstKind), .assign_field);
     try expectEqual(typeOf(assign_field), builtins.Void);
-    try expectEqual(assign_field.get(components.Local).entity, define);
+    try expectEqual(assign_field.get(components.Local).entity, r);
     try expectEqualStrings(literalOf(assign_field.get(components.Field).entity), "width");
     try expectEqualStrings(literalOf(assign_field.get(components.Value).entity), "45");
-    const local = body[2];
-    try expectEqual(local.get(components.AstKind), .local);
+    try expectEqual(body[2], r);
 }
