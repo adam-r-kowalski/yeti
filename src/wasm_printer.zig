@@ -1060,6 +1060,56 @@ test "print wasm while loop" {
     );
 }
 
+test "print wasm for loop" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i32
+        \\  sum = 0
+        \\  for i in 0:10 do
+        \\      sum = sum + i
+        \\  end
+        \\  sum
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32)
+        \\    (local $sum i32)
+        \\    (local $i i32)
+        \\    (i32.const 0)
+        \\    (local.set $sum)
+        \\    (i32.const 0)
+        \\    (local.set $i)
+        \\    block $.label.0
+        \\    loop $.label.1
+        \\    (local.get $i)
+        \\    (i32.const 10)
+        \\    i32.ge_s
+        \\    br_if $.label.0
+        \\    (local.get $sum)
+        \\    (local.get $i)
+        \\    i32.add
+        \\    (local.set $sum)
+        \\    (i32.const 1)
+        \\    (local.get $i)
+        \\    i32.add
+        \\    (local.set $i)
+        \\    br $.label.1
+        \\    end $.label.1
+        \\    end $.label.0
+        \\    (local.get $sum))
+        \\
+        \\  (export "_start" (func $foo/start)))
+    );
+}
+
 test "print wasm foreign export" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

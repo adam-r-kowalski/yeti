@@ -1222,6 +1222,127 @@ fn codegenWhile(context: *Context, entity: Entity) !void {
     context.label -= 2;
 }
 
+fn codegenFor(context: *Context, entity: Entity) !void {
+    const loop_variable = entity.get(components.LoopVariable).entity;
+    const local = loop_variable.get(components.Local).entity;
+    try context.locals.put(local);
+    const iterator = entity.get(components.Iterator).entity;
+    const range = iterator.get(components.Range);
+    const b = context.builtins;
+    const builtins = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
+    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i32_const, .i32_const, .i64_const, .i32_const, .i32_const, .i32_const, .f64_const, .f32_const };
+    const type_of = typeOf(local);
+    const i = blk: {
+        for (builtins) |builtin, i| {
+            if (!eql(builtin, type_of)) continue;
+            break :blk i;
+        }
+        panic("\nfor range unsupported type {s}\n", .{literalOf(type_of)});
+    };
+    {
+        const first = try context.codebase.createEntity(.{
+            components.Type.init(builtins[i]),
+            range.first.get(components.Literal),
+        });
+        const wasm_instruction = try context.codebase.createEntity(.{
+            kinds[i],
+            components.Constant.init(first),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    {
+        const wasm_instruction = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.local_set,
+            components.Local.init(local),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    const block_label = components.Label{ .value = context.label };
+    const loop_label = components.Label{ .value = context.label + 1 };
+    context.label += 2;
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.block,
+        block_label,
+    }));
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.loop,
+        loop_label,
+    }));
+    {
+        const wasm_instruction = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.local_get,
+            components.Local.init(local),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    {
+        const last = try context.codebase.createEntity(.{
+            components.Type.init(builtins[i]),
+            range.last.get(components.Literal),
+        });
+        const wasm_instruction = try context.codebase.createEntity(.{
+            kinds[i],
+            components.Constant.init(last),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    {
+        const wasm_instruction = try context.codebase.createEntity(.{greaterEqualOps.kinds[i]});
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.br_if,
+        block_label,
+    }));
+    for (entity.get(components.Body).slice()) |expression| {
+        try codegenEntity(context, expression);
+    }
+    {
+        const string = try std.fmt.allocPrint(context.allocator, "1", .{});
+        const interned = try context.codebase.getPtr(Strings).intern(string);
+        const one = try context.codebase.createEntity(.{
+            components.Type.init(builtins[i]),
+            components.Literal.init(interned),
+        });
+        const wasm_instruction = try context.codebase.createEntity(.{
+            kinds[i],
+            components.Constant.init(one),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    {
+        const wasm_instruction = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.local_get,
+            components.Local.init(local),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    {
+        const wasm_instruction = try context.codebase.createEntity(.{addOps.kinds[i]});
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    {
+        const wasm_instruction = try context.codebase.createEntity(.{
+            components.WasmInstructionKind.local_set,
+            components.Local.init(local),
+        });
+        _ = try context.wasm_instructions.append(wasm_instruction);
+    }
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.br,
+        loop_label,
+    }));
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.end,
+        loop_label,
+    }));
+    try context.wasm_instructions.append(try context.codebase.createEntity(.{
+        components.WasmInstructionKind.end,
+        block_label,
+    }));
+    context.label -= 2;
+}
+
 fn codegenConstruct(context: *Context, entity: Entity) !void {
     for (entity.get(components.Arguments).slice()) |argument| {
         try codegenEntity(context, argument);
@@ -1251,6 +1372,7 @@ fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow
         .intrinsic => try codegenIntrinsic(context, entity),
         .if_ => try codegenIf(context, entity),
         .while_ => try codegenWhile(context, entity),
+        .for_ => try codegenFor(context, entity),
         .cast => try codegenEntity(context, entity.get(components.Value).entity),
         .construct => try codegenConstruct(context, entity),
         .field => try codegenField(context, entity),
@@ -1921,6 +2043,29 @@ test "codegen while loop" {
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 17);
+    // TODO: test that proper while loop instructions are generated
+}
+
+test "codegen for loop" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i32
+        \\  sum = 0
+        \\  for i in 0:10 do
+        \\      sum = sum + i
+        \\  end
+        \\  sum 
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 22);
     // TODO: test that proper while loop instructions are generated
 }
 

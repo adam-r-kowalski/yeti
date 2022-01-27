@@ -1,0 +1,26 @@
+for_loop = fn(): i32
+  sum = 0
+  for i in 0:10 do
+    sum = sum + i
+  end
+  sum
+end
+
+
+while_loop = fn(): i32
+  i = 0
+  sum = 0
+  while i < 10 do
+    sum = sum + i
+    i = i + 1
+  end
+  sum
+end
+
+
+start = fn(): i32
+  for_loop()
+end
+
+
+
