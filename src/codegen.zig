@@ -1661,6 +1661,42 @@ test "codegen int comparison op two local constants" {
     }
 }
 
+test "codegen int comparison op two local constants one unused" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i32
+        \\  a = 8
+        \\  b = 2
+        \\  c = a == b
+        \\  a
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 3);
+    {
+        const constant = start_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    }
+    {
+        const local_set = start_instructions[1];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        try expectEqualStrings(literalOf(local_set.get(components.Local).entity.get(components.Name).entity), "c");
+    }
+    {
+        const constant = start_instructions[2];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "8");
+    }
+}
+
 test "codegen arithmethic binary op non constant" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -2030,6 +2066,29 @@ test "codegen while loop" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): i32
+        \\  i = 0
+        \\  while i < 10 do
+        \\      i = i + 1
+        \\  end
+        \\  i
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 17);
+    // TODO: test that proper while loop instructions are generated
+}
+
+test "codegen while loop proper type inference" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64
         \\  i = 0
         \\  while i < 10 do
         \\      i = i + 1

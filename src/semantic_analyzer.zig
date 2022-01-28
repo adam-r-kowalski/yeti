@@ -606,11 +606,6 @@ fn Context(comptime FileSystem: type) type {
             }
         }
 
-        // TODO: comparison binary ops should not implicitly convert arguments to i32
-        // for example
-        // x = 10
-        // y = x < 20
-        // type_of(x) != i32 yet, should still be int literal
         fn analyzeIntrinsic(self: *Self, entity: Entity, intrinsic: components.Intrinsic, result_is_i32: bool) !Entity {
             const arguments = entity.get(components.Arguments).slice();
             const lhs = try self.analyzeExpression(arguments[0]);
@@ -625,15 +620,22 @@ fn Context(comptime FileSystem: type) type {
             for (builtins) |builtin| {
                 if (!eql(lhs_type, builtin)) continue;
                 const result_type = try self.unifyTypes(lhs, rhs);
-                const type_of = components.Type.init(if (result_is_i32) b.I32 else result_type);
                 const result = try self.codebase.createEntity(.{
                     components.AstKind.intrinsic,
-                    intrinsic,
                     try components.Arguments.fromSlice(self.allocator, &.{ lhs, rhs }),
-                    type_of,
+                    intrinsic,
                 });
-                if (eql(builtin, b.IntLiteral) or eql(builtin, b.FloatLiteral)) {
-                    try addDependentEntities(result, &.{ lhs, rhs });
+                if (result_is_i32) {
+                    _ = try result.set(.{components.Type.init(b.I32)});
+                    if (eql(result_type, b.IntLiteral) or eql(result_type, b.FloatLiteral)) {
+                        try addDependentEntities(lhs, &.{rhs});
+                        try addDependentEntities(rhs, &.{lhs});
+                    }
+                } else {
+                    _ = try result.set(.{components.Type.init(result_type)});
+                    if (eql(result_type, b.IntLiteral) or eql(result_type, b.FloatLiteral)) {
+                        try addDependentEntities(result, &.{ lhs, rhs });
+                    }
                 }
                 return result;
             }
