@@ -205,12 +205,14 @@ const InfixParser = union(enum) {
     define_type_infer,
     define_or_range,
     call,
+    plus_equal,
 
     fn init(tokens: *Tokens, left: Entity) ?InfixParser {
         if (tokens.peek()) |token| {
             const kind = token.get(components.TokenKind);
             switch (kind) {
                 .plus => return InfixParser{ .binary_op = .{ .op = .add, .precedence = ADD } },
+                .plus_equal => return InfixParser.plus_equal,
                 .minus => return InfixParser{ .binary_op = .{ .op = .subtract, .precedence = SUBTRACT } },
                 .times => return InfixParser{ .binary_op = .{ .op = .multiply, .precedence = MULTIPLY } },
                 .slash => return InfixParser{ .binary_op = .{ .op = .divide, .precedence = DIVIDE } },
@@ -250,6 +252,7 @@ const InfixParser = union(enum) {
             .define_type_infer => DEFINE,
             .define_or_range => DEFINE,
             .call => CALL,
+            .plus_equal => DEFINE,
         };
     }
 
@@ -266,6 +269,7 @@ const InfixParser = union(enum) {
             .define_type_infer => parseDefineTypeInfer(codebase, tokens, left, parser_precedence),
             .define_or_range => parseDefineOrRange(codebase, tokens, left, parser_precedence),
             .call => parseCall(codebase, tokens, left),
+            .plus_equal => parsePlusEqual(codebase, tokens, left, parser_precedence),
         };
     }
 };
@@ -276,6 +280,16 @@ fn parseBinaryOp(codebase: *ECS, tokens: *Tokens, left: Entity, op: components.B
     return try codebase.createEntity(.{
         components.AstKind.binary_op,
         op,
+        components.Span.init(left.get(components.Span).begin, right.get(components.Span).end),
+        arguments,
+    });
+}
+
+fn parsePlusEqual(codebase: *ECS, tokens: *Tokens, left: Entity, precedence: u64) !Entity {
+    const right = try parseExpression(codebase, tokens, precedence + 1);
+    const arguments = try components.Arguments.fromSlice(codebase.arena.allocator(), &.{ left, right });
+    return try codebase.createEntity(.{
+        components.AstKind.plus_equal,
         components.Span.init(left.get(components.Span).begin, right.get(components.Span).end),
         arguments,
     });
@@ -1438,4 +1452,38 @@ test "parse struct" {
     const height = fields[1];
     try expectEqualStrings(literalOf(height), "height");
     try expectEqualStrings(literalOf(height.get(components.TypeAst).entity), "f64");
+}
+
+test "parse add assign" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = fn(): u64
+        \\  x = 10
+        \\  x += 1
+        \\  x
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+    const plus_equal = body[1];
+    try expectEqual(plus_equal.get(components.AstKind), .plus_equal);
+    const arguments = plus_equal.get(components.Arguments).slice();
+    try expectEqualStrings(literalOf(arguments[0]), "x");
+    try expectEqualStrings(literalOf(arguments[1]), "1");
+    const x = body[2];
+    try expectEqual(x.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(x), "x");
 }
