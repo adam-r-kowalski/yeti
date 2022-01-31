@@ -1454,7 +1454,7 @@ test "parse struct" {
     try expectEqualStrings(literalOf(height.get(components.TypeAst).entity), "f64");
 }
 
-test "parse add assign" {
+test "parse plus equal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
