@@ -817,6 +817,28 @@ fn Context(comptime FileSystem: type) type {
             return self.analyzeDefine(define);
         }
 
+        fn analyzeTimesEqual(self: *Self, times_equal: Entity) !Entity {
+            const arguments = times_equal.get(components.Arguments).slice();
+            const left = arguments[0];
+            const right = arguments[1];
+            assert(left.get(components.AstKind) == .symbol);
+            const span = times_equal.get(components.Span);
+            const binary_op_arguments = try components.Arguments.fromSlice(self.codebase.arena.allocator(), &.{ left, right });
+            const binary_op = try self.codebase.createEntity(.{
+                components.AstKind.binary_op,
+                components.BinaryOp.multiply,
+                span,
+                binary_op_arguments,
+            });
+            const define = try self.codebase.createEntity(.{
+                components.AstKind.define,
+                components.Name.init(arguments[0]),
+                components.Value.init(binary_op),
+                span,
+            });
+            return self.analyzeDefine(define);
+        }
+
         fn analyzeIf(self: *Self, if_: Entity) !Entity {
             const scopes = self.function.getPtr(components.Scopes);
             const conditional = try self.analyzeExpression(if_.get(components.Conditional).entity);
@@ -973,6 +995,7 @@ fn Context(comptime FileSystem: type) type {
                 .pointer => try self.analyzePointer(entity),
                 .range => try self.analyzeRange(entity),
                 .plus_equal => try self.analyzePlusEqual(entity),
+                .times_equal => try self.analyzeTimesEqual(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
             };
         }
@@ -3194,6 +3217,52 @@ test "analyze semantics of plus equal" {
     try expectEqual(add.get(components.AstKind), .intrinsic);
     try expectEqual(add.get(components.Intrinsic), .add);
     const arguments = add.get(components.Arguments).slice();
+    try expectEqual(arguments[0], x);
+    try expectEqualStrings(literalOf(arguments[1]), "1");
+    try expectEqual(body[2], x);
+}
+
+test "analyze semantics of times equal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    const builtins = codebase.get(components.Builtins);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64
+        \\  x = 0
+        \\  x *= 1
+        \\  x
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const x = blk: {
+        const define = body[0];
+        try expectEqual(define.get(components.AstKind), .define);
+        try expectEqual(typeOf(define), builtins.Void);
+        const local = define.get(components.Local).entity;
+        try expectEqual(local.get(components.AstKind), .local);
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "x");
+        try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+        break :blk local;
+    };
+    const assign = body[1];
+    try expectEqual(assign.get(components.AstKind), .assign);
+    try expectEqual(typeOf(assign), builtins.Void);
+    try expectEqual(assign.get(components.Local).entity, x);
+    const multiply = assign.get(components.Value).entity;
+    try expectEqual(multiply.get(components.AstKind), .intrinsic);
+    try expectEqual(multiply.get(components.Intrinsic), .multiply);
+    const arguments = multiply.get(components.Arguments).slice();
     try expectEqual(arguments[0], x);
     try expectEqualStrings(literalOf(arguments[1]), "1");
     try expectEqual(body[2], x);
