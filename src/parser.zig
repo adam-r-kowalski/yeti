@@ -39,6 +39,19 @@ fn parseGrouping(codebase: *ECS, tokens: *Tokens) !Entity {
     return expression;
 }
 
+fn parseArray(codebase: *ECS, tokens: *Tokens, left_bracket: Entity) !Entity {
+    _ = tokens.consume(.right_bracket);
+    const begin = left_bracket.get(components.Span).begin;
+    const value = try parseExpression(codebase, tokens, HIGHEST);
+    const end = value.get(components.Span).end;
+    const span = components.Span.init(begin, end);
+    return try codebase.createEntity(.{
+        components.AstKind.array,
+        components.Value.init(value),
+        span,
+    });
+}
+
 fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
     const allocator = codebase.arena.allocator();
     const begin = if_.get(components.Span).begin;
@@ -166,7 +179,9 @@ fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
             components.AstKind.float,
             components.Type.init(token.ecs.get(components.Builtins).FloatLiteral),
         }),
+        .string => token.set(.{components.AstKind.string}),
         .left_paren => parseGrouping(token.ecs, tokens),
+        .left_bracket => parseArray(token.ecs, tokens, token),
         .if_ => parseIf(token.ecs, tokens, token),
         .while_ => parseWhile(token.ecs, tokens, token),
         .for_ => parseFor(token.ecs, tokens, token),
@@ -1534,4 +1549,30 @@ test "parse times equal" {
     const x = body[2];
     try expectEqual(x.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(x), "x");
+}
+
+test "parse string literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start = fn(): []u8
+        \\  "hello world"
+        \\end
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const overloads = top_level.findString("start").get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const start = overloads[0];
+    const return_type = start.get(components.ReturnTypeAst).entity;
+    try expectEqual(return_type.get(components.AstKind), .array);
+    try expectEqualStrings(literalOf(return_type.get(components.Value).entity), "u8");
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const hello_world = body[0];
+    try expectEqual(hello_world.get(components.AstKind), .string);
+    try expectEqualStrings(literalOf(hello_world), "hello world");
 }

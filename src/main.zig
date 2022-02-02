@@ -33,7 +33,7 @@ const FileSystem = struct {
     }
 
     pub fn read(self: *FileSystem, name: []const u8) error{ OutOfMemory, CantOpenFile }![]const u8 {
-        const file = std.fs.cwd().openFile(name, std.fs.File.OpenFlags{ .read = true }) catch return error.CantOpenFile;
+        const file = std.fs.cwd().openFile(name, std.fs.File.OpenFlags{ }) catch return error.CantOpenFile;
         try self.files.append(file);
         return file.readToEndAlloc(self.allocator, std.math.maxInt(i64)) catch return error.OutOfMemory;
     }
@@ -62,7 +62,7 @@ pub fn main() !void {
     if (foreign_exports.len > 0) return;
     const result = try std.ChildProcess.exec(.{
         .allocator = arena.allocator(),
-        .argv = &.{ "wasmtime", args[2], "--enable-simd" },
+        .argv = &.{ "wasmtime", args[2] },
     });
     std.debug.print("{s}", .{result.stdout});
 }

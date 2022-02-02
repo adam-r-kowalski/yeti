@@ -3267,3 +3267,6 @@ test "analyze semantics of times equal" {
     try expectEqualStrings(literalOf(arguments[1]), "1");
     try expectEqual(body[2], x);
 }
+
+
+
