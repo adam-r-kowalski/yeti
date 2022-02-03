@@ -1404,4 +1404,3 @@ pub fn codegen(module: Entity) !void {
         }
     }
 }
-
