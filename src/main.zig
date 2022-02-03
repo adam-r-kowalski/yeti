@@ -4,13 +4,14 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const panic = std.debug.panic;
 
-const initCodebase = @import("init_codebase.zig").initCodebase;
-const analyzeSemantics = @import("semantic_analyzer.zig").analyzeSemantics;
-const codegen = @import("codegen.zig").codegen;
-const printWasm = @import("wasm_printer.zig").printWasm;
-const printErrors = @import("error_printer.zig").printErrors;
-const List = @import("list.zig").List;
-const components = @import("components.zig");
+const yeti = @import("yeti");
+const initCodebase = yeti.initCodebase;
+const analyzeSemantics = yeti.analyzeSemantics;
+const codegen = yeti.codegen;
+const printWasm = yeti.printWasm;
+const printErrors = yeti.printErrors;
+const List = yeti.List;
+const components = yeti.components;
 
 const FileSystem = struct {
     const Files = List(std.fs.File, .{});

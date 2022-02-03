@@ -108,18 +108,3 @@ pub fn initBuiltins(codebase: *ECS) !void {
     };
     try codebase.set(.{ builtins, scope });
 }
-
-test "builtins" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const builtins = codebase.get(components.Builtins);
-    const scope = codebase.get(components.Scope);
-    try expectEqualStrings(literalOf(builtins.Type), "type");
-    try expectEqual(typeOf(builtins.Type), builtins.Type);
-    try expectEqual(scope.findString("type"), builtins.Type);
-    try expectEqual(scope.findLiteral(builtins.Type.get(components.Literal)), builtins.Type);
-    try expectEqualStrings(literalOf(builtins.I64), "i64");
-    try expectEqual(typeOf(builtins.I64), builtins.Type);
-    try expectEqual(scope.findString("i64"), builtins.I64);
-}

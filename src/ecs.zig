@@ -8,9 +8,15 @@ const expectEqualStrings = std.testing.expectEqualStrings;
 const expectEqualSlices = std.testing.expectEqualSlices;
 
 const List = @import("list.zig").List;
-const typeid = @import("typeid.zig").typeid;
 
-fn Component(comptime T: type) type {
+pub fn typeid(comptime _: type) usize {
+    const S = struct {
+        var N: usize = 0;
+    };
+    return @ptrToInt(&S.N);
+}
+
+pub fn Component(comptime T: type) type {
     const initial_capacity = 1024;
     const Data = List(T, .{ .initial_capacity = initial_capacity });
     const Inverse = List(u64, .{ .initial_capacity = initial_capacity });
@@ -66,7 +72,7 @@ fn Component(comptime T: type) type {
 const TypeInfo = std.builtin.TypeInfo;
 const StructField = TypeInfo.StructField;
 
-fn IteratorComponents(components: anytype) type {
+pub fn IteratorComponents(components: anytype) type {
     const components_type_info = @typeInfo(@TypeOf(components)).Struct;
     const components_fields = components_type_info.fields;
     comptime var data_fields: [components_fields.len]StructField = undefined;
@@ -86,31 +92,6 @@ fn IteratorComponents(components: anytype) type {
         .decls = &.{},
         .is_tuple = false,
     } });
-}
-
-test "construct type" {
-    const components = .{ Name, Age };
-    const Components = IteratorComponents(components);
-    const type_info = @typeInfo(Components).Struct;
-    try expectEqual(type_info.layout, .Auto);
-    const fields = type_info.fields;
-    try expectEqual(fields.len, 2);
-    const names = fields[0];
-    try expectEqualStrings(names.name, "Name");
-    try expectEqual(names.field_type, *Component(Name));
-    try expectEqual(names.default_value, null);
-    try expectEqual(names.is_comptime, false);
-    try expectEqual(names.alignment, 8);
-    try expectEqual(type_info.decls.len, 0);
-    try expectEqual(type_info.is_tuple, false);
-    const ages = fields[1];
-    try expectEqualStrings(ages.name, "Age");
-    try expectEqual(ages.field_type, *Component(Age));
-    try expectEqual(ages.default_value, null);
-    try expectEqual(ages.is_comptime, false);
-    try expectEqual(ages.alignment, 8);
-    try expectEqual(type_info.decls.len, 0);
-    try expectEqual(type_info.is_tuple, false);
 }
 
 fn Iterator(components: anytype) type {
@@ -265,76 +246,3 @@ pub const Entity = struct {
         return @intToPtr(*Component(T), component).getPtr(self);
     }
 };
-
-const Name = struct {
-    value: []const u8,
-};
-
-const Age = struct {
-    value: u8,
-};
-
-const Job = struct {
-    value: []const u8,
-};
-
-test "entity get and set component" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var ecs = ECS.init(&arena);
-    const entity = try ecs.createEntity(.{});
-    _ = try entity.set(.{Name{ .value = "Joe" }});
-    try expectEqual(entity.get(Name), Name{ .value = "Joe" });
-    _ = try entity.set(.{Name{ .value = "Bob" }});
-    try expectEqual(entity.get(Name), Name{ .value = "Bob" });
-}
-
-test "entity get and set components" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var ecs = ECS.init(&arena);
-    const entity = try ecs.createEntity(.{});
-    _ = try entity.set(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    try expectEqual(entity.get(Name), Name{ .value = "Joe" });
-    try expectEqual(entity.get(Age), Age{ .value = 20 });
-}
-
-test "entity get and set components on creation" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var ecs = ECS.init(&arena);
-    const entity = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    try expectEqual(entity.get(Name), Name{ .value = "Joe" });
-    try expectEqual(entity.get(Age), Age{ .value = 20 });
-}
-
-test "ecs get and set components" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var ecs = ECS.init(&arena);
-    try ecs.set(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    try expectEqual(ecs.get(Name), Name{ .value = "Joe" });
-    try expectEqual(ecs.get(Age), Age{ .value = 20 });
-}
-
-test "ecs query entities with components" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var ecs = ECS.init(&arena);
-    const joe = try ecs.createEntity(.{ Name{ .value = "Joe" }, Age{ .value = 20 } });
-    const bob = try ecs.createEntity(.{Name{ .value = "Bob" }});
-    const sally = try ecs.createEntity(.{ Name{ .value = "Sally" }, Age{ .value = 24 } });
-    {
-        var iterator = ecs.query(.{ Name, Age });
-        try expectEqual(iterator.next(), joe);
-        try expectEqual(iterator.next(), sally);
-        try expectEqual(iterator.next(), null);
-    }
-    {
-        var iterator = ecs.query(.{Name});
-        try expectEqual(iterator.next(), joe);
-        try expectEqual(iterator.next(), bob);
-        try expectEqual(iterator.next(), sally);
-        try expectEqual(iterator.next(), null);
-    }
-}
