@@ -21,6 +21,11 @@ pub fn build(b: *std.build.Builder) void {
     var tests = b.addTest("src/compiler.zig");
     tests.setBuildMode(mode);
 
+    var test_all = b.addTest("src/tests/test_all.zig");
+    test_all.addPackagePath("yeti", "src/compiler.zig");
+    test_all.setBuildMode(mode);
+
     const test_step = b.step("test", "Run compiler tests");
     test_step.dependOn(&tests.step);
+    test_step.dependOn(&test_all.step);
 }
