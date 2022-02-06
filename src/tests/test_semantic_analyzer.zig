@@ -2166,3 +2166,31 @@ test "analyze semantics of times equal" {
     try expectEqualStrings(literalOf(arguments[1]), "1");
     try expectEqual(body[2], x);
 }
+
+test "analyze semantics of string literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    // const builtins = codebase.get(components.Builtins);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): []u8
+        \\  "hello world"
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const return_type = start.get(components.ReturnType).entity;
+    try expectEqualStrings(literalOf(return_type), "[]u8");
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const hello_world = body[0];
+    try expectEqual(hello_world.get(components.AstKind), .string);
+    try expectEqual(typeOf(hello_world), return_type);
+    try expectEqualStrings(literalOf(hello_world), "hello world");
+}

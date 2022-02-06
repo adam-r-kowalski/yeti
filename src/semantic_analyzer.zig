@@ -370,6 +370,28 @@ fn Context(comptime FileSystem: type) type {
             panic("\npointer of type {s} not supported yet\n", .{literalOf(value_type)});
         }
 
+        fn analyzeArray(self: *Self, entity: Entity) !Entity {
+            const value = try self.analyzeExpression(entity.get(components.Value).entity);
+            const b = self.builtins;
+            const type_of = typeOf(value);
+            assert(eql(type_of, b.Type));
+            const memoized = b.Array.getPtr(components.Memoized);
+            const result = try memoized.getOrPut(value);
+            if (result.found_existing) {
+                return result.value_ptr.*;
+            }
+            const string = try std.fmt.allocPrint(self.allocator, "[]{s}", .{literalOf(value)});
+            const interned = try self.codebase.getPtr(Strings).intern(string);
+            const pointer_type = try self.codebase.createEntity(.{
+                components.Literal.init(interned),
+                components.Type.init(b.Type),
+                components.ParentType.init(b.Array),
+                components.ValueType.init(value),
+            });
+            result.value_ptr.* = pointer_type;
+            return pointer_type;
+        }
+
         fn analyzeCast(self: *Self, arguments: []const Entity) !Entity {
             assert(arguments.len == 2);
             const b = self.builtins;
@@ -979,6 +1001,24 @@ fn Context(comptime FileSystem: type) type {
             return try entity.set(.{components.Type.init(range_type)});
         }
 
+        fn analyzeString(self: *Self, entity: Entity) !Entity {
+            const b = self.builtins;
+            const memoized = b.Array.getPtr(components.Memoized);
+            const result = try memoized.getOrPut(b.U8);
+            if (result.found_existing) {
+                return entity.set(.{components.Type.init(result.value_ptr.*)});
+            }
+            const interned = try self.codebase.getPtr(Strings).intern("[]u8");
+            const array_type = try self.codebase.createEntity(.{
+                components.Literal.init(interned),
+                components.Type.init(b.Type),
+                components.ParentType.init(b.Array),
+                components.ValueType.init(b.U8),
+            });
+            result.value_ptr.* = array_type;
+            return entity.set(.{components.Type.init(array_type)});
+        }
+
         const Error = error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes, CompileError };
 
         fn analyzeExpression(self: *Self, entity: Entity) Error!Entity {
@@ -993,7 +1033,9 @@ fn Context(comptime FileSystem: type) type {
                 .while_ => try self.analyzeWhile(entity),
                 .for_ => try self.analyzeFor(entity),
                 .pointer => try self.analyzePointer(entity),
+                .array => try self.analyzeArray(entity),
                 .range => try self.analyzeRange(entity),
+                .string => try self.analyzeString(entity),
                 .plus_equal => try self.analyzePlusEqual(entity),
                 .times_equal => try self.analyzeTimesEqual(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),

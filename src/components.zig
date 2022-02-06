@@ -446,6 +446,7 @@ pub const Builtins = struct {
     F32: Entity,
     Void: Entity,
     Ptr: Entity,
+    Array: Entity,
     Range: Entity,
     IntLiteral: Entity,
     FloatLiteral: Entity,
