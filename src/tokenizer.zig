@@ -1,9 +1,6 @@
 const std = @import("std");
 const Arena = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
-const expect = std.testing.expect;
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
 const panic = std.debug.panic;
 
 const initCodebase = @import("init_codebase.zig").initCodebase;
@@ -204,9 +201,11 @@ fn tokenizeString(module: Entity, source: *Source) !Entity {
     const string = source.advance(i);
     const span = components.Span{ .begin = begin, .end = source.position };
     const interned = try module.ecs.getPtr(Strings).intern(string[1 .. i - 1]);
+    const length = components.Length{ .value = string.len - 2 };
     return try module.ecs.createEntity(.{
         components.Literal.init(interned),
         components.TokenKind.string,
+        length,
         span,
     });
 }

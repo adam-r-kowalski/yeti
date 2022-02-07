@@ -4,10 +4,6 @@ const Allocator = std.mem.Allocator;
 const Arena = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
 const panic = std.debug.panic;
-const expect = std.testing.expect;
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
-const expectEqualSlices = std.testing.expectEqualSlices;
 
 const init_codebase = @import("init_codebase.zig");
 const initCodebase = init_codebase.initCodebase;

@@ -1,6 +1,4 @@
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
 const Arena = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const eql = std.meta.eql;
@@ -30,6 +28,7 @@ const Context = struct {
     allocator: Allocator,
     builtins: components.Builtins,
     label: u64,
+    data_segment: *components.DataSegment,
 };
 
 fn codegenNumber(context: *Context, entity: Entity) !void {
@@ -1361,6 +1360,23 @@ fn codegenAssignField(context: *Context, entity: Entity) !void {
     _ = try context.wasm_instructions.append(entity);
 }
 
+fn codegenString(context: *Context, entity: Entity) !void {
+    try context.data_segment.entities.append(entity);
+    const literal = try std.fmt.allocPrint(context.allocator, "{}", .{context.data_segment.end});
+    const interned = try context.codebase.getPtr(Strings).intern(literal);
+    const result = try context.codebase.createEntity(.{
+        entity.get(components.Type),
+        components.Literal.init(interned),
+        context.data_segment.end,
+    });
+    const wasm_instruction = try context.codebase.createEntity(.{
+        components.WasmInstructionKind.i32_const,
+        components.Constant.init(result),
+    });
+    _ = try context.wasm_instructions.append(wasm_instruction);
+    context.data_segment.end += entity.get(components.Length).value;
+}
+
 fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow, InvalidCharacter }!void {
     const kind = entity.get(components.AstKind);
     switch (kind) {
@@ -1377,6 +1393,7 @@ fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow
         .construct => try codegenConstruct(context, entity),
         .field => try codegenField(context, entity),
         .assign_field => try codegenAssignField(context, entity),
+        .string => try codegenString(context, entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }
 }
@@ -1385,6 +1402,7 @@ pub fn codegen(module: Entity) !void {
     const codebase = module.ecs;
     const allocator = codebase.arena.allocator();
     const builtins = codebase.get(components.Builtins);
+    try codebase.set(.{components.DataSegment.init(allocator)});
     for (module.ecs.get(components.Functions).slice()) |function| {
         if (function.has(components.Body)) |body_component| {
             var locals = components.Locals.init(allocator);
@@ -1396,6 +1414,7 @@ pub fn codegen(module: Entity) !void {
                 .allocator = allocator,
                 .builtins = builtins,
                 .label = 0,
+                .data_segment = codebase.getPtr(components.DataSegment),
             };
             for (body_component.slice()) |entity| {
                 try codegenEntity(&context, entity);

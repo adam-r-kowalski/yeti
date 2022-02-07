@@ -1,6 +1,4 @@
 const std = @import("std");
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
 const Arena = std.heap.ArenaAllocator;
 const Allocator = std.mem.Allocator;
 const eql = std.meta.eql;

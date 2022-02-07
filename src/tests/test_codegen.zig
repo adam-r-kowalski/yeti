@@ -1403,3 +1403,29 @@ test "codegen of struct field write" {
         try expectEqualStrings(literalOf(local.get(components.Name).entity), "r");
     }
 }
+
+test "codegen of string literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): []u8
+        \\  "hello world"
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const wasm_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(wasm_instructions.len, 1);
+    const constant = wasm_instructions[0];
+    try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+    try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    const data_segment = codebase.get(components.DataSegment);
+    try expectEqual(data_segment.end, 11);
+    const entities = data_segment.entities.slice();
+    try expectEqual(entities.len, 1);
+    try expectEqualStrings(literalOf(entities[0]), "hello world");
+}

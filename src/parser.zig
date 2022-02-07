@@ -2,9 +2,6 @@ const std = @import("std");
 const Arena = std.heap.ArenaAllocator;
 const assert = std.debug.assert;
 const panic = std.debug.panic;
-const expect = std.testing.expect;
-const expectEqual = std.testing.expectEqual;
-const expectEqualStrings = std.testing.expectEqualStrings;
 
 const initCodebase = @import("init_codebase.zig").initCodebase;
 const List = @import("list.zig").List;
