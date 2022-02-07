@@ -1010,22 +1010,11 @@ fn codegenPtrI32BinaryOp(context: *Context, entity: Entity, kind: components.Was
         try context.wasm_instructions.append(instruction);
         return;
     }
-    const literal = try std.fmt.allocPrint(context.allocator, "{}", .{bytes});
-    const interned = try context.codebase.getPtr(Strings).intern(literal);
-    const result = try context.codebase.createEntity(.{
-        components.Type.init(context.builtins.I32),
-        components.Literal.init(interned),
-        bytes,
-    });
-    const constant = try context.codebase.createEntity(.{
-        components.WasmInstructionKind.i32_const,
-        components.Constant.init(result),
-    });
+    try codegenConstant(i32, context, bytes);
     const multiply = try context.codebase.createEntity(.{
         components.WasmInstructionKind.i32_mul,
     });
     const op = try context.codebase.createEntity(.{kind});
-    try context.wasm_instructions.append(constant);
     try context.wasm_instructions.append(multiply);
     try context.wasm_instructions.append(op);
 }
@@ -1360,21 +1349,38 @@ fn codegenAssignField(context: *Context, entity: Entity) !void {
     _ = try context.wasm_instructions.append(entity);
 }
 
-fn codegenString(context: *Context, entity: Entity) !void {
-    try context.data_segment.entities.append(entity);
-    const literal = try std.fmt.allocPrint(context.allocator, "{}", .{context.data_segment.end});
+fn codegenConstant(comptime T: type, context: *Context, value: T) !void {
+    const KindAndType = struct {
+        kind: components.WasmInstructionKind,
+        Type: Entity,
+    };
+    const kind_and_type: KindAndType = switch (T) {
+        i32 => .{ .kind = .i32_const, .Type = context.builtins.I32 },
+        else => panic("\ncodegen number unsupported type {s}\n", .{@typeName(T)}),
+    };
+    const literal = try std.fmt.allocPrint(context.allocator, "{}", .{value});
     const interned = try context.codebase.getPtr(Strings).intern(literal);
     const result = try context.codebase.createEntity(.{
-        entity.get(components.Type),
+        components.Type.init(kind_and_type.Type),
         components.Literal.init(interned),
-        context.data_segment.end,
+        value,
     });
     const wasm_instruction = try context.codebase.createEntity(.{
-        components.WasmInstructionKind.i32_const,
+        kind_and_type.kind,
         components.Constant.init(result),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
-    context.data_segment.end += entity.get(components.Length).value;
+}
+
+fn codegenString(context: *Context, entity: Entity) !void {
+    try context.codebase.set(.{components.UsesMemory{ .value = true }});
+    const length = entity.get(components.Length).value;
+    try context.data_segment.entities.append(entity);
+    try codegenConstant(i32, context, context.data_segment.end);
+    try codegenConstant(i32, context, length);
+    const location = components.Location{ .value = context.data_segment.end };
+    _ = try entity.set(.{location});
+    context.data_segment.end += length;
 }
 
 fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow, InvalidCharacter }!void {

@@ -754,7 +754,8 @@ test "print wasm pointer store" {
         \\
         \\  (export "_start" (func $foo/start))
         \\
-        \\  (memory 1))
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
     );
 }
 
@@ -784,7 +785,8 @@ test "print wasm pointer load" {
         \\
         \\  (export "_start" (func $foo/start))
         \\
-        \\  (memory 1))
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
     );
 }
 
@@ -922,7 +924,8 @@ test "print wasm pointer v128 load" {
         \\
         \\  (export "_start" (func $foo/start))
         \\
-        \\  (memory 1))
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
     );
 }
 
@@ -954,7 +957,8 @@ test "print wasm pointer v128 store" {
         \\
         \\  (export "_start" (func $foo/start))
         \\
-        \\  (memory 1))
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
     );
 }
 
@@ -1000,7 +1004,8 @@ test "print wasm binary op on two int vectors" {
                 \\
                 \\  (export "_start" (func $foo/start))
                 \\
-                \\  (memory 1))
+                \\  (memory 1)
+                \\  (export "memory" (memory 0)))
             , .{instructions[type_index][i]}));
         }
     }
@@ -1042,7 +1047,8 @@ test "print wasm binary op on two float vectors" {
                 \\
                 \\  (export "_start" (func $foo/start))
                 \\
-                \\  (memory 1))
+                \\  (memory 1)
+                \\  (export "memory" (memory 0)))
             , .{instructions[type_index][i]}));
         }
     }
@@ -1222,5 +1228,34 @@ test "print wasm struct field write" {
         \\    (local.get $r.height))
         \\
         \\  (export "_start" (func $foo/start)))
+    );
+}
+
+test "print wasm string literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): []u8
+        \\  "hello world"
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32 i32)
+        \\    (i32.const 0)
+        \\    (i32.const 11))
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (data (i32.const 0) "hello world")
+        \\
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
     );
 }

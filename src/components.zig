@@ -570,7 +570,7 @@ fn DistinctMap(comptime unique_id: []const u8, comptime K: type, comptime V: typ
 
 pub const DataSegment = struct {
     entities: List(Entity, .{}),
-    end: u64,
+    end: i32,
 
     pub fn init(allocator: Allocator) DataSegment {
         return .{ .entities = List(Entity, .{}).init(allocator), .end = 0 };
@@ -622,6 +622,7 @@ pub const Iterator = DistinctEntity("Iterator");
 pub const Range = struct { first: Entity, last: Entity };
 pub const UsesMemory = struct { value: bool };
 pub const Size = struct { bytes: i32 };
-pub const Length = struct { value: u64 };
+pub const Length = struct { value: i32 };
+pub const Location = struct { value: i32 };
 pub const ModuleSource = struct { string: []const u8 };
 pub const ModulePath = struct { string: []const u8 };

@@ -1419,10 +1419,17 @@ test "codegen of string literal" {
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const wasm_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(wasm_instructions.len, 1);
-    const constant = wasm_instructions[0];
-    try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
-    try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    try expectEqual(wasm_instructions.len, 2);
+    {
+        const constant = wasm_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    }
+    {
+        const constant = wasm_instructions[1];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "11");
+    }
     const data_segment = codebase.get(components.DataSegment);
     try expectEqual(data_segment.end, 11);
     const entities = data_segment.entities.slice();

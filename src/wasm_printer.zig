@@ -33,8 +33,11 @@ fn printWasmType(wasm: *Wasm, type_of: Entity) error{OutOfMemory}!void {
         }
     }
     if (type_of.has(components.ParentType)) |parent_type| {
-        assert(eql(parent_type.entity, b.Ptr));
-        return try wasm.appendSlice("i32");
+        if (eql(parent_type.entity, b.Ptr)) {
+            return try wasm.appendSlice("i32");
+        }
+        assert(eql(parent_type.entity, b.Array));
+        return try wasm.appendSlice("i32 i32");
     }
     if (type_of.has(components.Fields)) |field_component| {
         const fields = field_component.slice();
@@ -475,9 +478,20 @@ pub fn printWasm(module: Entity) ![]u8 {
         try wasm.appendSlice(try functionName(start));
         try wasm.appendSlice("))");
     }
-
-    if (module.ecs.contains(components.UsesMemory)) {
-        try wasm.appendSlice("\n\n  (memory 1)");
+    if (codebase.contains(components.UsesMemory)) {
+        const data_segment = codebase.get(components.DataSegment);
+        const allocator = codebase.arena.allocator();
+        for (data_segment.entities.slice()) |entity| {
+            assert(entity.get(components.AstKind) == .string);
+            try wasm.appendSlice("\n\n  (data (i32.const ");
+            const location = entity.get(components.Location).value;
+            const string = try std.fmt.allocPrint(allocator, "{}", .{location});
+            try wasm.appendSlice(string);
+            try wasm.appendSlice(") \"");
+            try wasm.appendSlice(literalOf(entity));
+            try wasm.appendSlice("\")");
+        }
+        try wasm.appendSlice("\n\n  (memory 1)\n  (export \"memory\" (memory 0))");
     }
     try wasm.append(')');
     return wasm.mutSlice();
