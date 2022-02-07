@@ -36,8 +36,6 @@ fn printWasmType(wasm: *Wasm, type_of: Entity) error{OutOfMemory}!void {
         if (eql(parent_type.entity, b.Ptr)) {
             return try wasm.appendSlice("i32");
         }
-        assert(eql(parent_type.entity, b.Array));
-        return try wasm.appendSlice("i32 i32");
     }
     if (type_of.has(components.Fields)) |field_component| {
         const fields = field_component.slice();
@@ -50,7 +48,7 @@ fn printWasmType(wasm: *Wasm, type_of: Entity) error{OutOfMemory}!void {
         }
         return;
     }
-    panic("\nwasm wasm unsupported type {s}\n", .{literalOf(type_of)});
+    panic("\nwasm unsupported type {s}\n", .{literalOf(type_of)});
 }
 
 fn functionName(function: Entity) ![]const u8 {
@@ -68,14 +66,21 @@ fn functionName(function: Entity) ![]const u8 {
         const type_of = typeOf(parameter);
         const literal = literalOf(type_of);
         if (type_of.has(components.ParentType)) |parent_type| {
-            assert(eql(parent_type.entity, builtins.Ptr));
-            for (literal) |c| {
-                switch (c) {
-                    '(' => try wasm_name.append('.'),
-                    ')' => continue,
-                    else => try wasm_name.append(c),
-                }
+            if (eql(parent_type.entity, builtins.Ptr)) {
+                try wasm_name.appendSlice("ptr.");
+                try wasm_name.appendSlice(literal[1..]);
+                continue;
             }
+            assert(eql(parent_type.entity, builtins.Array));
+            try wasm_name.appendSlice("array.");
+            try wasm_name.appendSlice(literal[2..]);
+            // for (literal) |c| {
+            //     switch (c) {
+            //         '(' => try wasm_name.append('.'),
+            //         ')' => continue,
+            //         else => try wasm_name.append(c),
+            //     }
+            // }
         } else {
             try wasm_name.appendSlice(literal);
         }
@@ -398,6 +403,7 @@ fn printWasmInstruction(wasm: *Wasm, wasm_instruction: Entity) !void {
         .f32_store => try wasm.appendSlice("\n    f32.store"),
         .i64_load => try wasm.appendSlice("\n    i64.load"),
         .i32_load => try wasm.appendSlice("\n    i32.load"),
+        .i32_load8_u => try wasm.appendSlice("\n    i32.load8_u"),
         .f64_load => try wasm.appendSlice("\n    f64.load"),
         .f32_load => try wasm.appendSlice("\n    f32.load"),
         .v128_load => try wasm.appendSlice("\n    v128.load"),

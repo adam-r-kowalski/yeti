@@ -54,7 +54,7 @@ pub fn main() !void {
             std.debug.print("{s}", .{errors});
             return;
         },
-        else => panic("\ncompiler crashed\n", .{}),
+        else => |err| panic("\ncompiler crashed with error {}\n", .{err}),
     };
     try codegen(module);
     const wasm = try printWasm(module);

@@ -341,7 +341,7 @@ fn Context(comptime FileSystem: type) type {
             }
             assert(eql(parentType(type_of), b.Ptr));
             const value_type = valueType(type_of);
-            const scalars = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
+            const scalars = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
             for (scalars) |scalar| {
                 if (eql(value_type, scalar)) {
                     return try self.codebase.createEntity(.{
@@ -376,16 +376,54 @@ fn Context(comptime FileSystem: type) type {
             if (result.found_existing) {
                 return result.value_ptr.*;
             }
+            var fields = components.Fields.init(self.allocator);
+            {
+                const interned = try self.codebase.getPtr(Strings).intern("ptr");
+                const pointer_memoized = b.Ptr.getPtr(components.Memoized);
+                const pointer_result = try pointer_memoized.getOrPut(b.U8);
+                const pointer_type = blk: {
+                    if (pointer_result.found_existing) {
+                        break :blk pointer_result.value_ptr.*;
+                    } else {
+                        const pointer_interned = try self.codebase.getPtr(Strings).intern("*u8");
+                        const pointer_type = try self.codebase.createEntity(.{
+                            components.Literal.init(pointer_interned),
+                            components.Type.init(b.Type),
+                            components.ParentType.init(b.Ptr),
+                            components.ValueType.init(b.U8),
+                        });
+                        pointer_result.value_ptr.* = pointer_type;
+                        break :blk pointer_type;
+                    }
+                };
+                const ptr = try self.codebase.createEntity(.{
+                    components.Literal.init(interned),
+                    components.Type.init(pointer_type),
+                });
+                _ = try ptr.set(.{components.Name.init(ptr)});
+                try fields.append(ptr);
+            }
+            {
+                const interned = try self.codebase.getPtr(Strings).intern("len");
+                const len = try self.codebase.createEntity(.{
+                    components.Literal.init(interned),
+                    components.Type.init(b.I32),
+                });
+                _ = try len.set(.{components.Name.init(len)});
+                try fields.append(len);
+            }
             const string = try std.fmt.allocPrint(self.allocator, "[]{s}", .{literalOf(value)});
             const interned = try self.codebase.getPtr(Strings).intern(string);
-            const pointer_type = try self.codebase.createEntity(.{
+            const array_type = try self.codebase.createEntity(.{
+                components.AstKind.struct_,
                 components.Literal.init(interned),
                 components.Type.init(b.Type),
                 components.ParentType.init(b.Array),
                 components.ValueType.init(value),
+                fields,
             });
-            result.value_ptr.* = pointer_type;
-            return pointer_type;
+            result.value_ptr.* = array_type;
+            return array_type;
         }
 
         fn analyzeCast(self: *Self, arguments: []const Entity) !Entity {
@@ -1004,12 +1042,51 @@ fn Context(comptime FileSystem: type) type {
             if (result.found_existing) {
                 return entity.set(.{components.Type.init(result.value_ptr.*)});
             }
+
+            var fields = components.Fields.init(self.allocator);
+            {
+                const interned = try self.codebase.getPtr(Strings).intern("ptr");
+                const pointer_memoized = b.Ptr.getPtr(components.Memoized);
+                const pointer_result = try pointer_memoized.getOrPut(b.U8);
+                const pointer_type = blk: {
+                    if (pointer_result.found_existing) {
+                        break :blk pointer_result.value_ptr.*;
+                    } else {
+                        const pointer_interned = try self.codebase.getPtr(Strings).intern("*u8");
+                        const pointer_type = try self.codebase.createEntity(.{
+                            components.Literal.init(pointer_interned),
+                            components.Type.init(b.Type),
+                            components.ParentType.init(b.Ptr),
+                            components.ValueType.init(b.U8),
+                        });
+                        pointer_result.value_ptr.* = pointer_type;
+                        break :blk pointer_type;
+                    }
+                };
+                const ptr = try self.codebase.createEntity(.{
+                    components.Literal.init(interned),
+                    components.Type.init(pointer_type),
+                });
+                _ = try ptr.set(.{components.Name.init(ptr)});
+                try fields.append(ptr);
+            }
+            {
+                const interned = try self.codebase.getPtr(Strings).intern("len");
+                const len = try self.codebase.createEntity(.{
+                    components.Literal.init(interned),
+                    components.Type.init(b.I32),
+                });
+                _ = try len.set(.{components.Name.init(len)});
+                try fields.append(len);
+            }
             const interned = try self.codebase.getPtr(Strings).intern("[]u8");
             const array_type = try self.codebase.createEntity(.{
+                components.AstKind.struct_,
                 components.Literal.init(interned),
                 components.Type.init(b.Type),
                 components.ParentType.init(b.Array),
                 components.ValueType.init(b.U8),
+                fields,
             });
             result.value_ptr.* = array_type;
             return entity.set(.{components.Type.init(array_type)});

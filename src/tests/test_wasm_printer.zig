@@ -790,6 +790,37 @@ test "print wasm pointer load" {
     );
 }
 
+test "print wasm pointer load u8" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): u8
+        \\  ptr = cast(*u8, 0)
+        \\  *ptr
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32)
+        \\    (local $ptr i32)
+        \\    (i32.const 0)
+        \\    (local.set $ptr)
+        \\    (local.get $ptr)
+        \\    i32.load8_u)
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
+    );
+}
+
 test "print wasm pointer as parameter" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -808,10 +839,10 @@ test "print wasm pointer as parameter" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.*i32 (param $ptr i32) (result i32)
+        \\  (func $foo/f.ptr.i32 (param $ptr i32) (result i32)
         \\    (i32.const 0))
         \\
-        \\  (export "f" (func $foo/f.*i32)))
+        \\  (export "f" (func $foo/f.ptr.i32)))
     );
 }
 
@@ -833,12 +864,12 @@ test "print wasm adding pointer and int literal" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.*i64 (param $ptr i32) (result i32)
+        \\  (func $foo/f.ptr.i64 (param $ptr i32) (result i32)
         \\    (local.get $ptr)
         \\    (i32.const 8)
         \\    i32.add)
         \\
-        \\  (export "f" (func $foo/f.*i64)))
+        \\  (export "f" (func $foo/f.ptr.i64)))
     );
 }
 
@@ -860,12 +891,12 @@ test "print wasm subtracting pointer and int literal" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.*i64 (param $ptr i32) (result i32)
+        \\  (func $foo/f.ptr.i64 (param $ptr i32) (result i32)
         \\    (local.get $ptr)
         \\    (i32.const 8)
         \\    i32.sub)
         \\
-        \\  (export "f" (func $foo/f.*i64)))
+        \\  (export "f" (func $foo/f.ptr.i64)))
     );
 }
 
@@ -887,14 +918,14 @@ test "print wasm adding pointer and i32" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.*i64.i32 (param $ptr i32) (param $len i32) (result i32)
+        \\  (func $foo/f.ptr.i64.i32 (param $ptr i32) (param $len i32) (result i32)
         \\    (local.get $ptr)
         \\    (local.get $len)
         \\    (i32.const 8)
         \\    i32.mul
         \\    i32.add)
         \\
-        \\  (export "f" (func $foo/f.*i64.i32)))
+        \\  (export "f" (func $foo/f.ptr.i64.i32)))
     );
 }
 
@@ -1250,6 +1281,80 @@ test "print wasm string literal" {
         \\  (func $foo/start (result i32 i32)
         \\    (i32.const 0)
         \\    (i32.const 11))
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (data (i32.const 0) "hello world")
+        \\
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
+    );
+}
+
+test "print wasm assign string literal to variable" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): []u8
+        \\  text = "hello world"
+        \\  text
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32 i32)
+        \\    (local $text.ptr i32)
+        \\    (local $text.len i32)
+        \\    (i32.const 0)
+        \\    (i32.const 11)
+        \\    (local.set $text.len)
+        \\    (local.set $text.ptr)
+        \\    (local.get $text.ptr)
+        \\    (local.get $text.len))
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (data (i32.const 0) "hello world")
+        \\
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
+    );
+}
+
+test "print wasm pass string literal as argument" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\first = fn(text: []u8): u8
+        \\  *(text.ptr)
+        \\end
+        \\
+        \\start = fn(): u8
+        \\  first("hello world")
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32)
+        \\    (i32.const 0)
+        \\    (i32.const 11)
+        \\    (call $foo/first.array.u8))
+        \\
+        \\  (func $foo/first.array.u8 (param $text.ptr i32) (param $text.len i32) (result i32)
+        \\    (local.get $text.ptr)
+        \\    i32.load8_u)
         \\
         \\  (export "_start" (func $foo/start))
         \\

@@ -1083,8 +1083,8 @@ fn codegenLoad(context: *Context, entity: Entity) !void {
     const pointer = arguments[0];
     try codegenEntity(context, pointer);
     const b = context.builtins;
-    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.F64, b.F32 };
-    const instructions = [_]components.WasmInstructionKind{ .i64_load, .i32_load, .i64_load, .i32_load, .f64_load, .f32_load };
+    const builtins = [_]Entity{ b.I64, b.I32, b.U64, b.U32, b.U8, b.F64, b.F32 };
+    const instructions = [_]components.WasmInstructionKind{ .i64_load, .i32_load, .i64_load, .i32_load, .i32_load8_u, .f64_load, .f32_load };
     const value_type = valueType(typeOf(pointer));
     for (builtins) |builtin, i| {
         if (eql(value_type, builtin)) {

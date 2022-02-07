@@ -402,6 +402,7 @@ pub const WasmInstructionKind = enum(u8) {
     f32_store,
     f64_store,
     i32_load,
+    i32_load8_u,
     i64_load,
     f32_load,
     f64_load,
