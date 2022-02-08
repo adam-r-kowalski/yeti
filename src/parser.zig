@@ -154,7 +154,7 @@ fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
 
 fn parsePointer(codebase: *ECS, tokens: *Tokens, star: Entity) !Entity {
     const begin = star.get(components.Span).begin;
-    const value = try parseExpression(codebase, tokens, HIGHEST);
+    const value = try parseExpression(codebase, tokens, DOT);
     const end = value.get(components.Span).end;
     const span = components.Span.init(begin, end);
     return try codebase.createEntity(.{
