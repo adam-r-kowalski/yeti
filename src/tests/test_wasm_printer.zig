@@ -1400,3 +1400,44 @@ test "print wasm dereference string literal" {
         \\  (export "memory" (memory 0)))
     );
 }
+
+test "print wasm write through **u8" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): void
+        \\  text = "hello world"
+        \\  ptr = cast(**u8, 100)
+        \\  *ptr = text.ptr
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start
+        \\    (local $text.ptr i32)
+        \\    (local $text.len i32)
+        \\    (local $ptr i32)
+        \\    (i32.const 0)
+        \\    (i32.const 11)
+        \\    (local.set $text.len)
+        \\    (local.set $text.ptr)
+        \\    (i32.const 100)
+        \\    (local.set $ptr)
+        \\    (local.get $ptr)
+        \\    (local.get $text.ptr)
+        \\    i32.store)
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (data (i32.const 0) "hello world")
+        \\
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
+    );
+}

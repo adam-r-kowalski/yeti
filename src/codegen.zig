@@ -1063,6 +1063,12 @@ fn codegenStore(context: *Context, entity: Entity) !void {
             return;
         }
     }
+    if (value_type.has(components.ParentType)) |value_type_parent_type| {
+        assert(eql(value_type_parent_type.entity, b.Ptr));
+        const instruction = try context.codebase.createEntity(.{components.WasmInstructionKind.i32_store});
+        try context.wasm_instructions.append(instruction);
+        return;
+    }
     panic("\ncodegen store unspported type {s}\n", .{literalOf(value_type)});
 }
 
@@ -1380,7 +1386,7 @@ fn codegenString(context: *Context, entity: Entity) !void {
     try codegenConstant(i32, context, length);
     const location = components.Location{ .value = context.data_segment.end };
     _ = try entity.set(.{location});
-    context.data_segment.end += length;
+    context.data_segment.end += length * 8;
 }
 
 fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow, InvalidCharacter }!void {

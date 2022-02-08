@@ -823,6 +823,15 @@ fn Context(comptime FileSystem: type) type {
                             });
                         }
                     }
+                    if (value_type.has(components.ParentType)) |value_type_parent_type| {
+                        assert(eql(value_type_parent_type.entity, b.Ptr));
+                        return try self.codebase.createEntity(.{
+                            components.AstKind.intrinsic,
+                            components.Intrinsic.store,
+                            try components.Arguments.fromSlice(self.allocator, &.{ pointer, value }),
+                            components.Type.init(b.Void),
+                        });
+                    }
                     panic("\nunsupported store for value type {s}\n", .{literalOf(value_type)});
                 },
                 .binary_op => {

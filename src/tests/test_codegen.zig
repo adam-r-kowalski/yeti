@@ -1431,7 +1431,7 @@ test "codegen of string literal" {
         try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "11");
     }
     const data_segment = codebase.get(components.DataSegment);
-    try expectEqual(data_segment.end, 11);
+    try expectEqual(data_segment.end, 88);
     const entities = data_segment.entities.slice();
     try expectEqual(entities.len, 1);
     try expectEqualStrings(literalOf(entities[0]), "hello world");
