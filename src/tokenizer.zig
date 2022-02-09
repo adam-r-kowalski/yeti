@@ -95,6 +95,7 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
             '0'...'9', '-' => try tokenizeNumber(module, &source, false),
             '.' => try tokenizeNumber(module, &source, true),
             '"' => try tokenizeString(module, &source),
+            '\'' => try tokenizeChar(module, &source),
             '(' => try tokenizeOne(module, &source, .left_paren),
             ')' => try tokenizeOne(module, &source, .right_paren),
             '[' => try tokenizeOne(module, &source, .left_bracket),
@@ -210,6 +211,28 @@ fn tokenizeString(module: Entity, source: *Source) !Entity {
     });
 }
 
+fn tokenizeChar(module: Entity, source: *Source) !Entity {
+    const begin = source.position;
+    var i: u64 = 1;
+    while (i < source.code.len) : (i += 1) {
+        switch (source.code[i]) {
+            '\'' => {
+                i += 1;
+                break;
+            },
+            else => continue,
+        }
+    }
+    const string = source.advance(i);
+    const span = components.Span{ .begin = begin, .end = source.position };
+    const interned = try module.ecs.getPtr(Strings).intern(string[1 .. i - 1]);
+    assert(string.len == 3);
+    return try module.ecs.createEntity(.{
+        components.Literal.init(interned),
+        components.TokenKind.char,
+        span,
+    });
+}
 fn tokenizeOne(module: Entity, source: *Source, kind: components.TokenKind) !Entity {
     const begin = source.position;
     _ = source.advance(1);

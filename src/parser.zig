@@ -177,6 +177,7 @@ fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
             components.Type.init(token.ecs.get(components.Builtins).FloatLiteral),
         }),
         .string => token.set(.{components.AstKind.string}),
+        .char => token.set(.{components.AstKind.char}),
         .left_paren => parseGrouping(token.ecs, tokens),
         .left_bracket => parseArray(token.ecs, tokens, token),
         .if_ => parseIf(token.ecs, tokens, token),

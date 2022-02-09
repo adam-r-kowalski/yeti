@@ -2172,7 +2172,6 @@ test "analyze semantics of string literal" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
-    // const builtins = codebase.get(components.Builtins);
     _ = try fs.newFile("foo.yeti",
         \\start = fn(): []u8
         \\  "hello world"
@@ -2193,4 +2192,31 @@ test "analyze semantics of string literal" {
     try expectEqual(hello_world.get(components.AstKind), .string);
     try expectEqual(typeOf(hello_world), return_type);
     try expectEqualStrings(literalOf(hello_world), "hello world");
+}
+
+test "analyze semantics of char literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): u8
+        \\  'h'
+        \\end
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.U8);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const h = body[0];
+    try expectEqual(h.get(components.AstKind), .int);
+    try expectEqual(typeOf(h), builtins.U8);
+    try expectEqualStrings(literalOf(h), "104");
 }

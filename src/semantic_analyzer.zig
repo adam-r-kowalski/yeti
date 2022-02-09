@@ -1101,6 +1101,18 @@ fn Context(comptime FileSystem: type) type {
             return entity.set(.{components.Type.init(array_type)});
         }
 
+        fn analyzeChar(self: *Self, entity: Entity) !Entity {
+            const char = literalOf(entity)[0];
+            const string = try std.fmt.allocPrint(self.allocator, "{}", .{char});
+            const interned = try self.codebase.getPtr(Strings).intern(string);
+            return try self.codebase.createEntity(.{
+                components.Type.init(self.builtins.U8),
+                components.Literal.init(interned),
+                components.AstKind.int,
+                entity.get(components.Span),
+            });
+        }
+
         const Error = error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes, CompileError };
 
         fn analyzeExpression(self: *Self, entity: Entity) Error!Entity {
@@ -1118,6 +1130,7 @@ fn Context(comptime FileSystem: type) type {
                 .array => try self.analyzeArray(entity),
                 .range => try self.analyzeRange(entity),
                 .string => try self.analyzeString(entity),
+                .char => try self.analyzeChar(entity),
                 .plus_equal => try self.analyzePlusEqual(entity),
                 .times_equal => try self.analyzeTimesEqual(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
