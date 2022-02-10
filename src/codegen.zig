@@ -1145,10 +1145,11 @@ fn codegenIntrinsic(context: *Context, entity: Entity) !void {
 fn codegenIf(context: *Context, entity: Entity) !void {
     const conditional = entity.get(components.Conditional).entity;
     try codegenEntity(context, conditional);
-    const kind = context.wasm_instructions.last().get(components.WasmInstructionKind);
+    const conditional_instruction = context.wasm_instructions.last();
+    const kind = conditional_instruction.get(components.WasmInstructionKind);
     if (kind == .i32_const) {
         context.wasm_instructions.shrink(1);
-        if ((try valueOf(i32, conditional)).? != 0) {
+        if ((try valueOf(i32, conditional_instruction.get(components.Constant).entity)).? != 0) {
             for (entity.get(components.Then).slice()) |expression| {
                 try codegenEntity(context, expression);
             }
