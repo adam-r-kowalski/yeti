@@ -1491,3 +1491,56 @@ test "print wasm properly infer type for for loop" {
         \\  (export "_start" (func $foo/start)))
     );
 }
+
+test "print wasm properly infer type for while loop" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64
+        \\  sum = 0
+        \\  i = 0
+        \\  while i < 10 do
+        \\    sum += 1
+        \\    i += 1
+        \\  end
+        \\  sum
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (local $sum i64)
+        \\    (local $i i32)
+        \\    (i64.const 0)
+        \\    (local.set $sum)
+        \\    (i32.const 0)
+        \\    (local.set $i)
+        \\    block $.label.0
+        \\    loop $.label.1
+        \\    (local.get $i)
+        \\    (i32.const 10)
+        \\    i32.lt_s
+        \\    i32.eqz
+        \\    br_if $.label.0
+        \\    (local.get $sum)
+        \\    (i64.const 1)
+        \\    i64.add
+        \\    (local.set $sum)
+        \\    (local.get $i)
+        \\    (i32.const 1)
+        \\    i32.add
+        \\    (local.set $i)
+        \\    br $.label.1
+        \\    end $.label.1
+        \\    end $.label.0
+        \\    (local.get $sum))
+        \\
+        \\  (export "_start" (func $foo/start)))
+    );
+}

@@ -788,7 +788,11 @@ fn Context(comptime FileSystem: type) type {
                         components.Type.init(b.Void),
                         components.Value.init(value),
                     });
-                    if (eql(type_of, b.IntLiteral) or eql(type_of, b.FloatLiteral)) {
+                    if (eql(type_of, b.IntLiteral)) {
+                        try addDependentEntities(local, &.{value});
+                        try self.function.getPtr(components.IntLiterals).append(local);
+                    }
+                    if (eql(type_of, b.FloatLiteral)) {
                         try addDependentEntities(local, &.{value});
                     }
                     try scopes.putName(name, local);
@@ -1186,7 +1190,9 @@ fn Context(comptime FileSystem: type) type {
                 const return_entity = try self.analyzeFunctionBody(body.slice());
                 try self.implicitTypeConversion(return_entity, return_type);
                 for (self.function.get(components.IntLiterals).slice()) |int_literal| {
-                    try self.implicitTypeConversion(int_literal, self.builtins.I32);
+                    if (eql(typeOf(int_literal), self.builtins.IntLiteral)) {
+                        try self.implicitTypeConversion(int_literal, self.builtins.I32);
+                    }
                 }
             } else {
                 _ = try self.codebase.getPtr(components.ForeignImports).append(self.function);

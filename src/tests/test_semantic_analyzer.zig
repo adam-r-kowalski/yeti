@@ -250,7 +250,7 @@ test "analyze semantics two defines" {
             const local = define.get(components.Local).entity;
             try expectEqual(local.get(components.AstKind), .local);
             try expectEqualStrings(literalOf(local.get(components.Name).entity), "y");
-            try expectEqual(typeOf(local), builtins.IntLiteral);
+            try expectEqual(typeOf(local), builtins.I32);
         }
         try expectEqual(body[2], x);
     }
