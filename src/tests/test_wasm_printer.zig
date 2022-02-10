@@ -1441,3 +1441,53 @@ test "print wasm write through **u8" {
         \\  (export "memory" (memory 0)))
     );
 }
+
+test "print wasm properly infer type for for loop" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): i64
+        \\  sum = 0
+        \\  for i in 0:10 do
+        \\    sum += 1
+        \\  end
+        \\  sum
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i64)
+        \\    (local $sum i64)
+        \\    (local $i i32)
+        \\    (i64.const 0)
+        \\    (local.set $sum)
+        \\    (i32.const 0)
+        \\    (local.set $i)
+        \\    block $.label.0
+        \\    loop $.label.1
+        \\    (local.get $i)
+        \\    (i32.const 10)
+        \\    i32.ge_s
+        \\    br_if $.label.0
+        \\    (local.get $sum)
+        \\    (i64.const 1)
+        \\    i64.add
+        \\    (local.set $sum)
+        \\    (i32.const 1)
+        \\    (local.get $i)
+        \\    i32.add
+        \\    (local.set $i)
+        \\    br $.label.1
+        \\    end $.label.1
+        \\    end $.label.0
+        \\    (local.get $sum))
+        \\
+        \\  (export "_start" (func $foo/start)))
+    );
+}

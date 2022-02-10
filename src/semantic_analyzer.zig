@@ -1017,6 +1017,9 @@ fn Context(comptime FileSystem: type) type {
             std.mem.copy(u64, finally_scopes, active_scopes);
             finally_scopes[active_scopes.len] = try scopes.pushScope();
             self.active_scopes = finally_scopes;
+            if (eql(typeOf(local), self.builtins.IntLiteral)) {
+                try self.function.getPtr(components.IntLiterals).append(local);
+            }
             return result;
         }
 
@@ -1170,7 +1173,10 @@ fn Context(comptime FileSystem: type) type {
         }
 
         fn analyzeFunction(self: *Self) !void {
-            _ = try self.function.set(.{components.Module.init(self.module)});
+            _ = try self.function.set(.{
+                components.Module.init(self.module),
+                components.IntLiterals.init(self.allocator),
+            });
             if (!self.function.contains(components.AnalyzedParameters)) {
                 try self.analyzeFunctionParameters();
             }
@@ -1179,6 +1185,9 @@ fn Context(comptime FileSystem: type) type {
                 _ = try self.codebase.getPtr(components.Functions).append(self.function);
                 const return_entity = try self.analyzeFunctionBody(body.slice());
                 try self.implicitTypeConversion(return_entity, return_type);
+                for (self.function.get(components.IntLiterals).slice()) |int_literal| {
+                    try self.implicitTypeConversion(int_literal, self.builtins.I32);
+                }
             } else {
                 _ = try self.codebase.getPtr(components.ForeignImports).append(self.function);
             }

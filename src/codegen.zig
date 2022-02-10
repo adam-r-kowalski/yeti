@@ -1224,9 +1224,20 @@ fn codegenFor(context: *Context, entity: Entity) !void {
     const range = iterator.get(components.Range);
     const b = context.builtins;
     const builtins = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
-    const kinds = &[_]components.WasmInstructionKind{ .i64_const, .i32_const, .i32_const, .i32_const, .i64_const, .i32_const, .i32_const, .i32_const, .f64_const, .f32_const };
+    const kinds = &[_]components.WasmInstructionKind{
+        .i64_const,
+        .i32_const,
+        .i32_const,
+        .i32_const,
+        .i64_const,
+        .i32_const,
+        .i32_const,
+        .i32_const,
+        .f64_const,
+        .f32_const,
+    };
     const type_of = typeOf(local);
-    const i = blk: {
+    const i: u64 = blk: {
         for (builtins) |builtin, i| {
             if (!eql(builtin, type_of)) continue;
             break :blk i;

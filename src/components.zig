@@ -602,6 +602,7 @@ pub const Conditional = DistinctEntity("Conditional");
 pub const Then = DistinctList("Then", Entity);
 pub const Else = DistinctList("Else", Entity);
 pub const DependentEntities = DistinctList("Dependent Entities", Entity);
+pub const IntLiterals = DistinctList("Int Literals", Entity);
 pub const Local = DistinctEntity("Local");
 pub const Field = DistinctEntity("Field");
 pub const Constant = DistinctEntity("Constant");
