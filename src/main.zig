@@ -43,12 +43,14 @@ const FileSystem = struct {
 pub fn main() !void {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
-    const args = try std.process.argsAlloc(arena.allocator());
-    assert(args.len == 3);
+    const allocator = arena.allocator();
+    const args = try std.process.argsAlloc(allocator);
+    assert(args.len == 2);
     var fs = FileSystem.init(&arena);
     defer fs.deinit();
     var codebase = try initCodebase(&arena);
-    const module = analyzeSemantics(codebase, &fs, args[1]) catch |e| switch (e) {
+    const yeti_filename = args[1];
+    const module = analyzeSemantics(codebase, &fs, yeti_filename) catch |e| switch (e) {
         error.CompileError => {
             const errors = try printErrors(codebase);
             std.debug.print("{s}", .{errors});
@@ -59,11 +61,15 @@ pub fn main() !void {
     try codegen(module);
     const wasm = try printWasm(module);
     const foreign_exports = module.get(components.ForeignExports).slice();
-    try std.fs.cwd().writeFile(args[2], wasm);
+    const wat_filename = try allocator.alloc(u8, yeti_filename.len - 1);
+    const cutoff = yeti_filename.len - 4;
+    std.mem.copy(u8, wat_filename, yeti_filename[0..cutoff]);
+    std.mem.copy(u8, wat_filename[cutoff..], "wat");
+    try std.fs.cwd().writeFile(wat_filename, wasm);
     if (foreign_exports.len > 0) return;
     const result = try std.ChildProcess.exec(.{
         .allocator = arena.allocator(),
-        .argv = &.{ "wasmtime", args[2] },
+        .argv = &.{ "wasmtime", wat_filename },
     });
     std.debug.print("{s}", .{result.stdout});
 }

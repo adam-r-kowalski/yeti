@@ -10,7 +10,5 @@ print = fn(text: []u8): void
 end
 
 start = fn(): void
-  print("hello\n")
-  print("doing work\n")
-  print("goodbye\n")
+  print("hello world\n")
 end
