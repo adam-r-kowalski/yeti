@@ -53,7 +53,7 @@ def benchmark(trials: int, f: Callable[[], Any], label: str):
 trials = 10
 plt.figure(figsize=(12, 10))
 benchmark(trials, lambda: fib_yeti(30), 'yeti')
-benchmark(trials, lambda: fib_python(30), 'yeti')
+benchmark(trials, lambda: fib_python(30), 'python')
 plt.legend()
 plt.ylabel('seconds')
 plt.show()

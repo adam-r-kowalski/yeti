@@ -1,4 +1,4 @@
-for_loop = fn(): i32
+for_loop = fn(): i64
   sum = 0
   for i in 0:10 do
     sum = sum + i
@@ -7,17 +7,17 @@ for_loop = fn(): i32
 end
 
 
-while_loop = fn(): i32
+while_loop = fn(): i64
   i = 0
   sum = 0
   while i < 10 do
     sum = sum + i
-    i = i + 1
+    i += 1
   end
   sum
 end
 
 
-start = fn(): i32
+start = fn(): i64
   while_loop()
 end
