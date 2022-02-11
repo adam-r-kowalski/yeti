@@ -65,11 +65,13 @@ pub fn main() !void {
     const cutoff = yeti_filename.len - 4;
     std.mem.copy(u8, wat_filename, yeti_filename[0..cutoff]);
     std.mem.copy(u8, wat_filename[cutoff..], "wat");
-    try std.fs.cwd().writeFile(wat_filename, wasm);
+    const cwd = std.fs.cwd();
+    try cwd.writeFile(wat_filename, wasm);
     if (foreign_exports.len > 0) return;
     const result = try std.ChildProcess.exec(.{
         .allocator = arena.allocator(),
         .argv = &.{ "wasmtime", wat_filename },
     });
     std.debug.print("{s}", .{result.stdout});
+    try cwd.deleteFile(wat_filename);
 }

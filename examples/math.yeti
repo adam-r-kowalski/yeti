@@ -1,0 +1,7 @@
+max = fn(x: i32, y: i32): i32
+  if x > y then x else y end
+end
+
+min = fn(x: i32, y: i32): i32
+  if x < y then x else y end
+end

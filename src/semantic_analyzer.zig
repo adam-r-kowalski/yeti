@@ -305,6 +305,7 @@ fn Context(comptime FileSystem: type) type {
                     try hint.appendSlice(" ----- ");
                     try hint.appendSlice(file_and_lines_slice[i].slice());
                 }
+                try hint.append('\n');
                 const error_component = components.Error{
                     .header = "FUNCTION CALL ERROR",
                     .body = body.mutSlice(),

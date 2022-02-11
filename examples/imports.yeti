@@ -1,0 +1,5 @@
+math = import("math.yeti")
+
+start = fn(): i32
+  math.min(100, 20)
+end

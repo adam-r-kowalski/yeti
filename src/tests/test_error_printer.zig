@@ -38,6 +38,7 @@ test "error printer calling function with to few parameters" {
         \\Here are the possible candidates:
         \\
         \\add = fn(x: i64, {s}y: i64{s}) ----- foo.yeti:1
+        \\
     , .{ colors.RED, colors.RESET, colors.RED, colors.RESET, colors.RED, colors.RESET }));
 }
 
@@ -75,5 +76,6 @@ test "error printer function overloads are aligned" {
         \\
         \\add = fn({s}x: i64{s}, y: i64) ----- foo.yeti:1
         \\add = fn({s}x: i64{s})         ----- foo.yeti:5
+        \\
     , .{ colors.RED, colors.RESET, colors.RED, colors.RESET, colors.RED, colors.RESET, colors.RED, colors.RESET }));
 }
