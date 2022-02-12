@@ -1,0 +1,11 @@
+draw_square = foreign_import("draw", "square", Fn(length: i64): void)
+
+on_load = fn(): void
+  i = 20
+  while i < 100 do
+      draw_square(i)
+      i += 10
+  end
+end
+
+foreign_export(on_load)

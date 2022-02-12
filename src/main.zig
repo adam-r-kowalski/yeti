@@ -67,7 +67,13 @@ pub fn main() !void {
     std.mem.copy(u8, wat_filename[cutoff..], "wat");
     const cwd = std.fs.cwd();
     try cwd.writeFile(wat_filename, wasm);
-    if (foreign_exports.len > 0) return;
+    if (foreign_exports.len > 0) {
+        _ = try std.ChildProcess.exec(.{
+            .allocator = arena.allocator(),
+            .argv = &.{ "wat2wasm", wat_filename },
+        });
+        return;
+    }
     const result = try std.ChildProcess.exec(.{
         .allocator = arena.allocator(),
         .argv = &.{ "wasmtime", wat_filename },
