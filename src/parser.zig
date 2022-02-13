@@ -211,6 +211,7 @@ const DIVIDE: u64 = MULTIPLY;
 const REMAINDER: u64 = MULTIPLY;
 const DOT: u64 = MULTIPLY + NEXT_PRECEDENCE;
 const CALL: u64 = DOT + NEXT_PRECEDENCE;
+const INDEX: u64 = CALL;
 const HIGHEST: u64 = CALL;
 
 const InfixParser = union(enum) {
@@ -220,6 +221,7 @@ const InfixParser = union(enum) {
     call,
     plus_equal,
     times_equal,
+    index,
 
     fn init(tokens: *Tokens, left: Entity) ?InfixParser {
         if (tokens.peek()) |token| {
@@ -254,6 +256,7 @@ const InfixParser = union(enum) {
                         return null;
                     return InfixParser.call;
                 },
+                .left_bracket => return InfixParser.index,
                 else => return null,
             }
         } else {
@@ -266,9 +269,10 @@ const InfixParser = union(enum) {
             .binary_op => |binary_op| binary_op.precedence,
             .define_type_infer => DEFINE,
             .define_or_range => DEFINE,
-            .call => CALL,
             .plus_equal => DEFINE,
             .times_equal => DEFINE,
+            .call => CALL,
+            .index => INDEX,
         };
     }
 
@@ -287,6 +291,7 @@ const InfixParser = union(enum) {
             .call => parseCall(codebase, tokens, left),
             .plus_equal => parsePlusEqual(codebase, tokens, left, parser_precedence),
             .times_equal => parseTimesEqual(codebase, tokens, left, parser_precedence),
+            .index => parseIndex(codebase, tokens, left),
         };
     }
 };
@@ -375,6 +380,17 @@ fn parseCall(codebase: *ECS, tokens: *Tokens, callable: Entity) !Entity {
         components.Callable.init(callable),
         arguments,
         components.Span.init(callable.get(components.Span).begin, tokens.next().?.get(components.Span).end),
+    });
+}
+
+fn parseIndex(codebase: *ECS, tokens: *Tokens, array: Entity) !Entity {
+    const index = try parseExpression(codebase, tokens, LOWEST);
+    const end = tokens.consume(.right_bracket).get(components.Span).end;
+    const arguments = try components.Arguments.fromSlice(codebase.arena.allocator(), &.{ array, index });
+    return try codebase.createEntity(.{
+        components.AstKind.index,
+        arguments,
+        components.Span.init(array.get(components.Span).begin, end),
     });
 }
 

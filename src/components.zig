@@ -260,6 +260,7 @@ pub const AstKind = enum(u8) {
     field,
     assign_field,
     range,
+    index,
 };
 
 pub const BinaryOp = enum(u8) {
