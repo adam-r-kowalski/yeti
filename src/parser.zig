@@ -49,11 +49,9 @@ fn parseArray(codebase: *ECS, tokens: *Tokens, left_bracket: Entity) !Entity {
     });
 }
 
-fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
+fn parseIfOldSyntax(codebase: *ECS, tokens: *Tokens, if_: Entity, conditional: components.Conditional) !Entity {
     const allocator = codebase.arena.allocator();
     const begin = if_.get(components.Span).begin;
-    const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
-    _ = tokens.consume(.then);
     var then = components.Then.init(allocator);
     while (true) {
         if (tokens.peek()) |token| {
@@ -92,10 +90,60 @@ fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
     return result;
 }
 
-fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
-    const begin = while_.get(components.Span).begin;
+fn parseIfNewSyntax(codebase: *ECS, tokens: *Tokens, if_: Entity, conditional: components.Conditional) !Entity {
+    const allocator = codebase.arena.allocator();
+    const begin = if_.get(components.Span).begin;
+    var then = components.Then.init(allocator);
+    while (true) {
+        if (tokens.peek()) |token| {
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .right_brace => {
+                    _ = tokens.next();
+                    break;
+                },
+                else => try then.append(try parseExpression(codebase, tokens, LOWEST)),
+            }
+        } else break;
+    }
+    _ = tokens.consume(.else_);
+    _ = tokens.consume(.left_brace);
+    var else_ = components.Else.init(allocator);
+    const result = try codebase.createEntity(.{
+        components.AstKind.if_,
+        conditional,
+        then,
+    });
+    while (true) {
+        if (tokens.peek()) |token| {
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .right_brace => {
+                    const end = tokens.next().?.get(components.Span).end;
+                    _ = try result.set(.{
+                        else_,
+                        components.Span.init(begin, end),
+                    });
+                    break;
+                },
+                else => try else_.append(try parseExpression(codebase, tokens, LOWEST)),
+            }
+        } else break;
+    }
+    return result;
+}
+
+fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
     const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
-    _ = tokens.consume(.do);
+    switch (tokens.next().?.get(components.TokenKind)) {
+        .then => return parseIfOldSyntax(codebase, tokens, if_, conditional),
+        .left_brace => return parseIfNewSyntax(codebase, tokens, if_, conditional),
+        else => |k| panic("\nparse if unsupported kind {}\n", .{k}),
+    }
+}
+
+fn parseWhileOldSyntax(codebase: *ECS, tokens: *Tokens, while_: Entity, conditional: components.Conditional) !Entity {
+    const begin = while_.get(components.Span).begin;
     var body = components.Body.init(codebase.arena.allocator());
     const result = try codebase.createEntity(.{
         components.AstKind.while_,
@@ -118,6 +166,41 @@ fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
         } else break;
     }
     return result;
+}
+
+fn parseWhileNewSyntax(codebase: *ECS, tokens: *Tokens, while_: Entity, conditional: components.Conditional) !Entity {
+    const begin = while_.get(components.Span).begin;
+    var body = components.Body.init(codebase.arena.allocator());
+    const result = try codebase.createEntity(.{
+        components.AstKind.while_,
+        conditional,
+    });
+    while (true) {
+        if (tokens.peek()) |token| {
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .right_brace => {
+                    const end = tokens.next().?.get(components.Span).end;
+                    _ = try result.set(.{
+                        body,
+                        components.Span.init(begin, end),
+                    });
+                    break;
+                },
+                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
+            }
+        } else break;
+    }
+    return result;
+}
+
+fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
+    const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
+    switch (tokens.next().?.get(components.TokenKind)) {
+        .do => return parseWhileOldSyntax(codebase, tokens, while_, conditional),
+        .left_brace => return parseWhileNewSyntax(codebase, tokens, while_, conditional),
+        else => |k| panic("\nparse while unsupported kind {}\n", .{k}),
+    }
 }
 
 fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
@@ -185,7 +268,7 @@ fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
         .for_ => parseFor(token.ecs, tokens, token),
         .underscore => token.set(.{components.AstKind.underscore}),
         .times => parsePointer(token.ecs, tokens, token),
-        else => panic("\nno prefix parser for = {}\n", .{kind}),
+        else => panic("\nno prefix parser for {}\n", .{kind}),
     };
 }
 

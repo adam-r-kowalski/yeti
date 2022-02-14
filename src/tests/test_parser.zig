@@ -1109,3 +1109,81 @@ test "parse new function syntax" {
     try expectEqual(zero.get(components.AstKind), .int);
     try expectEqualStrings(literalOf(zero), "0");
 }
+
+test "parse new if syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\min(x: i64, y: i64): i64 {
+        \\  if x < y { x } else { y }
+        \\}
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const overloads = top_level.findString("min").get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const min = overloads[0];
+    const return_type = min.get(components.ReturnTypeAst).entity;
+    try expectEqual(return_type.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(return_type), "i64");
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const if_ = body[0];
+    try expectEqual(if_.get(components.AstKind), .if_);
+    const conditional = if_.get(components.Conditional).entity;
+    try expectEqual(conditional.get(components.AstKind), .binary_op);
+    try expectEqual(conditional.get(components.BinaryOp), .less_than);
+    const then = if_.get(components.Then).slice();
+    try expectEqual(then.len, 1);
+    try expectEqualStrings(literalOf(then[0]), "x");
+    const else_ = if_.get(components.Else).slice();
+    try expectEqual(else_.len, 1);
+    try expectEqualStrings(literalOf(else_[0]), "y");
+}
+
+test "parse new while syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start(): i32 {
+        \\  i = 0
+        \\  while i < 10 {
+        \\    i = i + 1
+        \\  }
+        \\  i
+        \\}
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "i");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
+    const while_ = body[1];
+    try expectEqual(while_.get(components.AstKind), .while_);
+    const conditional = while_.get(components.Conditional).entity;
+    try expectEqual(conditional.get(components.AstKind), .binary_op);
+    try expectEqual(conditional.get(components.BinaryOp), .less_than);
+    const while_body = while_.get(components.Body).slice();
+    try expectEqual(while_body.len, 1);
+    const assign = while_body[0];
+    try expectEqual(assign.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(assign.get(components.Name).entity), "i");
+    const value = assign.get(components.Value).entity;
+    try expectEqual(value.get(components.AstKind), .binary_op);
+    try expectEqual(value.get(components.BinaryOp), .add);
+    const i = body[2];
+    try expectEqual(i.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(i), "i");
+}
