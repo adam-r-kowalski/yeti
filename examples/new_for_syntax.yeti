@@ -1,0 +1,7 @@
+start(): i64 {
+  sum = 0
+  for i in 0:10 {
+    sum += i
+  }
+  sum
+}

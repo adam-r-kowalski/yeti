@@ -203,13 +203,8 @@ fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
     }
 }
 
-fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
+fn parseForOldSyntax(codebase: *ECS, tokens: *Tokens, for_: Entity, loop_variable: Entity, iterator: Entity) !Entity {
     const begin = for_.get(components.Span).begin;
-    const loop_variable = tokens.consume(.symbol);
-    _ = tokens.consume(.in);
-    const iterator = try parseExpression(codebase, tokens, LOWEST);
-    assert(iterator.get(components.AstKind) == .range);
-    _ = tokens.consume(.do);
     var body = components.Body.init(codebase.arena.allocator());
     const result = try codebase.createEntity(.{
         components.AstKind.for_,
@@ -233,6 +228,44 @@ fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
         } else break;
     }
     return result;
+}
+
+fn parseForNewSyntax(codebase: *ECS, tokens: *Tokens, for_: Entity, loop_variable: Entity, iterator: Entity) !Entity {
+    const begin = for_.get(components.Span).begin;
+    var body = components.Body.init(codebase.arena.allocator());
+    const result = try codebase.createEntity(.{
+        components.AstKind.for_,
+        components.LoopVariable.init(loop_variable),
+        components.Iterator.init(iterator),
+    });
+    while (true) {
+        if (tokens.peek()) |token| {
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .right_brace => {
+                    const end = tokens.next().?.get(components.Span).end;
+                    _ = try result.set(.{
+                        body,
+                        components.Span.init(begin, end),
+                    });
+                    break;
+                },
+                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
+            }
+        } else break;
+    }
+    return result;
+}
+fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
+    const loop_variable = tokens.consume(.symbol);
+    _ = tokens.consume(.in);
+    const iterator = try parseExpression(codebase, tokens, LOWEST);
+    assert(iterator.get(components.AstKind) == .range);
+    switch (tokens.next().?.get(components.TokenKind)) {
+        .do => return parseForOldSyntax(codebase, tokens, for_, loop_variable, iterator),
+        .left_brace => return parseForNewSyntax(codebase, tokens, for_, loop_variable, iterator),
+        else => |k| panic("\nparse for unsupported kind {}\n", .{k}),
+    }
 }
 
 fn parsePointer(codebase: *ECS, tokens: *Tokens, star: Entity) !Entity {
