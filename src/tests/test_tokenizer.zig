@@ -181,6 +181,84 @@ test "tokenize char" {
     }
     try expectEqual(tokens.next(), null);
 }
+
+test "tokenize new function syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code = "start(): u64 { 0 }";
+    var tokens = try tokenize(module, code);
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .symbol);
+        try expectEqualStrings(literalOf(token), "start");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 0, .row = 0 },
+            .end = .{ .column = 5, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .left_paren);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 5, .row = 0 },
+            .end = .{ .column = 6, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .right_paren);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 6, .row = 0 },
+            .end = .{ .column = 7, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .colon);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 7, .row = 0 },
+            .end = .{ .column = 8, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .symbol);
+        try expectEqualStrings(literalOf(token), "u64");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 9, .row = 0 },
+            .end = .{ .column = 12, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .left_brace);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 13, .row = 0 },
+            .end = .{ .column = 14, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .int);
+        try expectEqualStrings(literalOf(token), "0");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 15, .row = 0 },
+            .end = .{ .column = 16, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .right_brace);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 17, .row = 0 },
+            .end = .{ .column = 18, .row = 0 },
+        });
+    }
+    try expectEqual(tokens.next(), null);
+}
+
 test "tokenize function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

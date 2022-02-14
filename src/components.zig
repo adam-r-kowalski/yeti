@@ -182,6 +182,8 @@ pub const TokenKind = enum(u8) {
     right_paren,
     left_bracket,
     right_bracket,
+    left_brace,
+    right_brace,
     plus,
     plus_equal,
     minus,

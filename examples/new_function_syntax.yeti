@@ -1,0 +1,12 @@
+Rectangle = struct
+  width: f64
+  height: f64
+end
+
+area(r: Rectangle): f64 {
+  r.width * r.height
+}
+
+start(): f64 {
+  area(Rectangle(10, 5))
+}

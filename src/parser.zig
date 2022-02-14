@@ -396,7 +396,6 @@ fn parseIndex(codebase: *ECS, tokens: *Tokens, array: Entity) !Entity {
 
 fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !components.Parameters {
     var parameters = components.Parameters.init(codebase.arena.allocator());
-    _ = tokens.consume(.left_paren);
     while (tokens.next()) |token| {
         const kind = token.get(components.TokenKind);
         switch (kind) {
@@ -420,7 +419,7 @@ fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !components.Body {
     while (true) {
         if (tokens.peek()) |token| {
             switch (token.get(components.TokenKind)) {
-                .end => break,
+                .end, .right_brace => break,
                 .new_line => _ = tokens.next(),
                 else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
             }
@@ -431,6 +430,7 @@ fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !components.Body {
 
 pub fn parseFunction(codebase: *ECS, tokens: *Tokens) !Entity {
     const begin = tokens.consume(.fn_).get(components.Span).begin;
+    _ = tokens.consume(.left_paren);
     const parameters = try parseFunctionParameters(codebase, tokens);
     _ = tokens.consume(.colon);
     const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
@@ -467,6 +467,7 @@ fn parseForeignImport(codebase: *ECS, tokens: *Tokens) !Entity {
     const foreign_name = components.ForeignName.init(tokens.consume(.string));
     _ = tokens.consume(.comma);
     _ = tokens.consume(.symbol);
+    _ = tokens.consume(.left_paren);
     const parameters = try parseFunctionParameters(codebase, tokens);
     _ = tokens.consume(.colon);
     const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
@@ -528,30 +529,55 @@ fn parseStruct(codebase: *ECS, tokens: *Tokens) !Entity {
     panic("\ncompiler bug in parse struct\n", .{});
 }
 
+pub fn parseFunctionNewSyntax(codebase: *ECS, tokens: *Tokens, name: Entity) !Entity {
+    const begin = name.get(components.Span).begin;
+    const parameters = try parseFunctionParameters(codebase, tokens);
+    _ = tokens.consume(.colon);
+    const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
+    _ = tokens.consume(.left_brace);
+    const body = try parseFunctionBody(codebase, tokens);
+    const end = tokens.consume(.right_brace).get(components.Span).end;
+    const span = components.Span.init(begin, end);
+    return try codebase.createEntity(.{
+        components.AstKind.function,
+        parameters,
+        return_type,
+        body,
+        span,
+    });
+}
+
 fn parseTopLevel(tokens: *Tokens, top_level: *components.TopLevel, token: Entity) !void {
     const name = components.Name.init(token);
-    _ = tokens.consume(.equal);
-    const kind = tokens.peek().?.get(components.TokenKind);
-    switch (kind) {
-        .fn_ => {
-            const function = try parseFunction(token.ecs, tokens);
+    switch (tokens.next().?.get(components.TokenKind)) {
+        .equal => {
+            switch (tokens.peek().?.get(components.TokenKind)) {
+                .fn_ => {
+                    const function = try parseFunction(token.ecs, tokens);
+                    try overloadFunction(top_level, function, name);
+                },
+                .import => {
+                    const import = try parseImport(token.ecs, tokens);
+                    _ = try import.set(.{name});
+                    try top_level.putName(name, import);
+                },
+                .foreign_import => {
+                    const function = try parseForeignImport(token.ecs, tokens);
+                    try overloadFunction(top_level, function, name);
+                },
+                .struct_ => {
+                    const struct_ = try parseStruct(token.ecs, tokens);
+                    _ = try struct_.set(.{token.get(components.Literal)});
+                    try overloadFunction(top_level, struct_, name);
+                },
+                else => |k| panic("\ncannot parse top level expression {}\n", .{k}),
+            }
+        },
+        .left_paren => {
+            const function = try parseFunctionNewSyntax(token.ecs, tokens, token);
             try overloadFunction(top_level, function, name);
         },
-        .import => {
-            const import = try parseImport(token.ecs, tokens);
-            _ = try import.set(.{name});
-            try top_level.putName(name, import);
-        },
-        .foreign_import => {
-            const function = try parseForeignImport(token.ecs, tokens);
-            try overloadFunction(top_level, function, name);
-        },
-        .struct_ => {
-            const struct_ = try parseStruct(token.ecs, tokens);
-            _ = try struct_.set(.{token.get(components.Literal)});
-            try overloadFunction(top_level, struct_, name);
-        },
-        else => panic("\ncannot parse top level expression {}\n", .{kind}),
+        else => |k| panic("\ncannot parse top level expression {}\n", .{k}),
     }
 }
 

@@ -100,6 +100,8 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
             ')' => try tokenizeOne(module, &source, .right_paren),
             '[' => try tokenizeOne(module, &source, .left_bracket),
             ']' => try tokenizeOne(module, &source, .right_bracket),
+            '{' => try tokenizeOne(module, &source, .left_brace),
+            '}' => try tokenizeOne(module, &source, .right_brace),
             '/' => try tokenizeOne(module, &source, .slash),
             '%' => try tokenizeOne(module, &source, .percent),
             '&' => try tokenizeOne(module, &source, .ampersand),
