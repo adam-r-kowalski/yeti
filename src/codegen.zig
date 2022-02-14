@@ -1401,6 +1401,35 @@ fn codegenString(context: *Context, entity: Entity) !void {
     context.data_segment.end += length * 8;
 }
 
+fn codegenIndex(context: *Context, entity: Entity) !void {
+    const arguments = entity.get(components.Arguments).slice();
+    const array = arguments[0];
+    const array_type = typeOf(array);
+    const strings = context.codebase.getPtr(Strings);
+    const interned = try strings.intern("ptr");
+    for (array_type.get(components.Fields).slice()) |field| {
+        if (!eql(field.get(components.Literal).interned, interned)) continue;
+        const ptr = try context.codebase.createEntity(.{
+            components.AstKind.field,
+            components.WasmInstructionKind.field,
+            components.Type.init(typeOf(field)),
+            components.Local.init(array),
+            components.Field.init(field),
+        });
+        try context.wasm_instructions.append(ptr);
+        break;
+    }
+    try codegenEntity(context, arguments[1]);
+    const size = typeOf(entity).get(components.Size).bytes;
+    try codegenConstant(i32, context, size);
+    const mul = try context.codebase.createEntity(.{components.WasmInstructionKind.i32_mul});
+    try context.wasm_instructions.append(mul);
+    const add = try context.codebase.createEntity(.{components.WasmInstructionKind.i32_add});
+    try context.wasm_instructions.append(add);
+    const u8_load = try context.codebase.createEntity(.{components.WasmInstructionKind.i32_load8_u});
+    try context.wasm_instructions.append(u8_load);
+}
+
 fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow, InvalidCharacter }!void {
     const kind = entity.get(components.AstKind);
     switch (kind) {
@@ -1418,6 +1447,7 @@ fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow
         .field => try codegenField(context, entity),
         .assign_field => try codegenAssignField(context, entity),
         .string => try codegenString(context, entity),
+        .index => try codegenIndex(context, entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }
 }

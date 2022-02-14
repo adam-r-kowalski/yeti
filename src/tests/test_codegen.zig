@@ -1436,3 +1436,61 @@ test "codegen of string literal" {
     try expectEqual(entities.len, 1);
     try expectEqualStrings(literalOf(entities[0]), "hello world");
 }
+
+test "codegen of array index" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start = fn(): u8
+        \\  text = "hello world"
+        \\  text[0]
+        \\end
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const wasm_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(wasm_instructions.len, 9);
+    {
+        const constant = wasm_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    }
+    {
+        const constant = wasm_instructions[1];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "11");
+    }
+    {
+        const local_set = wasm_instructions[2];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        try expectEqualStrings(literalOf(local_set.get(components.Local).entity.get(components.Name).entity), "text");
+    }
+    {
+        const field = wasm_instructions[3];
+        try expectEqual(field.get(components.WasmInstructionKind), .field);
+        try expectEqualStrings(literalOf(field.get(components.Local).entity.get(components.Name).entity), "text");
+        try expectEqualStrings(literalOf(field.get(components.Field).entity), "ptr");
+    }
+    {
+        const constant = wasm_instructions[4];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "0");
+    }
+    {
+        const constant = wasm_instructions[5];
+        try expectEqual(constant.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "1");
+    }
+    try expectEqual(wasm_instructions[6].get(components.WasmInstructionKind), .i32_mul);
+    try expectEqual(wasm_instructions[7].get(components.WasmInstructionKind), .i32_add);
+    try expectEqual(wasm_instructions[8].get(components.WasmInstructionKind), .i32_load8_u);
+    const data_segment = codebase.get(components.DataSegment);
+    try expectEqual(data_segment.end, 88);
+    const entities = data_segment.entities.slice();
+    try expectEqual(entities.len, 1);
+    try expectEqualStrings(literalOf(entities[0]), "hello world");
+}
