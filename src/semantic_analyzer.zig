@@ -1121,6 +1121,23 @@ fn Context(comptime FileSystem: type) type {
             });
         }
 
+        fn analyzeIndex(self: *Self, entity: Entity) !Entity {
+            const arguments = entity.get(components.Arguments).slice();
+            const array = try self.analyzeExpression(arguments[0]);
+            const array_type = typeOf(array);
+            const parent_type = parentType(array_type);
+            const value_type = valueType(array_type);
+            assert(eql(parent_type, self.builtins.Array));
+            const index = try self.analyzeExpression(arguments[1]);
+            try self.implicitTypeConversion(index, self.builtins.I32);
+            return try self.codebase.createEntity(.{
+                components.AstKind.index,
+                try components.Arguments.fromSlice(self.allocator, &.{ array, index }),
+                entity.get(components.Span),
+                components.Type.init(value_type),
+            });
+        }
+
         const Error = error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes, CompileError };
 
         fn analyzeExpression(self: *Self, entity: Entity) Error!Entity {
@@ -1141,6 +1158,7 @@ fn Context(comptime FileSystem: type) type {
                 .char => try self.analyzeChar(entity),
                 .plus_equal => try self.analyzePlusEqual(entity),
                 .times_equal => try self.analyzeTimesEqual(entity),
+                .index => try self.analyzeIndex(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
             };
         }
