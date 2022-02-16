@@ -704,6 +704,42 @@ fn parseForeignExport(tokens: *Tokens, foreign_exports: *components.ForeignExpor
     try foreign_exports.append(foreign_export);
 }
 
+fn parseStructNewSyntax(tokens: *Tokens, top_level: *components.TopLevel, struct_token: Entity) !void {
+    const codebase = struct_token.ecs;
+    const begin = struct_token.get(components.Span).begin;
+    const name = tokens.consume(.symbol);
+    _ = tokens.consume(.left_brace);
+    var fields = components.Fields.init(codebase.arena.allocator());
+    while (tokens.next()) |token| {
+        const kind = token.get(components.TokenKind);
+        switch (kind) {
+            .right_brace => {
+                const end = token.get(components.Span).end;
+                const span = components.Span.init(begin, end);
+                const struct_ = try codebase.createEntity(.{
+                    components.AstKind.struct_,
+                    fields,
+                    span,
+                    name.get(components.Literal),
+                    components.Type.init(codebase.get(components.Builtins).Type),
+                });
+                try overloadFunction(top_level, struct_, components.Name.init(name));
+                return;
+            },
+            .new_line => continue,
+            .symbol => {
+                _ = tokens.consume(.colon);
+                _ = try token.set(.{
+                    components.TypeAst.init(try parseExpression(codebase, tokens, LOWEST)),
+                });
+                try fields.append(token);
+            },
+            else => panic("\ninvalid token kind, {}\n", .{kind}),
+        }
+    }
+    panic("\ncompiler bug in parse struct\n", .{});
+}
+
 pub fn parse(module: Entity, tokens: *Tokens) !void {
     const codebase = module.ecs;
     const allocator = codebase.arena.allocator();
@@ -715,6 +751,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
             .symbol => try parseTopLevel(tokens, &top_level, token),
             .foreign_export => try parseForeignExport(tokens, &foreign_exports),
             .new_line => continue,
+            .struct_ => try parseStructNewSyntax(tokens, &top_level, token),
             else => panic("\nparse unsupported kind {}\n", .{kind}),
         }
     }

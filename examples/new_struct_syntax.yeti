@@ -1,0 +1,25 @@
+struct Rectangle {
+  width: f64
+  height: f64
+}
+
+area(r: Rectangle): f64 {
+  r.width * r.height
+}
+
+struct Triangle {
+  base: f64
+  height: f64
+}
+
+area(t: Triangle): f64 {
+  t.base * t.height / 2
+}
+
+start(): f64 {
+  r = Rectangle(5, 3)
+  t = Triangle(5, 3)
+  area(t)
+}
+
+

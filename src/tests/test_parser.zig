@@ -1235,3 +1235,32 @@ test "parse new for loop syntax" {
     try expectEqual(sum.get(components.AstKind), .symbol);
     try expectEqualStrings(literalOf(sum), "sum");
 }
+
+test "parse new struct syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\struct Rectangle {
+        \\  width: f64
+        \\  height: f64
+        \\}
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const rectangle = top_level.findString("Rectangle");
+    const overloads = rectangle.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const overload = overloads[0];
+    try expectEqual(overload.get(components.AstKind), .struct_);
+    const fields = overload.get(components.Fields).slice();
+    try expectEqual(fields.len, 2);
+    const width = fields[0];
+    try expectEqualStrings(literalOf(width), "width");
+    try expectEqualStrings(literalOf(width.get(components.TypeAst).entity), "f64");
+    const height = fields[1];
+    try expectEqualStrings(literalOf(height), "height");
+    try expectEqualStrings(literalOf(height.get(components.TypeAst).entity), "f64");
+}

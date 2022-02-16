@@ -260,7 +260,7 @@ fn Context(comptime FileSystem: type) type {
                     var candidate = List(u8, .{}).init(self.allocator);
                     try candidate.append('\n');
                     try candidate.appendSlice(literalOf(overload.get(components.Name).entity));
-                    try candidate.appendSlice(" = fn(");
+                    try candidate.append('(');
                     const parameters = overload.get(components.Parameters).slice();
                     for (parameters) |parameter, i| {
                         const parameter_type = typeOf(parameter);
