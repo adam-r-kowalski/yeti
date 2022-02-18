@@ -1,0 +1,15 @@
+square(x: i32): i32 {
+  x * x
+}
+
+min(x: i32, y: i32): i32 {
+  if x < y { x } else { y }
+}
+
+line(m: i32, x: i32, b: i32): i32 {
+  m * x + b
+}
+
+start(): i32 {
+  5.square.min(200).square.line(10, 5, _)
+}

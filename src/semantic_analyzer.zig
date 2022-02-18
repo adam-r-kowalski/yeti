@@ -481,6 +481,7 @@ fn Context(comptime FileSystem: type) type {
                     components.Callable.init(overload),
                     components.AstKind.call,
                     analyzed_arguments,
+                    call.get(components.Span),
                 });
             }
             assert(kind == .struct_);
@@ -492,15 +493,46 @@ fn Context(comptime FileSystem: type) type {
                 components.Type.init(overload),
                 components.AstKind.construct,
                 analyzed_arguments,
+                call.get(components.Span),
             });
         }
 
+        fn uniformFunctionCallSyntax(self: *Self, lhs: Entity, rhs: Entity) !Entity {
+            const span = components.Span.init(
+                lhs.get(components.Span).begin,
+                rhs.get(components.Span).end,
+            );
+            switch (rhs.get(components.AstKind)) {
+                .call => {
+                    const call_arguments = try self.pipelineArguments(lhs, rhs);
+                    const call = try self.codebase.createEntity(.{
+                        components.AstKind.call,
+                        rhs.get(components.Callable),
+                        call_arguments,
+                        span,
+                    });
+                    return try self.analyzeCall(call, self);
+                },
+                .symbol => {
+                    const call_arguments = try components.Arguments.fromSlice(self.allocator, &.{lhs});
+                    const call = try self.codebase.createEntity(.{
+                        components.AstKind.call,
+                        components.Callable.init(rhs),
+                        call_arguments,
+                        span,
+                    });
+                    return try self.analyzeCall(call, self);
+                },
+                else => |k| panic("\nanalyze dot invalid rhs kind {}\n", .{k}),
+            }
+        }
+
         fn analyzeDot(self: *Self, entity: Entity) !Entity {
+            const b = self.builtins;
             const dot_arguments = entity.get(components.Arguments).slice();
             const lhs = try self.analyzeExpression(dot_arguments[0]);
-            const b = self.builtins;
-            const lhs_type = typeOf(lhs);
             const rhs = dot_arguments[1];
+            const lhs_type = typeOf(lhs);
             if (eql(lhs_type, b.Module)) {
                 assert(rhs.get(components.AstKind) == .call);
                 var context = Self{
@@ -515,32 +547,24 @@ fn Context(comptime FileSystem: type) type {
                 return try context.analyzeCall(rhs, self);
             }
             if (lhs.get(components.AstKind) == .local) {
-                assert(lhs_type.get(components.AstKind) == .struct_);
-                assert(rhs.get(components.AstKind) == .symbol);
-                const rhs_literal = rhs.get(components.Literal);
-                for (lhs_type.get(components.Fields).slice()) |field| {
-                    if (!eql(field.get(components.Literal), rhs_literal)) continue;
-                    return try self.codebase.createEntity(.{
-                        components.AstKind.field,
-                        components.Type.init(typeOf(field)),
-                        components.Local.init(lhs),
-                        components.Field.init(field),
-                    });
+                if (lhs_type.has(components.AstKind)) |lhs_type_kind| {
+                    assert(lhs_type_kind == .struct_);
+                    assert(rhs.get(components.AstKind) == .symbol);
+                    const rhs_literal = rhs.get(components.Literal);
+                    for (lhs_type.get(components.Fields).slice()) |field| {
+                        if (!eql(field.get(components.Literal), rhs_literal)) continue;
+                        return try self.codebase.createEntity(.{
+                            components.AstKind.field,
+                            components.Type.init(typeOf(field)),
+                            components.Local.init(lhs),
+                            components.Field.init(field),
+                        });
+                    }
+                } else {
+                    return try self.uniformFunctionCallSyntax(lhs, rhs);
                 }
             }
-            assert(rhs.get(components.AstKind) == .call);
-            const span = components.Span.init(
-                lhs.get(components.Span).begin,
-                rhs.get(components.Span).end,
-            );
-            const call_arguments = try self.pipelineArguments(lhs, rhs);
-            const call = try self.codebase.createEntity(.{
-                components.AstKind.call,
-                rhs.get(components.Callable),
-                call_arguments,
-                span,
-            });
-            return try self.analyzeCall(call, self);
+            return try self.uniformFunctionCallSyntax(lhs, rhs);
         }
 
         fn pipelineArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
@@ -795,6 +819,7 @@ fn Context(comptime FileSystem: type) type {
                         name,
                         components.Type.init(type_of),
                         components.Value.init(value),
+                        define.get(components.Span),
                     });
                     const analyzed_define = try self.codebase.createEntity(.{
                         components.AstKind.define,
@@ -1154,8 +1179,9 @@ fn Context(comptime FileSystem: type) type {
         const Error = error{ Overflow, InvalidCharacter, OutOfMemory, CantOpenFile, CannotUnifyTypes, CompileError };
 
         fn analyzeExpression(self: *Self, entity: Entity) Error!Entity {
+            if (entity.contains(components.AnalyzedExpression)) return entity;
             const kind = entity.get(components.AstKind);
-            return switch (kind) {
+            const analyzed_entity = switch (kind) {
                 .symbol => try self.analyzeSymbol(entity),
                 .int, .float => entity,
                 .call => try self.analyzeCall(entity, self),
@@ -1174,6 +1200,8 @@ fn Context(comptime FileSystem: type) type {
                 .index => try self.analyzeIndex(entity),
                 else => panic("\nanalyzeExpression unsupported kind {}\n", .{kind}),
             };
+            _ = try analyzed_entity.set(.{components.AnalyzedExpression{ .value = true }});
+            return analyzed_entity;
         }
 
         fn analyzeFunctionParameters(self: *Self) !void {

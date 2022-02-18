@@ -616,6 +616,7 @@ pub const Mutable = struct { value: bool };
 pub const AnalyzedParameters = struct { value: bool };
 pub const AnalyzedBody = struct { value: bool };
 pub const AnalyzedFields = struct { value: bool };
+pub const AnalyzedExpression = struct { value: bool };
 pub const WasmName = DistinctList("Wasm Name", u8);
 pub const ForeignImports = DistinctList("Foreign Imports", Entity);
 pub const ForeignExports = DistinctList("Foreign Exports", Entity);
