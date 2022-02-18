@@ -1,14 +1,14 @@
-problem1 = fn(upper_bound: i32): i32
+problem1(upper_bound: i32): i32 {
   n = 0
   sum = 0
-  while n < upper_bound do
+  while n < upper_bound {
     filter = (n % 3 == 0) | (n % 5 == 0)
     sum = sum + filter * n
     n += 1
-  end
+  }
   sum
-end
+}
 
-start = fn(): i32
+start(): i32 {
   problem1(1000)
-end
+}

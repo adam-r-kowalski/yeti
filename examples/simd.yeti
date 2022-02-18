@@ -1,11 +1,11 @@
-Vec4 = struct
+struct Vec4 {
   a: i32
   b: i32
   c: i32
   d: i32
-end
+}
 
-start = fn(): Vec4
+start(): Vec4 {
   x0 = cast(*i32, 0)
   x1 = x0 + 1
   x2 = x1 + 1
@@ -38,4 +38,4 @@ start = fn(): Vec4
   *z = *x + *y
 
   Vec4(*z0, *z1, *z2, *z3)
-end
+}

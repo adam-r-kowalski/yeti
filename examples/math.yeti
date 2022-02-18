@@ -1,7 +1,7 @@
-max = fn(x: i32, y: i32): i32
-  if x > y then x else y end
-end
+max(x: i32, y: i32): i32 {
+  if x > y { x } else { y }
+}
 
-min = fn(x: i32, y: i32): i32
-  if x < y then x else y end
+min(x: i32, y: i32): i32 {
+  if x < y { x } else { y }
 end

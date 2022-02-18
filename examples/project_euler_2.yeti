@@ -1,17 +1,17 @@
-problem2 = fn(upper_bound: i32): i32
+problem2(upper_bound: i32): i32 {
   previous = 1
   current = 1
   sum = 0
-  while current < upper_bound do
+  while current < upper_bound {
     filter = current % 2 == 0
     sum = sum + filter * current
     next = current + previous
     previous = current
     current = next
-  end
+  }
   sum
-end
+}
 
-start = fn(): i32
+start(): i32 {
   problem2(4000000)
-end
+}

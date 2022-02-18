@@ -1,23 +1,23 @@
-for_loop = fn(): i64
+for_loop(): i64 {
   sum = 0
-  for i in 0:10 do
+  for i in 0:10 {
     sum = sum + i
-  end
+  }
   sum
-end
+}
 
 
-while_loop = fn(): i64
+while_loop(): i64 {
   i = 0
   sum = 0
-  while i < 10 do
+  while i < 10 {
     sum = sum + i
     i += 1
-  end
+  }
   sum
-end
+}
 
 
-start = fn(): i64
+start(): i64 {
   while_loop()
-end
+}

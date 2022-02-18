@@ -1,35 +1,35 @@
-fib_naive = fn(n: i64): i64
-  if n < 2 then
+fib_naive(n: i64): i64 {
+  if n < 2 {
     1
-  else 
+  } else {
     fib_naive(n - 1) + fib_naive(n - 2)
-  end
-end
+  }
+}
 
-fib_recursive = fn(n: i64): i64
+fib_recursive(n: i64): i64 {
   fib_recursive(n, 0, 1)
-end
+}
 
-fib_recursive = fn(n: i64, prev: i64, curr: i64): i64
-  if n == 0 then
+fib_recursive(n: i64, prev: i64, curr: i64): i64 {
+  if n == 0 {
     curr
-  else
+  } else {
     fib_recursive(n - 1, curr, prev + curr)
-  end
-end
+  }
+}
 
-fib_iterative = fn(n: i64): i64
+fib_iterative(n: i64): i64 {
   prev = 0
   curr = 1
-  while n > 0 do
+  while n > 0 {
     next = prev + curr
     prev = curr
     curr = next
     n = n - 1
-  end
+  }
   curr
-end
+}
 
-start = fn(): i64
+start(): i64 {
   fib_iterative(10)
-end
+}
