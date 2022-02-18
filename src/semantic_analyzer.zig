@@ -514,20 +514,33 @@ fn Context(comptime FileSystem: type) type {
                 };
                 return try context.analyzeCall(rhs, self);
             }
-            assert(lhs.get(components.AstKind) == .local);
-            assert(lhs_type.get(components.AstKind) == .struct_);
-            assert(rhs.get(components.AstKind) == .symbol);
-            const rhs_literal = rhs.get(components.Literal);
-            for (lhs_type.get(components.Fields).slice()) |field| {
-                if (!eql(field.get(components.Literal), rhs_literal)) continue;
-                return try self.codebase.createEntity(.{
-                    components.AstKind.field,
-                    components.Type.init(typeOf(field)),
-                    components.Local.init(lhs),
-                    components.Field.init(field),
-                });
+            if (lhs.get(components.AstKind) == .local) {
+                assert(lhs_type.get(components.AstKind) == .struct_);
+                assert(rhs.get(components.AstKind) == .symbol);
+                const rhs_literal = rhs.get(components.Literal);
+                for (lhs_type.get(components.Fields).slice()) |field| {
+                    if (!eql(field.get(components.Literal), rhs_literal)) continue;
+                    return try self.codebase.createEntity(.{
+                        components.AstKind.field,
+                        components.Type.init(typeOf(field)),
+                        components.Local.init(lhs),
+                        components.Field.init(field),
+                    });
+                }
             }
-            panic("\nanalyze dot invalid field {s}\n", .{literalOf(rhs)});
+            assert(rhs.get(components.AstKind) == .call);
+            const span = components.Span.init(
+                lhs.get(components.Span).begin,
+                rhs.get(components.Span).end,
+            );
+            const call_arguments = try self.pipelineArguments(lhs, rhs);
+            const call = try self.codebase.createEntity(.{
+                components.AstKind.call,
+                rhs.get(components.Callable),
+                call_arguments,
+                span,
+            });
+            return try self.analyzeCall(call, self);
         }
 
         fn pipelineArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {

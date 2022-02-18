@@ -2260,3 +2260,39 @@ test "analyze semantics of array index" {
     try expectEqual(arguments[0], local);
     try expectEqualStrings(literalOf(arguments[1]), "0");
 }
+
+test "analyze semantics of uniform function call syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\min(x: i64, y: i64): i64 {
+        \\  if x < y { x } else { y }
+        \\}
+        \\
+        \\start(): i64 {
+        \\  10.min(20)
+        \\}
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const call = body[0];
+    try expectEqual(call.get(components.AstKind), .call);
+    const arguments = call.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 2);
+    try expectEqualStrings(literalOf(arguments[0]), "10");
+    try expectEqualStrings(literalOf(arguments[1]), "20");
+    try expectEqual(typeOf(call), builtins.I64);
+    const min = call.get(components.Callable).entity;
+    try expectEqualStrings(literalOf(min.get(components.Name).entity), "min");
+}

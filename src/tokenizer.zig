@@ -122,13 +122,19 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
     }
 }
 
+fn validSymbol(char: u8) bool {
+    return switch (char) {
+        '(', ')', '[', ']', '{', '}', ' ', ':', '+', '-', '*', '/', '&', '|', '<', '>', ',', '\n', '\r', '.' => false,
+        else => true,
+    };
+}
+
 fn tokenizeSymbol(module: Entity, source: *Source) !Entity {
     const begin = source.position;
     var i: u64 = 1;
     while (i < source.code.len) : (i += 1) {
-        switch (source.code[i]) {
-            '(', ')', '[', ']', '{', '}', ' ', ':', '+', '-', '*', '/', '&', '|', '<', '>', ',', '\n', '\r', '.' => break,
-            else => continue,
+        if (!validSymbol(source.code[i])) {
+            break;
         }
     }
     const string = source.advance(i);
@@ -157,10 +163,17 @@ fn tokenizeNumber(module: Entity, source: *Source, starts_with_decimal: bool) !E
     const begin = source.position;
     var i: u64 = 1;
     while (i < source.code.len) : (i += 1) {
-        switch (source.code[i]) {
+        const c = source.code[i];
+        switch (c) {
             '0'...'9' => continue,
             '.' => decimals_seen += 1,
-            else => break,
+            else => {
+                if (validSymbol(c) and i > 1 and source.code[i - 1] == '.') {
+                    decimals_seen -= 1;
+                    i -= 1;
+                }
+                break;
+            },
         }
     }
     const string = source.advance(i);

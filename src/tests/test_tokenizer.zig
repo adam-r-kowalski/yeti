@@ -538,3 +538,64 @@ test "greater operators" {
     }
     try expectEqual(tokens.next(), null);
 }
+
+test "tokenize uniform function call syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code = "10.min(20)";
+    var tokens = try tokenize(module, code);
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .int);
+        try expectEqualStrings(literalOf(token), "10");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 0, .row = 0 },
+            .end = .{ .column = 2, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .dot);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 2, .row = 0 },
+            .end = .{ .column = 3, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .symbol);
+        try expectEqualStrings(literalOf(token), "min");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 3, .row = 0 },
+            .end = .{ .column = 6, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .left_paren);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 6, .row = 0 },
+            .end = .{ .column = 7, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .int);
+        try expectEqualStrings(literalOf(token), "20");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 7, .row = 0 },
+            .end = .{ .column = 9, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .right_paren);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 9, .row = 0 },
+            .end = .{ .column = 10, .row = 0 },
+        });
+    }
+    try expectEqual(tokens.next(), null);
+}
