@@ -103,7 +103,7 @@ area(s: Square): f64 {
 start(): f64 {
   s = Square{10}
   r = Rectangle{10}
-  area(r)
+  r.area
 }
 
 # Foreign Import And Exports

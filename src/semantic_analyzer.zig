@@ -549,16 +549,23 @@ fn Context(comptime FileSystem: type) type {
             if (lhs.get(components.AstKind) == .local) {
                 if (lhs_type.has(components.AstKind)) |lhs_type_kind| {
                     assert(lhs_type_kind == .struct_);
-                    assert(rhs.get(components.AstKind) == .symbol);
-                    const rhs_literal = rhs.get(components.Literal);
-                    for (lhs_type.get(components.Fields).slice()) |field| {
-                        if (!eql(field.get(components.Literal), rhs_literal)) continue;
-                        return try self.codebase.createEntity(.{
-                            components.AstKind.field,
-                            components.Type.init(typeOf(field)),
-                            components.Local.init(lhs),
-                            components.Field.init(field),
-                        });
+                    switch (rhs.get(components.AstKind)) {
+                        .symbol => {
+                            const rhs_literal = rhs.get(components.Literal);
+                            for (lhs_type.get(components.Fields).slice()) |field| {
+                                if (!eql(field.get(components.Literal), rhs_literal)) continue;
+                                return try self.codebase.createEntity(.{
+                                    components.AstKind.field,
+                                    components.Type.init(typeOf(field)),
+                                    components.Local.init(lhs),
+                                    components.Field.init(field),
+                                });
+                            }
+                        },
+                        .call => {
+                            return try self.uniformFunctionCallSyntax(lhs, rhs);
+                        },
+                        else => |k| panic("\nanalyzed ot invalid rhs kind {}\n", .{k}),
                     }
                 } else {
                     return try self.uniformFunctionCallSyntax(lhs, rhs);

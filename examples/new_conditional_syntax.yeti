@@ -1,7 +1,0 @@
-min(x: i64, y: i64): i64 {
-  if x < y { x } else { y }
-}
-
-start(): i64 {
-  min(30, 20)
-}

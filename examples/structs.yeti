@@ -28,5 +28,5 @@ start(): f64 {
   r = Rectangle(5, 4)
   s = Square(5)
   t = Triangle(5, 4)
-  area(t)
+  r.area
 }
