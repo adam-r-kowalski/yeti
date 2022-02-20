@@ -373,13 +373,13 @@ test "parse two functions" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\sum_of_squares = fn(x: u64, y: u64): u64
+        \\sum_of_squares(x: u64, y: u64): u64 {
         \\  x*2 + y*2
-        \\end
+        \\}
         \\
-        \\start = fn(): u64
+        \\start(): u64 {
         \\  sum_of_squares(10, 56 * 3)
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -403,9 +403,9 @@ test "parse overload" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\id = fn(x: u64): u64 x end
+        \\id(x: u64): u64 { x }
         \\
-        \\id = fn(x: f64): f64 x end
+        \\id(x: f64): f64 { x }
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -440,9 +440,9 @@ test "parse import and function" {
     const code =
         \\math = import("math.yeti")
         \\
-        \\start = fn(): u64
+        \\start(): u64 {
         \\  math.sum_of_squares(10, 56 * 3)
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -477,10 +477,10 @@ test "parse define int literal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u64
+        \\start(): u64 {
         \\  x = 10
         \\  x
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -505,10 +505,10 @@ test "parse define with explicit type" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u64
+        \\start(): u64 {
         \\  x: u64 = 10
         \\  x
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -534,9 +534,9 @@ test "parse grouping with parenthesis" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u64
+        \\start(): u64 {
         \\  (5 + 10) * 3
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -565,9 +565,9 @@ test "parse if then else" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u64
-        \\  if 10 > 5 then 20 else 30 end
-        \\end
+        \\start(): u64 {
+        \\  if 10 > 5 { 20 } else { 30 }
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -596,15 +596,15 @@ test "parse multiline if then else" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u64
-        \\  if 10 > 5 then
+        \\start(): u64 {
+        \\  if 10 > 5 {
         \\    x = 20
         \\    x
-        \\  else
+        \\  } else {
         \\    y = 30
         \\    y
-        \\  end
-        \\end
+        \\  }
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -649,13 +649,13 @@ test "parse while" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  i = 0
-        \\  while i < 10 do
+        \\  while i < 10 {
         \\      i = i + 1
-        \\  end
+        \\  }
         \\  i
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -693,13 +693,13 @@ test "parse for loop" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  sum = 0
-        \\  for i in 0:10 do
+        \\  for i in 0:10 {
         \\      sum = sum + i
-        \\  end
+        \\  }
         \\  sum
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -741,9 +741,9 @@ test "parse pipeline" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  5 |> square()
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -812,9 +812,9 @@ test "parse pointer" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(ptr: *i32): i32
+        \\start(ptr: *i32): i32 {
         \\  0
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -843,9 +843,9 @@ test "parse pointer load" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(ptr: *i32): i32
+        \\start(ptr: *i32): i32 {
         \\  *ptr
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -876,10 +876,10 @@ test "parse pointer load after new line" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  ptr = cast(*i32, 0)
         \\  *ptr
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -934,11 +934,11 @@ test "parse plus equal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u64
+        \\start(): u64 {
         \\  x = 10
         \\  x += 1
         \\  x
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -968,11 +968,11 @@ test "parse times equal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u64
+        \\start(): u64 {
         \\  x = 10
         \\  x *= 1
         \\  x
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -1002,9 +1002,9 @@ test "parse string literal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): []u8
+        \\start(): []u8 {
         \\  "hello world"
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -1028,9 +1028,9 @@ test "parse char literal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u8
+        \\start(): u8 {
         \\  'h'
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -1054,10 +1054,10 @@ test "parse array index" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start = fn(): u8
+        \\start(): u8 {
         \\  text = "hello world"
         \\  text[0]
-        \\end
+        \\}
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
