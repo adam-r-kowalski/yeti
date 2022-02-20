@@ -7,6 +7,7 @@ const yeti = @import("yeti");
 const initCodebase = yeti.initCodebase;
 const MockFileSystem = yeti.FileSystem;
 const components = yeti.components;
+const tokenize = yeti.tokenize;
 const analyzeSemantics = yeti.analyzeSemantics;
 const literalOf = yeti.test_utils.literalOf;
 const typeOf = yeti.test_utils.typeOf;
@@ -14,6 +15,66 @@ const parentType = yeti.test_utils.parentType;
 const valueType = yeti.test_utils.valueType;
 const Entity = yeti.ecs.Entity;
 
+test "tokenize uniform function call syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code = "10.min(20)";
+    var tokens = try tokenize(module, code);
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .int);
+        try expectEqualStrings(literalOf(token), "10");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 0, .row = 0 },
+            .end = .{ .column = 2, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .dot);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 2, .row = 0 },
+            .end = .{ .column = 3, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .symbol);
+        try expectEqualStrings(literalOf(token), "min");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 3, .row = 0 },
+            .end = .{ .column = 6, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .left_paren);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 6, .row = 0 },
+            .end = .{ .column = 7, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .int);
+        try expectEqualStrings(literalOf(token), "20");
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 7, .row = 0 },
+            .end = .{ .column = 9, .row = 0 },
+        });
+    }
+    {
+        const token = tokens.next().?;
+        try expectEqual(token.get(components.TokenKind), .right_paren);
+        try expectEqual(token.get(components.Span), .{
+            .begin = .{ .column = 9, .row = 0 },
+            .end = .{ .column = 10, .row = 0 },
+        });
+    }
+    try expectEqual(tokens.next(), null);
+}
 test "analyze semantics of uniform function call syntax" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

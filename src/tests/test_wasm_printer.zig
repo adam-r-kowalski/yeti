@@ -507,37 +507,3 @@ test "print wasm if then else non const conditional" {
         , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
     }
 }
-
-test "print wasm assignment" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
-    const wasm_types = [_][]const u8{ "i64", "i32", "i64", "i32", "f64", "f32" };
-    for (types) |type_of, i| {
-        var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
-            \\  x: {s} = 10
-            \\  x = 3
-            \\  x
-            \\}}
-        , .{ type_of, type_of }));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-        try codegen(module);
-        const wasm = try printWasm(module);
-        try expectEqualStrings(wasm, try std.fmt.allocPrint(arena.allocator(),
-            \\(module
-            \\
-            \\  (func $foo/start (result {s})
-            \\    (local $x {s})
-            \\    ({s}.const 10)
-            \\    (local.set $x)
-            \\    ({s}.const 3)
-            \\    (local.set $x)
-            \\    (local.get $x))
-            \\
-            \\  (export "_start" (func $foo/start)))
-        , .{ wasm_types[i], wasm_types[i], wasm_types[i], wasm_types[i] }));
-    }
-}
