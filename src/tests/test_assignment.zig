@@ -16,6 +16,74 @@ const typeOf = yeti.test_utils.typeOf;
 const MockFileSystem = yeti.FileSystem;
 const Entity = yeti.ecs.Entity;
 
+test "parse plus equal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start(): u64 {
+        \\  x = 10
+        \\  x += 1
+        \\  x
+        \\}
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+    const plus_equal = body[1];
+    try expectEqual(plus_equal.get(components.AstKind), .plus_equal);
+    const arguments = plus_equal.get(components.Arguments).slice();
+    try expectEqualStrings(literalOf(arguments[0]), "x");
+    try expectEqualStrings(literalOf(arguments[1]), "1");
+    const x = body[2];
+    try expectEqual(x.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(x), "x");
+}
+
+test "parse times equal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start(): u64 {
+        \\  x = 10
+        \\  x *= 1
+        \\  x
+        \\}
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 3);
+    const define = body[0];
+    try expectEqual(define.get(components.AstKind), .define);
+    try expectEqualStrings(literalOf(define.get(components.Name).entity), "x");
+    try expectEqualStrings(literalOf(define.get(components.Value).entity), "10");
+    const times_equal = body[1];
+    try expectEqual(times_equal.get(components.AstKind), .times_equal);
+    const arguments = times_equal.get(components.Arguments).slice();
+    try expectEqualStrings(literalOf(arguments[0]), "x");
+    try expectEqualStrings(literalOf(arguments[1]), "1");
+    const x = body[2];
+    try expectEqual(x.get(components.AstKind), .symbol);
+    try expectEqualStrings(literalOf(x), "x");
+}
+
 test "analyze semantics of assignment" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

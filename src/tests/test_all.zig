@@ -21,6 +21,7 @@ const test_strings = @import("test_strings.zig");
 const test_simd = @import("test_simd.zig");
 const test_pointer = @import("test_pointer.zig");
 const test_assignment = @import("test_assignment.zig");
+const test_if = @import("test_if.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
