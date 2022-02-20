@@ -19,6 +19,7 @@ const test_while = @import("test_while.zig");
 const test_for = @import("test_for.zig");
 const test_strings = @import("test_strings.zig");
 const test_simd = @import("test_simd.zig");
+const test_pointer = @import("test_pointer.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
