@@ -169,8 +169,8 @@ fn tokenizeAttribute(module: Entity, source: *Source) !Entity {
     }
     const string = source.advance(i)[1..];
     const span = components.Span{ .begin = begin, .end = source.position };
-    const symbols = [_][]const u8{"export"};
-    const tokens = [_]components.TokenKind{.attribute_export};
+    const symbols = [_][]const u8{ "export", "import" };
+    const tokens = [_]components.TokenKind{ .attribute_export, .attribute_import };
     for (symbols) |symbol, j| {
         if (std.mem.eql(u8, string, symbol)) {
             return try module.ecs.createEntity(.{ tokens[j], span });

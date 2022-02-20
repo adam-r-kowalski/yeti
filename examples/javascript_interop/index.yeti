@@ -1,11 +1,11 @@
-draw_square = foreign_import("draw", "square", Fn(length: i64): void)
+@import("draw", "square")
+draw_square(length: i64): void
 
-on_load = fn(): void
+@export
+on_load(): void {
   length = 20
-  while length < 100 do
+  while length < 100 {
     draw_square(length)
     length += 10
-  end
-end
-
-foreign_export(on_load)
+  }
+}

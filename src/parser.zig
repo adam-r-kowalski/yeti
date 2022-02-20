@@ -749,6 +749,32 @@ fn parseAttributeForeignExport(tokens: *Tokens, top_level: *components.TopLevel,
     try foreign_exports.append(name);
 }
 
+fn parseAttributeForeignImport(tokens: *Tokens, top_level: *components.TopLevel) !void {
+    const begin = tokens.consume(.left_paren).get(components.Span).begin;
+    const foreign_module = components.ForeignModule.init(tokens.consume(.string));
+    _ = tokens.consume(.comma);
+    const foreign_name = components.ForeignName.init(tokens.consume(.string));
+    _ = tokens.consume(.right_paren);
+    _ = tokens.consume(.new_line);
+    const name = tokens.consume(.symbol);
+    _ = tokens.consume(.left_paren);
+    const codebase = name.ecs;
+    const parameters = try parseFunctionParameters(codebase, tokens);
+    _ = tokens.consume(.colon);
+    const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
+    const end = return_type.entity.get(components.Span).end;
+    const span = components.Span.init(begin, end);
+    const function = try codebase.createEntity(.{
+        components.AstKind.function,
+        foreign_module,
+        foreign_name,
+        parameters,
+        return_type,
+        span,
+    });
+    try overloadFunction(top_level, function, components.Name.init(name));
+}
+
 pub fn parse(module: Entity, tokens: *Tokens) !void {
     const codebase = module.ecs;
     const allocator = codebase.arena.allocator();
@@ -762,6 +788,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
             .new_line => continue,
             .struct_ => try parseStructNewSyntax(tokens, &top_level, token),
             .attribute_export => try parseAttributeForeignExport(tokens, &top_level, &foreign_exports),
+            .attribute_import => try parseAttributeForeignImport(tokens, &top_level),
             else => panic("\nparse unsupported kind {}\n", .{kind}),
         }
     }

@@ -224,6 +224,7 @@ pub const TokenKind = enum(u8) {
     new_line,
     struct_,
     attribute_export,
+    attribute_import,
 };
 
 pub const Literal = struct {
