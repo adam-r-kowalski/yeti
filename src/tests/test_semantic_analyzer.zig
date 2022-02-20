@@ -746,58 +746,6 @@ test "analyze semantics of assignment" {
     }
 }
 
-test "analyze semantics of while loop" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const builtins = codebase.get(components.Builtins);
-    var fs = try MockFileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
-        \\  i = 0
-        \\  while i < 10 {
-        \\      i = i + 1
-        \\  }
-        \\  i
-        \\}
-    );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
-    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
-    try expectEqual(start.get(components.Parameters).len(), 0);
-    try expectEqual(start.get(components.ReturnType).entity, builtins.I32);
-    const body = start.get(components.Body).slice();
-    try expectEqual(body.len, 3);
-    const i = blk: {
-        const define = body[0];
-        try expectEqual(define.get(components.AstKind), .define);
-        try expectEqual(typeOf(define), builtins.Void);
-        try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
-        const local = define.get(components.Local).entity;
-        try expectEqual(local.get(components.AstKind), .local);
-        try expectEqualStrings(literalOf(local.get(components.Name).entity), "i");
-        try expectEqual(typeOf(local), builtins.I32);
-        break :blk local;
-    };
-    const while_ = body[1];
-    try expectEqual(while_.get(components.AstKind), .while_);
-    try expectEqual(typeOf(while_), builtins.Void);
-    const conditional = while_.get(components.Conditional).entity;
-    try expectEqual(conditional.get(components.AstKind), .intrinsic);
-    try expectEqual(typeOf(conditional), builtins.I32);
-    const while_body = while_.get(components.Body).slice();
-    try expectEqual(while_body.len, 1);
-    const assign = while_body[0];
-    try expectEqual(assign.get(components.AstKind), .assign);
-    try expectEqual(typeOf(assign), builtins.Void);
-    try expectEqual(assign.get(components.Local).entity, i);
-    const value = assign.get(components.Value).entity;
-    try expectEqual(value.get(components.AstKind), .intrinsic);
-    try expectEqual(body[2], i);
-}
-
 test "analyze semantics of for loop" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
