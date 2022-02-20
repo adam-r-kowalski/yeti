@@ -14,6 +14,7 @@ const test_init_codebase = @import("test_init_codebase.zig");
 const test_file_system = @import("test_file_system.zig");
 const test_foreign_export = @import("test_foreign_export.zig");
 const test_foreign_import = @import("test_foreign_import.zig");
+const test_struct = @import("test_struct.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
