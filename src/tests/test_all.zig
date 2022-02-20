@@ -9,7 +9,7 @@ const test_wasm_printer = @import("test_wasm_printer.zig");
 const test_error_printer = @import("test_error_printer.zig");
 const test_ecs = @import("test_ecs.zig");
 const test_list = @import("test_list.zig");
-const test_strings = @import("test_strings.zig");
+const test_string_interning = @import("test_string_interning.zig");
 const test_init_codebase = @import("test_init_codebase.zig");
 const test_file_system = @import("test_file_system.zig");
 const test_foreign_export = @import("test_foreign_export.zig");
@@ -17,6 +17,7 @@ const test_foreign_import = @import("test_foreign_import.zig");
 const test_struct = @import("test_struct.zig");
 const test_while = @import("test_while.zig");
 const test_for = @import("test_for.zig");
+const test_strings = @import("test_strings.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());

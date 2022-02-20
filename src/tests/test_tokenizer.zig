@@ -122,36 +122,6 @@ test "tokenize number" {
     try expectEqual(tokens.next(), null);
 }
 
-test "tokenize string" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const module = try codebase.createEntity(.{});
-    const code =
-        \\"hello" "world"
-    ;
-    var tokens = try tokenize(module, code);
-    {
-        const token = tokens.next().?;
-        try expectEqual(token.get(components.TokenKind), .string);
-        try expectEqualStrings(literalOf(token), "hello");
-        try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 0, .row = 0 },
-            .end = .{ .column = 7, .row = 0 },
-        });
-    }
-    {
-        const token = tokens.next().?;
-        try expectEqual(token.get(components.TokenKind), .string);
-        try expectEqualStrings(literalOf(token), "world");
-        try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 8, .row = 0 },
-            .end = .{ .column = 15, .row = 0 },
-        });
-    }
-    try expectEqual(tokens.next(), null);
-}
-
 test "tokenize char" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
