@@ -24,9 +24,9 @@ test "analyze semantics int literal" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  5
-            \\end
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -54,9 +54,9 @@ test "analyze semantics float literal" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  5.3
-            \\end
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -84,13 +84,13 @@ test "analyze semantics call local function" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  baz()
-            \\end
+            \\}}
             \\
-            \\baz = fn(): {s}
+            \\baz(): {s} {{
             \\  10
-            \\end
+            \\}}
         , .{ type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -133,14 +133,14 @@ test "analyze semantics call function import" {
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\bar = import("bar.yeti")
             \\
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  bar.baz()
-            \\end
+            \\}}
         , .{type_of}));
         _ = try fs.newFile("bar.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\baz = fn(): {s}
+            \\baz(): {s} {{
             \\  10
-            \\end
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -181,10 +181,10 @@ test "analyze semantics define" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x = 10
             \\  x
-            \\end
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -216,11 +216,11 @@ test "analyze semantics two defines" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x = 10
             \\  y = 15
             \\  x
-            \\end
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -266,10 +266,10 @@ test "analyze semantics define with explicit float type" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x: {s} = 10
             \\  x
-            \\end
+            \\}}
         , .{ type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -302,14 +302,14 @@ test "analyze semantics function with argument" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x: {s} = 10
             \\  id(x)
-            \\end
+            \\}}
             \\
-            \\id = fn(x: {s}): {s}
+            \\id(x: {s}): {s} {{
             \\  x
-            \\end
+            \\}}
         , .{ type_of, type_of, type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -360,14 +360,14 @@ test "analyze semantics function call twice" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x = id(10)
             \\  id(25)
-            \\end
+            \\}}
             \\
-            \\id = fn(x: {s}): {s}
+            \\id(x: {s}): {s} {{
             \\  x
-            \\end
+            \\}}
         , .{ type_of, type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -433,11 +433,11 @@ test "analyze semantics binary op two comptime known" {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  x: {s} = 10
                 \\  y: {s} = 32
                 \\  x {s} y
-                \\end
+                \\}}
             , .{ type_of, type_of, type_of, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             const top_level = module.get(components.TopLevel);
@@ -502,11 +502,11 @@ test "analyze semantics comparison op two comptime known" {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): i32
+                \\start(): i32 {{
                 \\  x: {s} = 10
                 \\  y: {s} = 32
                 \\  x {s} y
-                \\end
+                \\}}
             , .{ type_of, type_of, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             const top_level = module.get(components.TopLevel);
@@ -561,9 +561,9 @@ test "analyze semantics if then else" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
-            \\  if 1 then 20 else 30 end
-            \\end
+            \\start(): {s} {{
+            \\  if 1 {{ 20 }} else {{ 30 }}
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -606,13 +606,13 @@ test "analyze semantics if then else non constant conditional" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
-            \\  if f() then 20 else 30 end
-            \\end
+            \\start(): {s} {{
+            \\  if f() {{ 20 }} else {{ 30 }}
+            \\}}
             \\
-            \\f = fn(): i32
+            \\f(): i32 {{
             \\  1
-            \\end
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -664,13 +664,13 @@ test "analyze semantics if then else with different type branches" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  if 1 then 20 else f() end
-            \\end
+            \\}}
             \\
-            \\f = fn(): {s}
+            \\f(): {s} {{
             \\  0
-            \\end
+            \\}}
         , .{ type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -711,11 +711,11 @@ test "analyze semantics of assignment" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x: {s} = 10
             \\  x = 3
             \\  x
-            \\end
+            \\}}
         , .{ type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         const top_level = module.get(components.TopLevel);
@@ -753,13 +753,13 @@ test "analyze semantics of while loop" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  i = 0
-        \\  while i < 10 do
+        \\  while i < 10 {
         \\      i = i + 1
-        \\  end
+        \\  }
         \\  i
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -805,13 +805,13 @@ test "analyze semantics of for loop" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  sum = 0
-        \\  for i in 0:10 do
+        \\  for i in 0:10 {
         \\      sum = sum + i
-        \\  end
+        \\  }
         \\  sum
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -877,11 +877,11 @@ test "analyze semantics of increment" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  x = 0
         \\  x = x + 1
         \\  x
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -927,12 +927,12 @@ test "analyze semantics of add between typed and inferred" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  a: i64 = 10
         \\  b = 0
         \\  b = a + b
         \\  b
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -987,13 +987,13 @@ test "analyze semantics of pipeline" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square = fn(x: i64): i64
+        \\square(x: i64): i64 {
         \\  x * x
-        \\end
+        \\}
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  5 |> square()
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -1024,13 +1024,13 @@ test "analyze semantics of pipeline with parenthesis omitted" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square = fn(x: i64): i64
+        \\square(x: i64): i64 {
         \\  x * x
-        \\end
+        \\}
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  5 |> square
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -1061,13 +1061,13 @@ test "analyze semantics of pipeline with position specified" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\min = fn(x: i64, y: i64): i64
-        \\  if x < y then x else y end
-        \\end
+        \\min(x: i64, y: i64): i64 {
+        \\  if x < y { x } else { y }
+        \\}
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  5 |> min(3, _)
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -1103,14 +1103,14 @@ test "analyze semantics of pipeline calling imported function" {
     _ = try fs.newFile("foo.yeti",
         \\math = import("math.yeti")
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  5 |> math.min(3, _)
-        \\end
+        \\}
     );
     _ = try fs.newFile("math.yeti",
-        \\min = fn(x: i64, y: i64): i64
-        \\  if x < y then x else y end
-        \\end
+        \\min(x: i64, y: i64): i64 {
+        \\  if x < y { x } else { y }
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -1146,14 +1146,14 @@ test "analyze semantics of pipeline calling imported function with parenthesis o
     _ = try fs.newFile("foo.yeti",
         \\math = import("math.yeti")
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  5 |> math.square
-        \\end
+        \\}
     );
     _ = try fs.newFile("math.yeti",
-        \\square = fn(x: i64): i64
+        \\square(x: i64): i64 {
         \\  x * x
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -1186,18 +1186,18 @@ test "analyze semantics of calling imported function with local arguments" {
     _ = try fs.newFile("foo.yeti",
         \\bar = import("bar.yeti")
         \\
-        \\g = fn(x: i64): i64
+        \\g(x: i64): i64 {
         \\  x + x
-        \\end
+        \\}
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  bar.f(g(300))
-        \\end
+        \\}
     );
     _ = try fs.newFile("bar.yeti",
-        \\f = fn(x: i64): i64
+        \\f(x: i64): i64 {
         \\  x * x
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -1240,14 +1240,14 @@ test "analyze semantics of calling imported function twice" {
     _ = try fs.newFile("foo.yeti",
         \\bar = import("bar.yeti")
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  bar.f(bar.f(300))
-        \\end
+        \\}
     );
     _ = try fs.newFile("bar.yeti",
-        \\f = fn(x: i64): i64
+        \\f(x: i64): i64 {
         \\  x * x
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -1283,30 +1283,6 @@ test "analyze semantics of foreign exports" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square = fn(x: i64): i64
-        \\  x * x
-        \\end
-        \\
-        \\foreign_export(square)
-    );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-    const top_level = module.get(components.TopLevel);
-    const square = top_level.findString("square").get(components.Overloads).slice()[0];
-    try expectEqualStrings(literalOf(square.get(components.Module).entity), "foo");
-    try expectEqualStrings(literalOf(square.get(components.Name).entity), "square");
-    try expectEqual(square.get(components.Parameters).len(), 1);
-    try expectEqual(square.get(components.ReturnType).entity, builtins.I64);
-    const body = square.get(components.Body).slice();
-    try expectEqual(body.len, 1);
-}
-
-test "analyze semantics of foreign exports new syntax" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const builtins = codebase.get(components.Builtins);
-    var fs = try MockFileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
         \\@export
         \\square(x: i64): i64 {
         \\  x * x
@@ -1330,15 +1306,14 @@ test "analyze semantics of foreign exports with recursion" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\fib = fn(n: i64): i64
-        \\  if n < 2 then
+        \\@export
+        \\fib(n: i64): i64 {
+        \\  if n < 2 {
         \\    0
-        \\  else
+        \\  } else {
         \\    fib(n - 1) + fib(n - 2)
-        \\  end
-        \\end
-        \\
-        \\foreign_export(fib)
+        \\  }
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
@@ -1358,11 +1333,12 @@ test "analyze semantics of foreign import" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\log = foreign_import("console", "log", Fn(value: i64): void)
+        \\@import("console", "log")
+        \\log(value: i64): void
         \\
-        \\start = fn(): void
+        \\start(): void {
         \\  log(10)
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1396,9 +1372,9 @@ test "analyze semantics of casting int literal to *i64" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): *i64
+        \\start(): *i64 {
         \\  cast(*i64, 0)
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1432,10 +1408,10 @@ test "analyze semantics of casting i32 to *i64" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): *i64
+        \\start(): *i64 {
         \\  i: i32 = 0
         \\  cast(*i64, i)
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1477,10 +1453,10 @@ test "analyze semantics of pointer store" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): void
+        \\start(): void {
         \\  ptr = cast(*i64, 0)
         \\  *ptr = 10
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1531,10 +1507,10 @@ test "analyze semantics of pointer load" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  ptr = cast(*i64, 0)
         \\  *ptr
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1581,10 +1557,10 @@ test "analyze semantics of adding *i64 and int literal" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): *i64
+        \\start(): *i64 {
         \\  ptr = cast(*i64, 0)
         \\  ptr + 1
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1628,10 +1604,10 @@ test "analyze semantics of subtracting *i64 and int literal" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): *i64
+        \\start(): *i64 {
         \\  ptr = cast(*i64, 0)
         \\  ptr - 1
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1675,10 +1651,10 @@ test "analyze semantics of comparing two *i64" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  ptr = cast(*i64, 0)
         \\  ptr == ptr
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1722,10 +1698,10 @@ test "analyze semantics of vector load" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64x2
+        \\start(): i64x2 {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1778,10 +1754,10 @@ test "analyze semantics of binary operators on two int vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
-                \\end
+                \\}}
             , .{ type_string, type_string, op_string }));
             _ = try analyzeSemantics(codebase, fs, "foo.yeti");
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1843,10 +1819,10 @@ test "analyze semantics of binary operators on two float vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
-                \\end
+                \\}}
             , .{ type_string, type_string, op_string }));
             _ = try analyzeSemantics(codebase, fs, "foo.yeti");
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1902,10 +1878,10 @@ test "analyze semantics of vector store" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): void
+        \\start(): void {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr = *ptr
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1958,14 +1934,14 @@ test "analyze semantics of struct" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): Rectangle
+        \\start(): Rectangle {
         \\  Rectangle(10, 30)
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -1994,15 +1970,15 @@ test "analyze semantics of struct field access" {
     var fs = try MockFileSystem.init(&arena);
     const builtins = codebase.get(components.Builtins);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): f64
+        \\start(): f64 {
         \\  r = Rectangle(10, 30)
         \\  r.width
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2048,16 +2024,16 @@ test "analyze semantics of struct field write" {
     var fs = try MockFileSystem.init(&arena);
     const builtins = codebase.get(components.Builtins);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): Rectangle
+        \\start(): Rectangle {
         \\  r = Rectangle(10, 30)
         \\  r.width = 45
         \\  r
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2105,11 +2081,11 @@ test "analyze semantics of plus equal" {
     var fs = try MockFileSystem.init(&arena);
     const builtins = codebase.get(components.Builtins);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  x = 0
         \\  x += 1
         \\  x
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2151,11 +2127,11 @@ test "analyze semantics of times equal" {
     var fs = try MockFileSystem.init(&arena);
     const builtins = codebase.get(components.Builtins);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  x = 0
         \\  x *= 1
         \\  x
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2196,9 +2172,9 @@ test "analyze semantics of string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): []u8
+        \\start(): []u8 {
         \\  "hello world"
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2224,9 +2200,9 @@ test "analyze semantics of char literal" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): u8
+        \\start(): u8 {
         \\  'h'
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -2251,10 +2227,10 @@ test "analyze semantics of array index" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): u8
+        \\start(): u8 {
         \\  text = "hello world"
         \\  text[0]
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");

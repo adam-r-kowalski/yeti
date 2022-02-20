@@ -16,13 +16,13 @@ test "error printer calling function with to few parameters" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\add = fn(x: i64, y: i64): i64
+        \\add(x: i64, y: i64): i64 {
         \\  x + y
-        \\end
+        \\}
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  add(5)
-        \\end
+        \\}
     );
     try expectEqual(analyzeSemantics(codebase, fs, "foo.yeti"), error.CompileError);
     const error_message = try printErrors(codebase);
@@ -32,9 +32,9 @@ test "error printer calling function with to few parameters" {
         \\No matching function overload found for argument types (IntLiteral)
         \\
         \\4| 
-        \\5| start = fn(): i64
+        \\5| start(): i64 {{
         \\6|   {s}add(5){s}
-        \\7| end
+        \\7| }}
         \\Here are the possible candidates:
         \\
         \\add(x: i64, {s}y: i64{s}) ----- foo.yeti:1
@@ -48,18 +48,18 @@ test "error printer function overloads are aligned" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\add = fn(x: i64, y: i64): i64
+        \\add(x: i64, y: i64): i64 {
         \\  x + y
-        \\end
+        \\}
         \\
-        \\add = fn(x: i64): i64
+        \\add(x: i64): i64 {
         \\  x + y
-        \\end
+        \\}
         \\
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  a: i32 = 5
         \\  add(a, 7)
-        \\end
+        \\}
     );
     try expectEqual(analyzeSemantics(codebase, fs, "foo.yeti"), error.CompileError);
     const error_message = try printErrors(codebase);
@@ -68,10 +68,10 @@ test "error printer function overloads are aligned" {
         \\
         \\No matching function overload found for argument types (i32, IntLiteral)
         \\
-        \\ 9| start = fn(): i64
+        \\ 9| start(): i64 {{
         \\10|   a: i32 = 5
         \\11|   {s}add(a, 7){s}
-        \\12| end
+        \\12| }}
         \\Here are the possible candidates:
         \\
         \\add({s}x: i64{s}, y: i64) ----- foo.yeti:1
