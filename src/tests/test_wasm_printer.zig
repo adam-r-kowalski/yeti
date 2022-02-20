@@ -20,9 +20,9 @@ test "print wasm int literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  5
-            \\end
+            \\}}
         , .{type_}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -47,9 +47,9 @@ test "print wasm float literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  5.3
-            \\end
+            \\}}
         , .{type_}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -74,13 +74,13 @@ test "print wasm call local function" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  baz()
-            \\end
+            \\}}
             \\
-            \\baz = fn(): {s}
+            \\baz(): {s} {{
             \\  10
-            \\end
+            \\}}
         , .{ type_, type_ }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -109,13 +109,13 @@ test "print wasm call local function with argument" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  id(5)
-            \\end
+            \\}}
             \\
-            \\id = fn(x: {s}): {s}
+            \\id(x: {s}): {s} {{
             \\  x
-            \\end
+            \\}}
         , .{ type_, type_, type_ }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -144,10 +144,10 @@ test "print wasm define int literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x = 10
             \\  x
-            \\end
+            \\}}
         , .{type_}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -180,11 +180,11 @@ test "print wasm arithmetic binary op" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
-                \\end
+                \\}}
             , .{ type_, type_, type_, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -220,11 +220,11 @@ test "print wasm int binary op" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
-                \\end
+                \\}}
             , .{ type_, type_, type_, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -258,13 +258,13 @@ test "print wasm arithmetic binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  id(10) {s} id(25)
-                \\end
+                \\}}
                 \\
-                \\id = fn(x: {s}): {s}
+                \\id(x: {s}): {s} {{
                 \\  x
-                \\end
+                \\}}
             , .{ type_, op_string, type_, type_ }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -315,13 +315,13 @@ test "print wasm arithmetic binary op non constant modulo" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  id(10) {s} id(25)
-                \\end
+                \\}}
                 \\
-                \\id = fn(x: {s}): {s}
+                \\id(x: {s}): {s} {{
                 \\  x
-                \\end
+                \\}}
             , .{ type_, op_string, type_, type_ }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -377,13 +377,13 @@ test "print wasm int binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  id(10) {s} id(25)
-                \\end
+                \\}}
                 \\
-                \\id = fn(x: {s}): {s}
+                \\id(x: {s}): {s} {{
                 \\  x
-                \\end
+                \\}}
             , .{ type_, op_string, type_, type_ }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -426,9 +426,9 @@ test "print wasm if then else where then branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
-            \\  if 1 then 20 else 30 end
-            \\end
+            \\start(): {s} {{
+            \\  if 1 {{ 20 }} else {{ 30 }}
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -453,9 +453,9 @@ test "print wasm if then else where else branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
-            \\  if 0 then 20 else 30 end
-            \\end
+            \\start(): {s} {{
+            \\  if 0 {{ 20 }} else {{ 30 }}
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -480,11 +480,11 @@ test "print wasm if then else non const conditional" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
-            \\  if f() then 20 else 30 end
-            \\end
+            \\start(): {s} {{
+            \\  if f() {{ 20 }} else {{ 30 }}
+            \\}}
             \\
-            \\f = fn(): i32 1 end
+            \\f(): i32 {{ 1 }}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -517,11 +517,11 @@ test "print wasm assignment" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x: {s} = 10
             \\  x = 3
             \\  x
-            \\end
+            \\}}
         , .{ type_of, type_of }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -548,13 +548,13 @@ test "print wasm while loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  i = 0
-        \\  while i < 10 do
+        \\  while i < 10 {
         \\      i = i + 1
-        \\  end
+        \\  }
         \\  i
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -592,13 +592,13 @@ test "print wasm for loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  sum = 0
-        \\  for i in 0:10 do
-        \\      sum = sum + i
-        \\  end
+        \\  for i in 0:10 {
+        \\    sum = sum + i
+        \\  }
         \\  sum
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -642,17 +642,15 @@ test "print wasm foreign export" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square = fn(x: i64): i64
+        \\@export
+        \\square(x: i64): i64 {
         \\  x * x
-        \\end
+        \\}
         \\
-        \\area = fn(width: f64, height: f64): f64
+        \\@export
+        \\area(width: f64, height: f64): f64 {
         \\  width * height
-        \\end
-        \\
-        \\foreign_export(square)
-        \\
-        \\foreign_export(area)
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -682,11 +680,12 @@ test "print wasm foreign import" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\log = foreign_import("console", "log", Fn(value: i64): void)
+        \\@import("console", "log")
+        \\log(value: i64): void
         \\
-        \\start = fn(): void
+        \\start(): void {
         \\  log(10)
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -710,9 +709,9 @@ test "print wasm pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): *i64
+        \\start(): *i64 {
         \\  cast(*i64, 0)
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -733,10 +732,10 @@ test "print wasm pointer store" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): void
+        \\start(): void {
         \\  ptr = cast(*i64, 0)
         \\  *ptr = 10
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -765,10 +764,10 @@ test "print wasm pointer load" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  ptr = cast(*i64, 0)
         \\  *ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -796,10 +795,10 @@ test "print wasm pointer load u8" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): u8
+        \\start(): u8 {
         \\  ptr = cast(*u8, 0)
         \\  *ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -827,11 +826,10 @@ test "print wasm pointer as parameter" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\f = fn(ptr: *i32): i32
+        \\@export
+        \\f(ptr: *i32): i32 {
         \\  0
-        \\end
-        \\
-        \\foreign_export(f)
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -852,11 +850,10 @@ test "print wasm adding pointer and int literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\f = fn(ptr: *i64): *i64
+        \\@export
+        \\f(ptr: *i64): *i64 {
         \\  ptr + 1
-        \\end
-        \\
-        \\foreign_export(f)
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -879,11 +876,10 @@ test "print wasm subtracting pointer and int literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\f = fn(ptr: *i64): *i64
+        \\@export
+        \\f(ptr: *i64): *i64 {
         \\  ptr - 1
-        \\end
-        \\
-        \\foreign_export(f)
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -906,11 +902,10 @@ test "print wasm adding pointer and i32" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\f = fn(ptr: *i64, len: i32): *i64
+        \\@export
+        \\f(ptr: *i64, len: i32): *i64 {
         \\  ptr + len
-        \\end
-        \\
-        \\foreign_export(f)
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -935,10 +930,10 @@ test "print wasm pointer v128 load" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64x2
+        \\start(): i64x2 {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -966,10 +961,10 @@ test "print wasm pointer v128 store" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): void
+        \\start(): void {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr = *ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1013,10 +1008,10 @@ test "print wasm binary op on two int vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
-                \\end
+                \\}}
             , .{ type_string, type_string, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -1056,10 +1051,10 @@ test "print wasm binary op on two float vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
-                \\end
+                \\}}
             , .{ type_string, type_string, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -1091,14 +1086,14 @@ test "print wasm struct" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): Rectangle
+        \\start(): Rectangle {
         \\  Rectangle(10, 30)
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1120,15 +1115,15 @@ test "print wasm assign struct to variable" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): Rectangle
+        \\start(): Rectangle {
         \\  r = Rectangle(10, 30)
         \\  r
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1156,18 +1151,18 @@ test "print wasm pass struct to function" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\id = fn(r: Rectangle): Rectangle
+        \\id(r: Rectangle): Rectangle {
         \\  r
-        \\end
+        \\}
         \\
-        \\start = fn(): Rectangle
+        \\start(): Rectangle {
         \\  id(Rectangle(10, 30))
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1194,15 +1189,15 @@ test "print wasm struct field access" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): f64
+        \\start(): f64 {
         \\  r = Rectangle(10, 30)
         \\  r.width
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1229,16 +1224,16 @@ test "print wasm struct field write" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): Rectangle
+        \\start(): Rectangle {
         \\  r = Rectangle(10, 30)
         \\  r.width = 45
         \\  r
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1268,9 +1263,9 @@ test "print wasm string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): []u8
+        \\start(): []u8 {
         \\  "hello world"
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1297,10 +1292,10 @@ test "print wasm assign string literal to variable" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): []u8
+        \\start(): []u8 {
         \\  text = "hello world"
         \\  text
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1333,13 +1328,13 @@ test "print wasm pass string literal as argument" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\first = fn(text: []u8): u8
-        \\  *(text.ptr)
-        \\end
+        \\first(text: []u8): u8 {
+        \\  *text.ptr
+        \\}
         \\
-        \\start = fn(): u8
+        \\start(): u8 {
         \\  first("hello world")
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1371,10 +1366,10 @@ test "print wasm dereference string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): u8
+        \\start(): u8 {
         \\  text = "hello world"
         \\  *text.ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1407,11 +1402,11 @@ test "print wasm write through **u8" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): void
+        \\start(): void {
         \\  text = "hello world"
         \\  ptr = cast(**u8, 100)
         \\  *ptr = text.ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1448,13 +1443,13 @@ test "print wasm properly infer type for for loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  sum = 0
-        \\  for i in 0:10 do
+        \\  for i in 0:10 {
         \\    sum += 1
-        \\  end
+        \\  }
         \\  sum
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1498,15 +1493,15 @@ test "print wasm properly infer type for while loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  sum = 0
         \\  i = 0
-        \\  while i < 10 do
+        \\  while i < 10 {
         \\    sum += 1
         \\    i += 1
-        \\  end
+        \\  }
         \\  sum
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
