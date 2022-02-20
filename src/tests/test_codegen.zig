@@ -666,29 +666,6 @@ test "codegen assignment" {
     }
 }
 
-test "codegen for loop" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    var fs = try MockFileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
-        \\  sum = 0
-        \\  for i in 0:10 {
-        \\    sum = sum + i
-        \\  }
-        \\  sum 
-        \\}
-    );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-    try codegen(module);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    const start_instructions = start.get(components.WasmInstructions).slice();
-    try expectEqual(start_instructions.len, 22);
-    // TODO: test that proper for loop instructions are generated
-}
-
 test "codegen of casting int literal to *i64" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

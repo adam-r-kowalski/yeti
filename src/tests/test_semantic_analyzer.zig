@@ -746,77 +746,7 @@ test "analyze semantics of assignment" {
     }
 }
 
-test "analyze semantics of for loop" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const builtins = codebase.get(components.Builtins);
-    var fs = try MockFileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
-        \\  sum = 0
-        \\  for i in 0:10 {
-        \\      sum = sum + i
-        \\  }
-        \\  sum
-        \\}
-    );
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
-    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
-    try expectEqual(start.get(components.Parameters).len(), 0);
-    try expectEqual(start.get(components.ReturnType).entity, builtins.I32);
-    const body = start.get(components.Body).slice();
-    try expectEqual(body.len, 3);
-    const sum = blk: {
-        const define = body[0];
-        try expectEqual(define.get(components.AstKind), .define);
-        try expectEqual(typeOf(define), builtins.Void);
-        try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
-        const local = define.get(components.Local).entity;
-        try expectEqual(local.get(components.AstKind), .local);
-        try expectEqualStrings(literalOf(local.get(components.Name).entity), "sum");
-        try expectEqual(typeOf(local), builtins.I32);
-        break :blk local;
-    };
-    const for_ = body[1];
-    try expectEqual(for_.get(components.AstKind), .for_);
-    try expectEqual(typeOf(for_), builtins.Void);
-    const i = blk: {
-        const define = for_.get(components.LoopVariable).entity;
-        try expectEqual(define.get(components.AstKind), .define);
-        try expectEqual(typeOf(define), builtins.Void);
-        try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
-        const local = define.get(components.Local).entity;
-        try expectEqual(local.get(components.AstKind), .local);
-        try expectEqualStrings(literalOf(local.get(components.Name).entity), "i");
-        try expectEqual(typeOf(local), builtins.I32);
-        break :blk local;
-    };
-    const iterator = for_.get(components.Iterator).entity;
-    try expectEqual(iterator.get(components.AstKind), .range);
-    const range = iterator.get(components.Range);
-    try expectEqual(typeOf(range.first), builtins.IntLiteral);
-    try expectEqualStrings(literalOf(range.first), "0");
-    try expectEqual(typeOf(range.last), builtins.IntLiteral);
-    try expectEqualStrings(literalOf(range.last), "10");
-    const for_body = for_.get(components.Body).slice();
-    try expectEqual(for_body.len, 1);
-    const assign = for_body[0];
-    try expectEqual(assign.get(components.AstKind), .assign);
-    try expectEqual(typeOf(assign), builtins.Void);
-    try expectEqual(assign.get(components.Local).entity, sum);
-    const value = assign.get(components.Value).entity;
-    try expectEqual(value.get(components.AstKind), .intrinsic);
-    try expectEqual(value.get(components.Intrinsic), .add);
-    const arguments = value.get(components.Arguments).slice();
-    try expectEqual(arguments.len, 2);
-    try expectEqual(arguments[0], sum);
-    try expectEqual(arguments[1], i);
-    try expectEqual(body[2], sum);
-}
+
 
 test "analyze semantics of increment" {
     var arena = Arena.init(std.heap.page_allocator);

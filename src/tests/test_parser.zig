@@ -643,54 +643,6 @@ test "parse multiline if then else" {
     }
 }
 
-test "parse for loop" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const module = try codebase.createEntity(.{});
-    const code =
-        \\start(): i32 {
-        \\  sum = 0
-        \\  for i in 0:10 {
-        \\      sum = sum + i
-        \\  }
-        \\  sum
-        \\}
-    ;
-    var tokens = try tokenize(module, code);
-    try parse(module, &tokens);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start");
-    const overloads = start.get(components.Overloads).slice();
-    try expectEqual(overloads.len, 1);
-    const body = overloads[0].get(components.Body).slice();
-    try expectEqual(body.len, 3);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "sum");
-    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
-    const for_ = body[1];
-    try expectEqual(for_.get(components.AstKind), .for_);
-    const iterator = for_.get(components.Iterator).entity;
-    try expectEqual(iterator.get(components.AstKind), .range);
-    const range = iterator.get(components.Range);
-    try expectEqualStrings(literalOf(range.first), "0");
-    try expectEqualStrings(literalOf(range.last), "10");
-    const i = for_.get(components.LoopVariable).entity;
-    try expectEqualStrings(literalOf(i), "i");
-    const for_body = for_.get(components.Body).slice();
-    try expectEqual(for_body.len, 1);
-    const assign = for_body[0];
-    try expectEqual(assign.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(assign.get(components.Name).entity), "sum");
-    const value = assign.get(components.Value).entity;
-    try expectEqual(value.get(components.AstKind), .binary_op);
-    try expectEqual(value.get(components.BinaryOp), .add);
-    const sum = body[2];
-    try expectEqual(sum.get(components.AstKind), .symbol);
-    try expectEqualStrings(literalOf(sum), "sum");
-}
-
 test "parse pipeline" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -1069,52 +1021,4 @@ test "parse new if syntax" {
     const else_ = if_.get(components.Else).slice();
     try expectEqual(else_.len, 1);
     try expectEqualStrings(literalOf(else_[0]), "y");
-}
-
-test "parse new for loop syntax" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const module = try codebase.createEntity(.{});
-    const code =
-        \\start(): i32 {
-        \\  sum = 0
-        \\  for i in 0:10 {
-        \\    sum = sum + i
-        \\  }
-        \\  sum
-        \\}
-    ;
-    var tokens = try tokenize(module, code);
-    try parse(module, &tokens);
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start");
-    const overloads = start.get(components.Overloads).slice();
-    try expectEqual(overloads.len, 1);
-    const body = overloads[0].get(components.Body).slice();
-    try expectEqual(body.len, 3);
-    const define = body[0];
-    try expectEqual(define.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(define.get(components.Name).entity), "sum");
-    try expectEqualStrings(literalOf(define.get(components.Value).entity), "0");
-    const for_ = body[1];
-    try expectEqual(for_.get(components.AstKind), .for_);
-    const iterator = for_.get(components.Iterator).entity;
-    try expectEqual(iterator.get(components.AstKind), .range);
-    const range = iterator.get(components.Range);
-    try expectEqualStrings(literalOf(range.first), "0");
-    try expectEqualStrings(literalOf(range.last), "10");
-    const i = for_.get(components.LoopVariable).entity;
-    try expectEqualStrings(literalOf(i), "i");
-    const for_body = for_.get(components.Body).slice();
-    try expectEqual(for_body.len, 1);
-    const assign = for_body[0];
-    try expectEqual(assign.get(components.AstKind), .define);
-    try expectEqualStrings(literalOf(assign.get(components.Name).entity), "sum");
-    const value = assign.get(components.Value).entity;
-    try expectEqual(value.get(components.AstKind), .binary_op);
-    try expectEqual(value.get(components.BinaryOp), .add);
-    const sum = body[2];
-    try expectEqual(sum.get(components.AstKind), .symbol);
-    try expectEqualStrings(literalOf(sum), "sum");
 }

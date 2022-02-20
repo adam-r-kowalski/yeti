@@ -16,6 +16,7 @@ const test_foreign_export = @import("test_foreign_export.zig");
 const test_foreign_import = @import("test_foreign_import.zig");
 const test_struct = @import("test_struct.zig");
 const test_while = @import("test_while.zig");
+const test_for = @import("test_for.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
