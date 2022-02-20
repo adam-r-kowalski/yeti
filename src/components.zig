@@ -223,6 +223,7 @@ pub const TokenKind = enum(u8) {
     foreign_import,
     new_line,
     struct_,
+    attribute_export,
 };
 
 pub const Literal = struct {

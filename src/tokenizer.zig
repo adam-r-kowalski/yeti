@@ -115,6 +115,7 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
             '>' => try tokenizeOneOrTwo(module, &source, .greater_than, &.{ '=', '>' }, &.{ .greater_equal, .greater_greater }),
             '<' => try tokenizeOneOrTwo(module, &source, .less_than, &.{ '=', '<' }, &.{ .less_equal, .less_less }),
             '!' => try tokenizeTwo(module, &source, '=', .bang_equal),
+            '@' => try tokenizeAttribute(module, &source),
             '\n' => try tokenizeNewLine(module, &source),
             else => try tokenizeSymbol(module, &source),
         };
@@ -156,6 +157,26 @@ fn tokenizeSymbol(module: Entity, source: *Source) !Entity {
         components.TokenKind.symbol,
         span,
     });
+}
+
+fn tokenizeAttribute(module: Entity, source: *Source) !Entity {
+    const begin = source.position;
+    var i: u64 = 1;
+    while (i < source.code.len) : (i += 1) {
+        if (!validSymbol(source.code[i])) {
+            break;
+        }
+    }
+    const string = source.advance(i)[1..];
+    const span = components.Span{ .begin = begin, .end = source.position };
+    const symbols = [_][]const u8{"export"};
+    const tokens = [_]components.TokenKind{.attribute_export};
+    for (symbols) |symbol, j| {
+        if (std.mem.eql(u8, string, symbol)) {
+            return try module.ecs.createEntity(.{ tokens[j], span });
+        }
+    }
+    panic("\ninvalid attribute {s}\n", .{string});
 }
 
 fn tokenizeNumber(module: Entity, source: *Source, starts_with_decimal: bool) !Entity {

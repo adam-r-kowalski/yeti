@@ -1300,6 +1300,29 @@ test "analyze semantics of foreign exports" {
     try expectEqual(body.len, 1);
 }
 
+test "analyze semantics of foreign exports new syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\@export
+        \\square(x: i64): i64 {
+        \\  x * x
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const square = top_level.findString("square").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(square.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(square.get(components.Name).entity), "square");
+    try expectEqual(square.get(components.Parameters).len(), 1);
+    try expectEqual(square.get(components.ReturnType).entity, builtins.I64);
+    const body = square.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+}
+
 test "analyze semantics of foreign exports with recursion" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

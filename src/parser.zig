@@ -740,6 +740,15 @@ fn parseStructNewSyntax(tokens: *Tokens, top_level: *components.TopLevel, struct
     panic("\ncompiler bug in parse struct\n", .{});
 }
 
+fn parseAttributeForeignExport(tokens: *Tokens, top_level: *components.TopLevel, foreign_exports: *components.ForeignExports) !void {
+    _ = tokens.consume(.new_line);
+    const name = tokens.consume(.symbol);
+    _ = tokens.consume(.left_paren);
+    const function = try parseFunctionNewSyntax(name.ecs, tokens, name);
+    try overloadFunction(top_level, function, components.Name.init(name));
+    try foreign_exports.append(name);
+}
+
 pub fn parse(module: Entity, tokens: *Tokens) !void {
     const codebase = module.ecs;
     const allocator = codebase.arena.allocator();
@@ -752,6 +761,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
             .foreign_export => try parseForeignExport(tokens, &foreign_exports),
             .new_line => continue,
             .struct_ => try parseStructNewSyntax(tokens, &top_level, token),
+            .attribute_export => try parseAttributeForeignExport(tokens, &top_level, &foreign_exports),
             else => panic("\nparse unsupported kind {}\n", .{kind}),
         }
     }

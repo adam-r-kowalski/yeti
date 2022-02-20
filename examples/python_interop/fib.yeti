@@ -1,9 +1,8 @@
-fib = fn(n: i64): i64
-  if n < 2 then
+@export
+fib(n: i64): i64 {
+  if n < 2 {
     1
-  else
+  } else {
     fib(n - 1) + fib(n - 2)
-  end
-end
-
-foreign_export(fib)
+  }
+}

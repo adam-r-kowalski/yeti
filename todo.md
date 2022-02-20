@@ -1,57 +1,6 @@
 # Todo
 
-- [x] Support primitive types (i64, i32, u64, u32, f64, f32)
-- [x] Binary operators for primitive types (+, -, *, /)
-- [x] Can call the same function twice
-- [x] Int operators for primitive types (&, |, <<, >>, %, ^)
-- [x] Grouping
-- [x] Comparison operators for primitive types (<, <=, >, >=, ==, !=)
-- [x] If expressions
-- [x] Recursion
-- [x] Assignment
-- [x] Remove redundant components
-    - [x] AnalyzedBody
-    - [x] AnalyzedConditional
-    - [x] AnalyzedThen
-    - [x] AnalyzedElse
-- [x] While loop
-- [x] For loop
-- [x] Pipeline |> operator
-- [x] Calling imported function twice
-- [x] Overloading
-- [x] Foreign Exports
-- [x] Foreign Imports
-- [x] Linear Memory
-    - [x] p32 type
-    - [x] store through pointer
-    - [x] load from pointer
-    - [x] pass p32 to function
-    - [x] p32 + i32
-    - [x] *i64 instead of p32(i64)
-    - [x] *p := 5 instead of store(p, 5)
-    - [x] x = *p instead of x = load(p)
-    - [x] p32 - i32
-    - [x] pointer arithmetic (==, !=, >, >=, <, <=, -) between two p32s
-- [x] Assignment and definition should both just be = and remove :=
-- [x] SIMD
-    - [x] i64x2
-    - [x] i32x4
-    - [x] i16x8
-    - [x] i8x16
-    - [x] f64x2
-    - [x] f32x4
-    - [x] binary operators (+, -, *, /)
-- [x] User defined types
-    - [x] define structs
-    - [x] pass struct to function
-    - [x] return struct from function
-    - [x] constructor for struct
-- [ ] Templates
-- [ ] Error Messages
-    - [x] No matching function overload
-    - [ ] Ambiguous function call
-    - [ ] Implicit type conversion failed
-    - [ ] Float literal with multiple decimals
-- [ ] Examples
-    - [ ] Caesar Cipher
-- [ ] Strings
+- [ ] new foreign export syntax
+- [ ] new foreign import syntax
+- [ ] update unit tests with new syntax
+- [ ] break apart unit tests by feature
