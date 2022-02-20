@@ -21,9 +21,9 @@ test "codegen int literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  5
-            \\end
+            \\}}
         , .{type_}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -46,9 +46,9 @@ test "codegen float literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  5
-            \\end
+            \\}}
         , .{type_}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -71,13 +71,13 @@ test "codegen call local function" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  baz()
-            \\end
+            \\}}
             \\
-            \\baz = fn(): {s}
+            \\baz(): {s} {{
             \\  10
-            \\end
+            \\}}
         , .{ type_, type_ }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -105,10 +105,10 @@ test "codegen assign" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x: {s} = 10
             \\  x
-            \\end
+            \\}}
         , .{ type_, type_ }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -139,9 +139,9 @@ test "codegen binary op two literals" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  8 {s} 2
-                \\end
+                \\}}
             , .{ type_, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -173,11 +173,11 @@ test "codegen arithmetic binary op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
-                \\end
+                \\}}
             , .{ type_, type_, type_, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -211,11 +211,11 @@ test "codegen int binary op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
-                \\end
+                \\}}
             , .{ type_, type_, type_, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -249,11 +249,11 @@ test "codegen int comparison op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): i32
+                \\start(): i32 {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
-                \\end
+                \\}}
             , .{ type_, type_, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -274,12 +274,12 @@ test "codegen int comparison op two local constants one unused" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  a = 8
         \\  b = 2
         \\  c = a == b
         \\  a
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -321,13 +321,13 @@ test "codegen arithmethic binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  id(10) {s} id(25)
-                \\end
+                \\}}
                 \\
-                \\id = fn(x: {s}): {s}
+                \\id(x: {s}): {s} {{
                 \\  x
-                \\end
+                \\}}
             , .{ type_, op_string, type_, type_ }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -385,13 +385,13 @@ test "codegen int binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  id(10) {s} id(25)
-                \\end
+                \\}}
                 \\
-                \\id = fn(x: {s}): {s}
+                \\id(x: {s}): {s} {{
                 \\  x
-                \\end
+                \\}}
             , .{ type_, op_string, type_, type_ }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -448,13 +448,13 @@ test "codegen comparison binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): i32
+                \\start(): i32 {{
                 \\  id(10) {s} id(25)
-                \\end
+                \\}}
                 \\
-                \\id = fn(x: {s}): {s}
+                \\id(x: {s}): {s} {{
                 \\  x
-                \\end
+                \\}}
             , .{ op_string, type_, type_ }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -508,9 +508,9 @@ test "codegen if then else where then branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
-            \\  if 1 then 20 else 30 end
-            \\end
+            \\start(): {s} {{
+            \\  if 1 {{ 20 }} else {{ 30 }}
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -540,9 +540,9 @@ test "codegen if then else where else branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
-            \\  if 0 then 20 else 30 end
-            \\end
+            \\start(): {s} {{
+            \\  if 0 {{ 20 }} else {{ 30 }}
+            \\}}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -581,11 +581,11 @@ test "codegen if then else non const conditional" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
-            \\  if f() then 20 else 30 end
-            \\end
+            \\start(): {s} {{
+            \\  if f() {{ 20 }} else {{ 30 }}
+            \\}}
             \\
-            \\f = fn(): i32 1 end
+            \\f(): i32 {{ 1 }}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -625,11 +625,11 @@ test "codegen assignment" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): {s}
+            \\start(): {s} {{
             \\  x: {s} = 10
             \\  x = 3
             \\  x
-            \\end
+            \\}}
         , .{ type_, type_ }));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -672,13 +672,13 @@ test "codegen while loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  i = 0
-        \\  while i < 10 do
-        \\      i = i + 1
-        \\  end
+        \\  while i < 10 {
+        \\    i = i + 1
+        \\  }
         \\  i
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -745,13 +745,13 @@ test "codegen while loop proper type inference" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  i = 0
-        \\  while i < 10 do
-        \\      i = i + 1
-        \\  end
+        \\  while i < 10 {
+        \\    i = i + 1
+        \\  }
         \\  i
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -818,13 +818,13 @@ test "codegen for loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  sum = 0
-        \\  for i in 0:10 do
-        \\      sum = sum + i
-        \\  end
+        \\  for i in 0:10 {
+        \\    sum = sum + i
+        \\  }
         \\  sum 
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -832,7 +832,7 @@ test "codegen for loop" {
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 22);
-    // TODO: test that proper while loop instructions are generated
+    // TODO: test that proper for loop instructions are generated
 }
 
 test "codegen of casting int literal to *i64" {
@@ -841,9 +841,9 @@ test "codegen of casting int literal to *i64" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): *i64
+        \\start(): *i64 {
         \\  cast(*i64, 0)
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -862,10 +862,10 @@ test "codegen of storing through pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): void
+        \\start(): void {
         \\  ptr = cast(*i64, 0)
         \\  *ptr = 10
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -906,10 +906,10 @@ test "codegen of loading through pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64
+        \\start(): i64 {
         \\  ptr = cast(*i64, 0)
         \\  *ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -943,10 +943,10 @@ test "codegen of adding pointer and int literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): *i64
+        \\start(): *i64 {
         \\  ptr = cast(*i64, 0)
         \\  ptr + 1
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -985,10 +985,10 @@ test "codegen of subtracting pointer and int literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): *i64
+        \\start(): *i64 {
         \\  ptr = cast(*i64, 0)
         \\  ptr - 1
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1030,10 +1030,10 @@ test "codegen of comparing two *i64" {
     for (op_strings) |op_string, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start = fn(): i32
+            \\start(): i32 {{
             \\  ptr = cast(*i64, 0)
             \\  ptr {s} ptr
-            \\end
+            \\}}
         , .{op_string}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -1074,10 +1074,10 @@ test "codegen of subtracting two *i64" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i32
+        \\start(): i32 {
         \\  ptr = cast(*i64, 0)
         \\  ptr - ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1123,10 +1123,10 @@ test "codegen of loading i64x2 through pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): i64x2
+        \\start(): i64x2 {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1174,10 +1174,10 @@ test "codegen of binary op on two int vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
-                \\end
+                \\}}
             , .{ type_string, type_string, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -1228,10 +1228,10 @@ test "codegen of binary op on two float vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start = fn(): {s}
+                \\start(): {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
-                \\end
+                \\}}
             , .{ type_string, type_string, op_string }));
             const module = try analyzeSemantics(codebase, fs, "foo.yeti");
             try codegen(module);
@@ -1274,10 +1274,10 @@ test "codegen of storing i64x2 through pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): void
+        \\start(): void {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr = *ptr
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1318,14 +1318,14 @@ test "codegen of struct" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): Rectangle
+        \\start(): Rectangle {
         \\  Rectangle(10, 30)
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1351,16 +1351,16 @@ test "codegen of struct field write" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\Rectangle = struct
+        \\struct Rectangle {
         \\  width: f64
         \\  height: f64
-        \\end
+        \\}
         \\
-        \\start = fn(): Rectangle
+        \\start(): Rectangle {
         \\  r = Rectangle(10, 30)
         \\  r.width = 45
         \\  r
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1410,9 +1410,9 @@ test "codegen of string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): []u8
+        \\start(): []u8 {
         \\  "hello world"
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
@@ -1443,10 +1443,10 @@ test "codegen of array index" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start = fn(): u8
+        \\start(): u8 {
         \\  text = "hello world"
         \\  text[0]
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
