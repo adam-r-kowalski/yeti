@@ -18,6 +18,7 @@ const test_struct = @import("test_struct.zig");
 const test_while = @import("test_while.zig");
 const test_for = @import("test_for.zig");
 const test_strings = @import("test_strings.zig");
+const test_simd = @import("test_simd.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
