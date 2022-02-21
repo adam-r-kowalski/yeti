@@ -42,3 +42,84 @@ test "parse function with return type inference" {
     try expectEqual(zero.get(components.AstKind), .int);
     try expectEqualStrings(literalOf(zero), "0");
 }
+
+test "analyze semantics of function with return type inference int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start() {
+        \\  0
+        \\}
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I32);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const zero = body[0];
+    try expectEqual(zero.get(components.AstKind), .int);
+    try expectEqual(typeOf(zero), builtins.I32);
+    try expectEqualStrings(literalOf(zero), "0");
+}
+
+test "analyze semantics of function with return type inference float literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start() {
+        \\  0.5
+        \\}
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.F32);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const zero = body[0];
+    try expectEqual(zero.get(components.AstKind), .float);
+    try expectEqual(typeOf(zero), builtins.F32);
+    try expectEqualStrings(literalOf(zero), "0.5");
+}
+
+test "analyze semantics of function with return type inference character literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start() {
+        \\  'h'
+        \\}
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.U8);
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const h = body[0];
+    try expectEqual(h.get(components.AstKind), .int);
+    try expectEqual(typeOf(h), builtins.U8);
+    try expectEqualStrings(literalOf(h), "104");
+}

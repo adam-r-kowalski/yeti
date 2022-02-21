@@ -249,6 +249,7 @@ test "parse overload" {
         try expectEqualStrings(literalOf(id_f64.get(components.ReturnTypeAst).entity), "f64");
     }
 }
+
 test "analyze semantics call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

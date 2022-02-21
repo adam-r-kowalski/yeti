@@ -1153,12 +1153,6 @@ fn Context(comptime FileSystem: type) type {
             _ = try self.function.set(.{components.AnalyzedParameters{ .value = true }});
         }
 
-        fn analyzeFunctionReturnType(self: *Self) !Entity {
-            const return_type = try self.analyzeExpression(self.function.get(components.ReturnTypeAst).entity);
-            _ = try self.function.set(.{components.ReturnType.init(return_type)});
-            return return_type;
-        }
-
         fn analyzeFunctionBody(self: *Self, body: []const Entity) !Entity {
             var analyzed_body = try components.Body.withCapacity(self.allocator, body.len);
             for (body) |expression| {
@@ -1178,14 +1172,36 @@ fn Context(comptime FileSystem: type) type {
             if (!self.function.contains(components.AnalyzedParameters)) {
                 try self.analyzeFunctionParameters();
             }
-            const return_type = try self.analyzeFunctionReturnType();
+            const return_type = blk: {
+                if (self.function.has(components.ReturnTypeAst)) |return_type_ast| {
+                    const analyzed = try self.analyzeExpression(return_type_ast.entity);
+                    _ = try self.function.set(.{components.ReturnType.init(analyzed)});
+                    break :blk analyzed;
+                } else {
+                    break :blk null;
+                }
+            };
             if (self.function.has(components.Body)) |body| {
                 _ = try self.codebase.getPtr(components.Functions).append(self.function);
                 const return_entity = try self.analyzeFunctionBody(body.slice());
-                try self.implicitTypeConversion(return_entity, return_type);
+                if (return_type) |entity| {
+                    try self.implicitTypeConversion(return_entity, entity);
+                }
                 for (self.function.get(components.IntLiterals).slice()) |int_literal| {
                     if (eql(typeOf(int_literal), self.builtins.IntLiteral)) {
                         try self.implicitTypeConversion(int_literal, self.builtins.I32);
+                    }
+                }
+                if (return_type == null) {
+                    const return_entity_type = typeOf(return_entity);
+                    if (eql(return_entity_type, self.builtins.IntLiteral)) {
+                        try self.implicitTypeConversion(return_entity, self.builtins.I32);
+                        _ = try self.function.set(.{components.ReturnType.init(self.builtins.I32)});
+                    } else if (eql(return_entity_type, self.builtins.FloatLiteral)) {
+                        try self.implicitTypeConversion(return_entity, self.builtins.F32);
+                        _ = try self.function.set(.{components.ReturnType.init(self.builtins.F32)});
+                    } else {
+                        _ = try self.function.set(.{components.ReturnType.init(return_entity_type)});
                     }
                 }
             } else {
