@@ -24,6 +24,7 @@ const test_assignment = @import("test_assignment.zig");
 const test_if = @import("test_if.zig");
 const test_binary_op = @import("test_binary_op.zig");
 const test_define = @import("test_define.zig");
+const test_function = @import("test_function.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
