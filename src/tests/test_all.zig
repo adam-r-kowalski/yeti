@@ -23,6 +23,7 @@ const test_pointer = @import("test_pointer.zig");
 const test_assignment = @import("test_assignment.zig");
 const test_if = @import("test_if.zig");
 const test_binary_op = @import("test_binary_op.zig");
+const test_define = @import("test_define.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
