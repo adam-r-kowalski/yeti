@@ -11,10 +11,10 @@ const analyzeSemantics = yeti.analyzeSemantics;
 const codegen = yeti.codegen;
 const printWasm = yeti.printWasm;
 const components = yeti.components;
-const literalOf = yeti.test_utils.literalOf;
-const typeOf = yeti.test_utils.typeOf;
-const parentType = yeti.test_utils.parentType;
-const valueType = yeti.test_utils.valueType;
+const literalOf = yeti.query.literalOf;
+const typeOf = yeti.query.typeOf;
+const parentType = yeti.query.parentType;
+const valueType = yeti.query.valueType;
 const Entity = yeti.ecs.Entity;
 const MockFileSystem = yeti.FileSystem;
 

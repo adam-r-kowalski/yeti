@@ -13,4 +13,4 @@ pub const printWasm = @import("wasm_printer.zig").printWasm;
 pub const printErrors = @import("error_printer.zig").printErrors;
 pub const colors = @import("colors.zig");
 pub const components = @import("components.zig");
-pub const test_utils = @import("test_utils.zig");
+pub const query = @import("query.zig");

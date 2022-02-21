@@ -9,10 +9,10 @@ const MockFileSystem = yeti.FileSystem;
 const components = yeti.components;
 const tokenize = yeti.tokenize;
 const analyzeSemantics = yeti.analyzeSemantics;
-const literalOf = yeti.test_utils.literalOf;
-const typeOf = yeti.test_utils.typeOf;
-const parentType = yeti.test_utils.parentType;
-const valueType = yeti.test_utils.valueType;
+const literalOf = yeti.query.literalOf;
+const typeOf = yeti.query.typeOf;
+const parentType = yeti.query.parentType;
+const valueType = yeti.query.valueType;
 const Entity = yeti.ecs.Entity;
 
 test "tokenize uniform function call syntax" {

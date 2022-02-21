@@ -8,9 +8,9 @@ const ECS = ecs.ECS;
 const Entity = ecs.Entity;
 const Strings = @import("strings.zig").Strings;
 const components = @import("components.zig");
-const test_utils = @import("test_utils.zig");
-const literalOf = test_utils.literalOf;
-const typeOf = test_utils.typeOf;
+const query = @import("query.zig");
+const literalOf = query.literalOf;
+const typeOf = query.typeOf;
 
 pub fn initCodebase(arena: *Arena) !*ECS {
     const codebase = try arena.allocator().create(ECS);

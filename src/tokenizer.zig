@@ -9,7 +9,7 @@ const Entity = ecs.Entity;
 const ECS = ecs.ECS;
 const List = @import("list.zig").List;
 const Strings = @import("strings.zig").Strings;
-const literalOf = @import("test_utils.zig").literalOf;
+const literalOf = @import("query.zig").literalOf;
 const components = @import("components.zig");
 
 const Source = struct {

@@ -19,11 +19,11 @@ const tokenize = @import("tokenizer.zig").tokenize;
 const parse = @import("parser.zig").parse;
 const MockFileSystem = @import("file_system.zig").FileSystem;
 const components = @import("components.zig");
-const test_utils = @import("test_utils.zig");
-const literalOf = test_utils.literalOf;
-const typeOf = test_utils.typeOf;
-const parentType = test_utils.parentType;
-const valueType = test_utils.valueType;
+const query = @import("query.zig");
+const literalOf = query.literalOf;
+const typeOf = query.typeOf;
+const parentType = query.parentType;
+const valueType = query.valueType;
 const colors = @import("colors.zig");
 
 fn Context(comptime FileSystem: type) type {
