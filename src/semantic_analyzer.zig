@@ -497,14 +497,14 @@ fn Context(comptime FileSystem: type) type {
             });
         }
 
-        fn uniformFunctionCallSyntax(self: *Self, lhs: Entity, rhs: Entity) !Entity {
+        fn uniformFunctionCall(self: *Self, lhs: Entity, rhs: Entity) !Entity {
             const span = components.Span.init(
                 lhs.get(components.Span).begin,
                 rhs.get(components.Span).end,
             );
             switch (rhs.get(components.AstKind)) {
                 .call => {
-                    const call_arguments = try self.pipelineArguments(lhs, rhs);
+                    const call_arguments = try self.uniformFunctionCallArguments(lhs, rhs);
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         rhs.get(components.Callable),
@@ -563,18 +563,18 @@ fn Context(comptime FileSystem: type) type {
                             }
                         },
                         .call => {
-                            return try self.uniformFunctionCallSyntax(lhs, rhs);
+                            return try self.uniformFunctionCall(lhs, rhs);
                         },
                         else => |k| panic("\nanalyzed ot invalid rhs kind {}\n", .{k}),
                     }
                 } else {
-                    return try self.uniformFunctionCallSyntax(lhs, rhs);
+                    return try self.uniformFunctionCall(lhs, rhs);
                 }
             }
-            return try self.uniformFunctionCallSyntax(lhs, rhs);
+            return try self.uniformFunctionCall(lhs, rhs);
         }
 
-        fn pipelineArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
+        fn uniformFunctionCallArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
             const arguments = call.get(components.Arguments).slice();
             var underscore: ?u64 = null;
             for (arguments) |argument, i| {

@@ -74,13 +74,6 @@ fn functionName(function: Entity) ![]const u8 {
             assert(eql(parent_type.entity, builtins.Array));
             try wasm_name.appendSlice("array.");
             try wasm_name.appendSlice(literal[2..]);
-            // for (literal) |c| {
-            //     switch (c) {
-            //         '(' => try wasm_name.append('.'),
-            //         ')' => continue,
-            //         else => try wasm_name.append(c),
-            //     }
-            // }
         } else {
             try wasm_name.appendSlice(literal);
         }
