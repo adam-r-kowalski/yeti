@@ -49,48 +49,9 @@ fn parseArray(codebase: *ECS, tokens: *Tokens, left_bracket: Entity) !Entity {
     });
 }
 
-fn parseIfOldSyntax(codebase: *ECS, tokens: *Tokens, if_: Entity, conditional: components.Conditional) !Entity {
-    const allocator = codebase.arena.allocator();
-    const begin = if_.get(components.Span).begin;
-    var then = components.Then.init(allocator);
-    while (true) {
-        if (tokens.peek()) |token| {
-            switch (token.get(components.TokenKind)) {
-                .new_line => _ = tokens.next(),
-                .else_ => {
-                    _ = tokens.next();
-                    break;
-                },
-                else => try then.append(try parseExpression(codebase, tokens, LOWEST)),
-            }
-        } else break;
-    }
-    var else_ = components.Else.init(allocator);
-    const result = try codebase.createEntity(.{
-        components.AstKind.if_,
-        conditional,
-        then,
-    });
-    while (true) {
-        if (tokens.peek()) |token| {
-            switch (token.get(components.TokenKind)) {
-                .new_line => _ = tokens.next(),
-                .end => {
-                    const end = tokens.next().?.get(components.Span).end;
-                    _ = try result.set(.{
-                        else_,
-                        components.Span.init(begin, end),
-                    });
-                    break;
-                },
-                else => try else_.append(try parseExpression(codebase, tokens, LOWEST)),
-            }
-        } else break;
-    }
-    return result;
-}
-
-fn parseIfNewSyntax(codebase: *ECS, tokens: *Tokens, if_: Entity, conditional: components.Conditional) !Entity {
+fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
+    const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
+    assert(tokens.next().?.get(components.TokenKind) == .left_brace);
     const allocator = codebase.arena.allocator();
     const begin = if_.get(components.Span).begin;
     var then = components.Then.init(allocator);
@@ -133,110 +94,14 @@ fn parseIfNewSyntax(codebase: *ECS, tokens: *Tokens, if_: Entity, conditional: c
     return result;
 }
 
-fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
-    const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
-    switch (tokens.next().?.get(components.TokenKind)) {
-        .then => return parseIfOldSyntax(codebase, tokens, if_, conditional),
-        .left_brace => return parseIfNewSyntax(codebase, tokens, if_, conditional),
-        else => |k| panic("\nparse if unsupported kind {}\n", .{k}),
-    }
-}
-
-fn parseWhileOldSyntax(codebase: *ECS, tokens: *Tokens, while_: Entity, conditional: components.Conditional) !Entity {
-    const begin = while_.get(components.Span).begin;
-    var body = components.Body.init(codebase.arena.allocator());
-    const result = try codebase.createEntity(.{
-        components.AstKind.while_,
-        conditional,
-    });
-    while (true) {
-        if (tokens.peek()) |token| {
-            switch (token.get(components.TokenKind)) {
-                .new_line => _ = tokens.next(),
-                .end => {
-                    const end = tokens.next().?.get(components.Span).end;
-                    _ = try result.set(.{
-                        body,
-                        components.Span.init(begin, end),
-                    });
-                    break;
-                },
-                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
-            }
-        } else break;
-    }
-    return result;
-}
-
-fn parseWhileNewSyntax(codebase: *ECS, tokens: *Tokens, while_: Entity, conditional: components.Conditional) !Entity {
-    const begin = while_.get(components.Span).begin;
-    var body = components.Body.init(codebase.arena.allocator());
-    const result = try codebase.createEntity(.{
-        components.AstKind.while_,
-        conditional,
-    });
-    while (true) {
-        if (tokens.peek()) |token| {
-            switch (token.get(components.TokenKind)) {
-                .new_line => _ = tokens.next(),
-                .right_brace => {
-                    const end = tokens.next().?.get(components.Span).end;
-                    _ = try result.set(.{
-                        body,
-                        components.Span.init(begin, end),
-                    });
-                    break;
-                },
-                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
-            }
-        } else break;
-    }
-    return result;
-}
-
 fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
     const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
-    switch (tokens.next().?.get(components.TokenKind)) {
-        .do => return parseWhileOldSyntax(codebase, tokens, while_, conditional),
-        .left_brace => return parseWhileNewSyntax(codebase, tokens, while_, conditional),
-        else => |k| panic("\nparse while unsupported kind {}\n", .{k}),
-    }
-}
-
-fn parseForOldSyntax(codebase: *ECS, tokens: *Tokens, for_: Entity, loop_variable: Entity, iterator: Entity) !Entity {
-    const begin = for_.get(components.Span).begin;
+    assert(tokens.next().?.get(components.TokenKind) == .left_brace);
+    const begin = while_.get(components.Span).begin;
     var body = components.Body.init(codebase.arena.allocator());
     const result = try codebase.createEntity(.{
-        components.AstKind.for_,
-        components.LoopVariable.init(loop_variable),
-        components.Iterator.init(iterator),
-    });
-    while (true) {
-        if (tokens.peek()) |token| {
-            switch (token.get(components.TokenKind)) {
-                .new_line => _ = tokens.next(),
-                .end => {
-                    const end = tokens.next().?.get(components.Span).end;
-                    _ = try result.set(.{
-                        body,
-                        components.Span.init(begin, end),
-                    });
-                    break;
-                },
-                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
-            }
-        } else break;
-    }
-    return result;
-}
-
-fn parseForNewSyntax(codebase: *ECS, tokens: *Tokens, for_: Entity, loop_variable: Entity, iterator: Entity) !Entity {
-    const begin = for_.get(components.Span).begin;
-    var body = components.Body.init(codebase.arena.allocator());
-    const result = try codebase.createEntity(.{
-        components.AstKind.for_,
-        components.LoopVariable.init(loop_variable),
-        components.Iterator.init(iterator),
+        components.AstKind.while_,
+        conditional,
     });
     while (true) {
         if (tokens.peek()) |token| {
@@ -256,16 +121,37 @@ fn parseForNewSyntax(codebase: *ECS, tokens: *Tokens, for_: Entity, loop_variabl
     }
     return result;
 }
+
 fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
     const loop_variable = tokens.consume(.symbol);
     _ = tokens.consume(.in);
     const iterator = try parseExpression(codebase, tokens, LOWEST);
     assert(iterator.get(components.AstKind) == .range);
-    switch (tokens.next().?.get(components.TokenKind)) {
-        .do => return parseForOldSyntax(codebase, tokens, for_, loop_variable, iterator),
-        .left_brace => return parseForNewSyntax(codebase, tokens, for_, loop_variable, iterator),
-        else => |k| panic("\nparse for unsupported kind {}\n", .{k}),
+    assert(tokens.next().?.get(components.TokenKind) == .left_brace);
+    const begin = for_.get(components.Span).begin;
+    var body = components.Body.init(codebase.arena.allocator());
+    const result = try codebase.createEntity(.{
+        components.AstKind.for_,
+        components.LoopVariable.init(loop_variable),
+        components.Iterator.init(iterator),
+    });
+    while (true) {
+        if (tokens.peek()) |token| {
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .right_brace => {
+                    const end = tokens.next().?.get(components.Span).end;
+                    _ = try result.set(.{
+                        body,
+                        components.Span.init(begin, end),
+                    });
+                    break;
+                },
+                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
+            }
+        } else break;
     }
+    return result;
 }
 
 fn parsePointer(codebase: *ECS, tokens: *Tokens, star: Entity) !Entity {
@@ -360,7 +246,6 @@ const InfixParser = union(enum) {
                 .equal_equal => return InfixParser{ .binary_op = .{ .op = .equal, .precedence = EQUAL } },
                 .bang_equal => return InfixParser{ .binary_op = .{ .op = .not_equal, .precedence = NOT_EQUAL } },
                 .bar => return InfixParser{ .binary_op = .{ .op = .bit_or, .precedence = BIT_OR } },
-                .bar_greater => return InfixParser{ .binary_op = .{ .op = .pipeline, .precedence = PIPELINE } },
                 .caret => return InfixParser{ .binary_op = .{ .op = .bit_xor, .precedence = BIT_XOR } },
                 .ampersand => return InfixParser{ .binary_op = .{ .op = .bit_and, .precedence = BIT_AND } },
                 .equal => return InfixParser.define_type_infer,
@@ -535,31 +420,13 @@ fn parseFunctionBody(codebase: *ECS, tokens: *Tokens) !components.Body {
     while (true) {
         if (tokens.peek()) |token| {
             switch (token.get(components.TokenKind)) {
-                .end, .right_brace => break,
+                .right_brace => break,
                 .new_line => _ = tokens.next(),
                 else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
             }
         } else break;
     }
     return body;
-}
-
-pub fn parseFunction(codebase: *ECS, tokens: *Tokens) !Entity {
-    const begin = tokens.consume(.fn_).get(components.Span).begin;
-    _ = tokens.consume(.left_paren);
-    const parameters = try parseFunctionParameters(codebase, tokens);
-    _ = tokens.consume(.colon);
-    const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
-    const body = try parseFunctionBody(codebase, tokens);
-    const end = tokens.consume(.end).get(components.Span).end;
-    const span = components.Span.init(begin, end);
-    return try codebase.createEntity(.{
-        components.AstKind.function,
-        parameters,
-        return_type,
-        body,
-        span,
-    });
 }
 
 pub fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
@@ -571,30 +438,6 @@ pub fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
     return try codebase.createEntity(.{
         components.AstKind.import,
         path,
-        span,
-    });
-}
-
-fn parseForeignImport(codebase: *ECS, tokens: *Tokens) !Entity {
-    const begin = tokens.consume(.foreign_import).get(components.Span).begin;
-    _ = tokens.consume(.left_paren);
-    const foreign_module = components.ForeignModule.init(tokens.consume(.string));
-    _ = tokens.consume(.comma);
-    const foreign_name = components.ForeignName.init(tokens.consume(.string));
-    _ = tokens.consume(.comma);
-    _ = tokens.consume(.symbol);
-    _ = tokens.consume(.left_paren);
-    const parameters = try parseFunctionParameters(codebase, tokens);
-    _ = tokens.consume(.colon);
-    const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
-    const end = tokens.consume(.right_paren).get(components.Span).end;
-    const span = components.Span.init(begin, end);
-    return try codebase.createEntity(.{
-        components.AstKind.function,
-        foreign_module,
-        foreign_name,
-        parameters,
-        return_type,
         span,
     });
 }
@@ -615,37 +458,7 @@ fn overloadFunction(top_level: *components.TopLevel, function: Entity, name: com
     }
 }
 
-fn parseStruct(codebase: *ECS, tokens: *Tokens) !Entity {
-    const begin = tokens.consume(.struct_).get(components.Span).begin;
-    var fields = components.Fields.init(codebase.arena.allocator());
-    while (tokens.next()) |token| {
-        const kind = token.get(components.TokenKind);
-        switch (kind) {
-            .end => {
-                const end = token.get(components.Span).end;
-                const span = components.Span.init(begin, end);
-                return try codebase.createEntity(.{
-                    components.AstKind.struct_,
-                    fields,
-                    span,
-                    components.Type.init(codebase.get(components.Builtins).Type),
-                });
-            },
-            .new_line => continue,
-            .symbol => {
-                _ = tokens.consume(.colon);
-                _ = try token.set(.{
-                    components.TypeAst.init(try parseExpression(codebase, tokens, LOWEST)),
-                });
-                try fields.append(token);
-            },
-            else => panic("\ninvalid token kind, {}\n", .{kind}),
-        }
-    }
-    panic("\ncompiler bug in parse struct\n", .{});
-}
-
-pub fn parseFunctionNewSyntax(codebase: *ECS, tokens: *Tokens, name: Entity) !Entity {
+pub fn parseFunction(codebase: *ECS, tokens: *Tokens, name: Entity) !Entity {
     const begin = name.get(components.Span).begin;
     const parameters = try parseFunctionParameters(codebase, tokens);
     _ = tokens.consume(.colon);
@@ -668,43 +481,23 @@ fn parseTopLevel(tokens: *Tokens, top_level: *components.TopLevel, token: Entity
     switch (tokens.next().?.get(components.TokenKind)) {
         .equal => {
             switch (tokens.peek().?.get(components.TokenKind)) {
-                .fn_ => {
-                    const function = try parseFunction(token.ecs, tokens);
-                    try overloadFunction(top_level, function, name);
-                },
                 .import => {
                     const import = try parseImport(token.ecs, tokens);
                     _ = try import.set(.{name});
                     try top_level.putName(name, import);
                 },
-                .foreign_import => {
-                    const function = try parseForeignImport(token.ecs, tokens);
-                    try overloadFunction(top_level, function, name);
-                },
-                .struct_ => {
-                    const struct_ = try parseStruct(token.ecs, tokens);
-                    _ = try struct_.set(.{token.get(components.Literal)});
-                    try overloadFunction(top_level, struct_, name);
-                },
                 else => |k| panic("\ncannot parse top level expression {}\n", .{k}),
             }
         },
         .left_paren => {
-            const function = try parseFunctionNewSyntax(token.ecs, tokens, token);
+            const function = try parseFunction(token.ecs, tokens, token);
             try overloadFunction(top_level, function, name);
         },
         else => |k| panic("\ncannot parse top level expression {}\n", .{k}),
     }
 }
 
-fn parseForeignExport(tokens: *Tokens, foreign_exports: *components.ForeignExports) !void {
-    _ = tokens.consume(.left_paren);
-    const foreign_export = tokens.consume(.symbol);
-    _ = tokens.consume(.right_paren);
-    try foreign_exports.append(foreign_export);
-}
-
-fn parseStructNewSyntax(tokens: *Tokens, top_level: *components.TopLevel, struct_token: Entity) !void {
+fn parseStruct(tokens: *Tokens, top_level: *components.TopLevel, struct_token: Entity) !void {
     const codebase = struct_token.ecs;
     const begin = struct_token.get(components.Span).begin;
     const name = tokens.consume(.symbol);
@@ -740,16 +533,16 @@ fn parseStructNewSyntax(tokens: *Tokens, top_level: *components.TopLevel, struct
     panic("\ncompiler bug in parse struct\n", .{});
 }
 
-fn parseAttributeForeignExport(tokens: *Tokens, top_level: *components.TopLevel, foreign_exports: *components.ForeignExports) !void {
+fn parseAttributeExport(tokens: *Tokens, top_level: *components.TopLevel, foreign_exports: *components.ForeignExports) !void {
     _ = tokens.consume(.new_line);
     const name = tokens.consume(.symbol);
     _ = tokens.consume(.left_paren);
-    const function = try parseFunctionNewSyntax(name.ecs, tokens, name);
+    const function = try parseFunction(name.ecs, tokens, name);
     try overloadFunction(top_level, function, components.Name.init(name));
     try foreign_exports.append(name);
 }
 
-fn parseAttributeForeignImport(tokens: *Tokens, top_level: *components.TopLevel) !void {
+fn parseAttributeImport(tokens: *Tokens, top_level: *components.TopLevel) !void {
     const begin = tokens.consume(.left_paren).get(components.Span).begin;
     const foreign_module = components.ForeignModule.init(tokens.consume(.string));
     _ = tokens.consume(.comma);
@@ -784,11 +577,10 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
         const kind = token.get(components.TokenKind);
         switch (kind) {
             .symbol => try parseTopLevel(tokens, &top_level, token),
-            .foreign_export => try parseForeignExport(tokens, &foreign_exports),
             .new_line => continue,
-            .struct_ => try parseStructNewSyntax(tokens, &top_level, token),
-            .attribute_export => try parseAttributeForeignExport(tokens, &top_level, &foreign_exports),
-            .attribute_import => try parseAttributeForeignImport(tokens, &top_level),
+            .struct_ => try parseStruct(tokens, &top_level, token),
+            .attribute_export => try parseAttributeExport(tokens, &top_level, &foreign_exports),
+            .attribute_import => try parseAttributeImport(tokens, &top_level),
             else => panic("\nparse unsupported kind {}\n", .{kind}),
         }
     }

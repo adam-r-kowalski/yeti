@@ -497,14 +497,14 @@ fn Context(comptime FileSystem: type) type {
             });
         }
 
-        fn uniformFunctionCallSyntax(self: *Self, lhs: Entity, rhs: Entity) !Entity {
+        fn uniformFunctionCall(self: *Self, lhs: Entity, rhs: Entity) !Entity {
             const span = components.Span.init(
                 lhs.get(components.Span).begin,
                 rhs.get(components.Span).end,
             );
             switch (rhs.get(components.AstKind)) {
                 .call => {
-                    const call_arguments = try self.pipelineArguments(lhs, rhs);
+                    const call_arguments = try self.uniformFunctionCallArguments(lhs, rhs);
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         rhs.get(components.Callable),
@@ -563,18 +563,18 @@ fn Context(comptime FileSystem: type) type {
                             }
                         },
                         .call => {
-                            return try self.uniformFunctionCallSyntax(lhs, rhs);
+                            return try self.uniformFunctionCall(lhs, rhs);
                         },
                         else => |k| panic("\nanalyzed ot invalid rhs kind {}\n", .{k}),
                     }
                 } else {
-                    return try self.uniformFunctionCallSyntax(lhs, rhs);
+                    return try self.uniformFunctionCall(lhs, rhs);
                 }
             }
-            return try self.uniformFunctionCallSyntax(lhs, rhs);
+            return try self.uniformFunctionCall(lhs, rhs);
         }
 
-        fn pipelineArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
+        fn uniformFunctionCallArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
             const arguments = call.get(components.Arguments).slice();
             var underscore: ?u64 = null;
             for (arguments) |argument, i| {
@@ -594,78 +594,6 @@ fn Context(comptime FileSystem: type) type {
             const call_arguments = try components.Arguments.fromSlice(self.allocator, arguments);
             call_arguments.mutSlice()[underscore.?] = lhs;
             return call_arguments;
-        }
-
-        fn analyzePipeline(self: *Self, entity: Entity) !Entity {
-            const arguments = entity.get(components.Arguments).slice();
-            const lhs = arguments[0];
-            const rhs = arguments[1];
-            const span = components.Span.init(
-                lhs.get(components.Span).begin,
-                rhs.get(components.Span).end,
-            );
-            switch (rhs.get(components.AstKind)) {
-                .call => {
-                    const call_arguments = try self.pipelineArguments(lhs, rhs);
-                    const call = try self.codebase.createEntity(.{
-                        components.AstKind.call,
-                        rhs.get(components.Callable),
-                        call_arguments,
-                        span,
-                    });
-                    return try self.analyzeCall(call, self);
-                },
-                .symbol => {
-                    const call_arguments = try components.Arguments.fromSlice(self.allocator, &.{lhs});
-                    const call = try self.codebase.createEntity(.{
-                        components.AstKind.call,
-                        components.Callable.init(rhs),
-                        call_arguments,
-                        span,
-                    });
-                    return try self.analyzeCall(call, self);
-                },
-                .binary_op => {
-                    assert(rhs.get(components.BinaryOp) == .dot);
-                    const dot_arguments = rhs.get(components.Arguments).slice();
-                    const call = dot_arguments[1];
-                    const new_call = blk: {
-                        switch (call.get(components.AstKind)) {
-                            .call => {
-                                const call_arguments = try self.pipelineArguments(lhs, call);
-                                break :blk try self.codebase.createEntity(.{
-                                    components.AstKind.call,
-                                    call.get(components.Callable),
-                                    call_arguments,
-                                    span,
-                                });
-                            },
-                            .symbol => {
-                                const call_arguments = try components.Arguments.fromSlice(self.allocator, &.{lhs});
-                                break :blk try self.codebase.createEntity(.{
-                                    components.AstKind.call,
-                                    components.Callable.init(call),
-                                    call_arguments,
-                                    span,
-                                });
-                            },
-                            else => panic("\nshould not have gotten here\n", .{}),
-                        }
-                    };
-                    const new_dot_arguments = try components.Arguments.fromSlice(self.allocator, &.{
-                        dot_arguments[0], new_call,
-                    });
-                    const dot = try self.codebase.createEntity(.{
-                        components.AstKind.binary_op,
-                        components.BinaryOp.dot,
-                        new_dot_arguments,
-                        span,
-                    });
-                    return try self.analyzeDot(dot);
-                },
-                else => panic("\nshould not have gotten here\n", .{}),
-            }
-            return entity;
         }
 
         fn analyzePointerArithmetic(self: *Self, lhs: Entity, rhs: Entity, intrinsic: components.Intrinsic) !Entity {
@@ -772,7 +700,6 @@ fn Context(comptime FileSystem: type) type {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
                 .dot => self.analyzeDot(entity),
-                .pipeline => self.analyzePipeline(entity),
                 .add => self.analyzeIntrinsic(entity, .add, false),
                 .subtract => self.analyzeIntrinsic(entity, .subtract, false),
                 .multiply => self.analyzeIntrinsic(entity, .multiply, false),

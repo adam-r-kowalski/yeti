@@ -247,7 +247,7 @@ test "analyze semantics if with different type branches" {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\start(): {s} {{
-            \\  if 1 then 20 else f() end
+            \\  if 1 {{ 20 }} else {{ f() }}
             \\}}
             \\
             \\f(): {s} {{
