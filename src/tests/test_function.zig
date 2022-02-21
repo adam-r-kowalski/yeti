@@ -159,7 +159,7 @@ test "tokenize multine function" {
     try expectEqual(tokens.next(), null);
 }
 
-test "parse new function syntax" {
+test "parse function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -185,6 +185,70 @@ test "parse new function syntax" {
     try expectEqualStrings(literalOf(zero), "0");
 }
 
+test "parse two functions" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\sum_of_squares(x: u64, y: u64): u64 {
+        \\  x*2 + y*2
+        \\}
+        \\
+        \\start(): u64 {
+        \\  sum_of_squares(10, 56 * 3)
+        \\}
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    {
+        const sum_of_squares = module.get(components.TopLevel).findString("sum_of_squares");
+        const overloads = sum_of_squares.get(components.Overloads).slice();
+        try expectEqual(overloads.len, 1);
+        try expectEqual(overloads[0].get(components.Parameters).slice().len, 2);
+    }
+    {
+        const start = module.get(components.TopLevel).findString("start");
+        const overloads = start.get(components.Overloads).slice();
+        try expectEqual(overloads.len, 1);
+        try expectEqual(overloads[0].get(components.Parameters).slice().len, 0);
+    }
+}
+
+test "parse overload" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\id(x: u64): u64 { x }
+        \\
+        \\id(x: f64): f64 { x }
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const id = module.get(components.TopLevel).findString("id");
+    const overloads = id.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 2);
+    {
+        const id_u64 = overloads[0];
+        const parameters = id_u64.get(components.Parameters).slice();
+        try expectEqual(parameters.len, 1);
+        const x = parameters[0];
+        try expectEqualStrings(literalOf(x), "x");
+        try expectEqualStrings(literalOf(x.get(components.TypeAst).entity), "u64");
+        try expectEqualStrings(literalOf(id_u64.get(components.ReturnTypeAst).entity), "u64");
+    }
+    {
+        const id_f64 = overloads[1];
+        const parameters = id_f64.get(components.Parameters).slice();
+        try expectEqual(parameters.len, 1);
+        const x = parameters[0];
+        try expectEqualStrings(literalOf(x), "x");
+        try expectEqualStrings(literalOf(x.get(components.TypeAst).entity), "f64");
+        try expectEqualStrings(literalOf(id_f64.get(components.ReturnTypeAst).entity), "f64");
+    }
+}
 test "analyze semantics call local function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

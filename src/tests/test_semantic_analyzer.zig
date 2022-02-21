@@ -14,66 +14,6 @@ const parentType = yeti.test_utils.parentType;
 const valueType = yeti.test_utils.valueType;
 const Entity = yeti.ecs.Entity;
 
-test "analyze semantics int literal" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "i64", "i32", "u64", "u32", "f64", "f32" };
-    const builtin_types = [_]Entity{ builtins.I64, builtins.I32, builtins.U64, builtins.U32, builtins.F64, builtins.F32 };
-    for (types) |type_of, i| {
-        var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
-            \\  5
-            \\}}
-        , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-        const top_level = module.get(components.TopLevel);
-        const start = top_level.findString("start").get(components.Overloads).slice()[0];
-        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
-        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
-        try expectEqual(start.get(components.Parameters).len(), 0);
-        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.Body).slice();
-        try expectEqual(body.len, 1);
-        const int_literal = body[0];
-        try expectEqual(int_literal.get(components.AstKind), .int);
-        try expectEqual(typeOf(int_literal), builtin_types[i]);
-        try expectEqualStrings(literalOf(int_literal), "5");
-    }
-}
-
-test "analyze semantics float literal" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const builtins = codebase.get(components.Builtins);
-    const types = [_][]const u8{ "f64", "f32" };
-    const builtin_types = [_]Entity{ builtins.F64, builtins.F32 };
-    for (types) |type_of, i| {
-        var fs = try MockFileSystem.init(&arena);
-        _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
-            \\  5.3
-            \\}}
-        , .{type_of}));
-        const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-        const top_level = module.get(components.TopLevel);
-        const start = top_level.findString("start").get(components.Overloads).slice()[0];
-        try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
-        try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
-        try expectEqual(start.get(components.Parameters).len(), 0);
-        try expectEqual(start.get(components.ReturnType).entity, builtin_types[i]);
-        const body = start.get(components.Body).slice();
-        try expectEqual(body.len, 1);
-        const float_literal = body[0];
-        try expectEqual(float_literal.get(components.AstKind), .float);
-        try expectEqual(typeOf(float_literal), builtin_types[i]);
-        try expectEqualStrings(literalOf(float_literal), "5.3");
-    }
-}
-
 test "analyze semantics call function import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -221,31 +161,4 @@ test "analyze semantics of calling imported function twice" {
     try expectEqual(typeOf(f_inner), builtins.I64);
     const f_inner_callable = f_inner.get(components.Callable).entity;
     try expectEqual(f_inner_callable, f_callable);
-}
-
-test "analyze semantics of char literal" {
-    var arena = Arena.init(std.heap.page_allocator);
-    defer arena.deinit();
-    var codebase = try initCodebase(&arena);
-    const builtins = codebase.get(components.Builtins);
-    var fs = try MockFileSystem.init(&arena);
-    _ = try fs.newFile("foo.yeti",
-        \\start(): u8 {
-        \\  'h'
-        \\}
-    );
-    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
-    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
-    const top_level = module.get(components.TopLevel);
-    const start = top_level.findString("start").get(components.Overloads).slice()[0];
-    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
-    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
-    try expectEqual(start.get(components.Parameters).len(), 0);
-    try expectEqual(start.get(components.ReturnType).entity, builtins.U8);
-    const body = start.get(components.Body).slice();
-    try expectEqual(body.len, 1);
-    const h = body[0];
-    try expectEqual(h.get(components.AstKind), .int);
-    try expectEqual(typeOf(h), builtins.U8);
-    try expectEqualStrings(literalOf(h), "104");
 }
