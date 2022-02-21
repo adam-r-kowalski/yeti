@@ -11,14 +11,14 @@ test "filesystem create and lookup file" {
     defer arena.deinit();
     var fs = try FileSystem.init(&arena);
     const foo = try fs.newFile("foo.yeti",
-        \\a = function(): U64 10 end
+        \\a(): u64 { 10 }
         \\
-        \\b = function(): U64 a() end
+        \\b(): u64 { a() }
     );
     _ = try fs.newFile("bar.yeti",
-        \\c = function(): U64 d() end
+        \\c(): u64 { d() }
         \\
-        \\d = function(): U64 5 end
+        \\d(): u64 { 5 }
     );
     const contents = try fs.read("foo.yeti");
     try expectEqualStrings(foo.get(Contents).bytes, contents);

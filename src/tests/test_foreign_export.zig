@@ -82,6 +82,33 @@ test "analyze semantics of foreign export" {
     try expectEqual(body.len, 1);
 }
 
+test "analyze semantics of foreign exports with recursion" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\@export
+        \\fib(n: i64): i64 {
+        \\  if n < 2 {
+        \\    0
+        \\  } else {
+        \\    fib(n - 1) + fib(n - 2)
+        \\  }
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const fib = top_level.findString("fib").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(fib.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(fib.get(components.Name).entity), "fib");
+    try expectEqual(fib.get(components.Parameters).len(), 1);
+    try expectEqual(fib.get(components.ReturnType).entity, builtins.I64);
+    const body = fib.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+}
+
 test "print wasm foreign export" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
