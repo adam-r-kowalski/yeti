@@ -128,10 +128,10 @@ on_load(): void {
   log(20)
 }
 
-# ImportYeti Module
+# Import Yeti Module
 
 import math
 
 start() {
-  math.sqrt(10)
+  sqrt(10)
 }

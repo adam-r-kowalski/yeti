@@ -596,78 +596,6 @@ fn Context(comptime FileSystem: type) type {
             return call_arguments;
         }
 
-        fn analyzePipeline(self: *Self, entity: Entity) !Entity {
-            const arguments = entity.get(components.Arguments).slice();
-            const lhs = arguments[0];
-            const rhs = arguments[1];
-            const span = components.Span.init(
-                lhs.get(components.Span).begin,
-                rhs.get(components.Span).end,
-            );
-            switch (rhs.get(components.AstKind)) {
-                .call => {
-                    const call_arguments = try self.pipelineArguments(lhs, rhs);
-                    const call = try self.codebase.createEntity(.{
-                        components.AstKind.call,
-                        rhs.get(components.Callable),
-                        call_arguments,
-                        span,
-                    });
-                    return try self.analyzeCall(call, self);
-                },
-                .symbol => {
-                    const call_arguments = try components.Arguments.fromSlice(self.allocator, &.{lhs});
-                    const call = try self.codebase.createEntity(.{
-                        components.AstKind.call,
-                        components.Callable.init(rhs),
-                        call_arguments,
-                        span,
-                    });
-                    return try self.analyzeCall(call, self);
-                },
-                .binary_op => {
-                    assert(rhs.get(components.BinaryOp) == .dot);
-                    const dot_arguments = rhs.get(components.Arguments).slice();
-                    const call = dot_arguments[1];
-                    const new_call = blk: {
-                        switch (call.get(components.AstKind)) {
-                            .call => {
-                                const call_arguments = try self.pipelineArguments(lhs, call);
-                                break :blk try self.codebase.createEntity(.{
-                                    components.AstKind.call,
-                                    call.get(components.Callable),
-                                    call_arguments,
-                                    span,
-                                });
-                            },
-                            .symbol => {
-                                const call_arguments = try components.Arguments.fromSlice(self.allocator, &.{lhs});
-                                break :blk try self.codebase.createEntity(.{
-                                    components.AstKind.call,
-                                    components.Callable.init(call),
-                                    call_arguments,
-                                    span,
-                                });
-                            },
-                            else => panic("\nshould not have gotten here\n", .{}),
-                        }
-                    };
-                    const new_dot_arguments = try components.Arguments.fromSlice(self.allocator, &.{
-                        dot_arguments[0], new_call,
-                    });
-                    const dot = try self.codebase.createEntity(.{
-                        components.AstKind.binary_op,
-                        components.BinaryOp.dot,
-                        new_dot_arguments,
-                        span,
-                    });
-                    return try self.analyzeDot(dot);
-                },
-                else => panic("\nshould not have gotten here\n", .{}),
-            }
-            return entity;
-        }
-
         fn analyzePointerArithmetic(self: *Self, lhs: Entity, rhs: Entity, intrinsic: components.Intrinsic) !Entity {
             const rhs_type = typeOf(rhs);
             const b = self.builtins;
@@ -772,7 +700,6 @@ fn Context(comptime FileSystem: type) type {
             const binary_op = entity.get(components.BinaryOp);
             return try switch (binary_op) {
                 .dot => self.analyzeDot(entity),
-                .pipeline => self.analyzePipeline(entity),
                 .add => self.analyzeIntrinsic(entity, .add, false),
                 .subtract => self.analyzeIntrinsic(entity, .subtract, false),
                 .multiply => self.analyzeIntrinsic(entity, .multiply, false),

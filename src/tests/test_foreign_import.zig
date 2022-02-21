@@ -70,9 +70,9 @@ test "analyze semantics of foreign import" {
         \\@import("console", "log")
         \\log(value: i64): void
         \\
-        \\start = fn(): void
+        \\start(): void {
         \\  log(10)
-        \\end
+        \\}
     );
     _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
@@ -108,9 +108,9 @@ test "print wasm foreign import" {
         \\@import("console", "log")
         \\log(value: i64): void
         \\
-        \\start = fn(): void
+        \\start(): void {
         \\  log(10)
-        \\end
+        \\}
     );
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     try codegen(module);
