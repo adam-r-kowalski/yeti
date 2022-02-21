@@ -1,1 +1,5 @@
-# Yeti Programming Language
+# Yeti
+
+Programming language for writing fast, portable and secure code
+
+## Installation
