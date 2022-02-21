@@ -1,0 +1,11 @@
+min(x: i32, y: i32) {
+  if x < y { x } else { y }
+}
+
+square(x: i32) {
+  x * x
+}
+
+start() {
+  min(30, 20).square.square.min(1000)
+}

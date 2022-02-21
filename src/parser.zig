@@ -459,18 +459,23 @@ fn overloadFunction(top_level: *components.TopLevel, function: Entity, name: com
 }
 
 pub fn parseFunction(codebase: *ECS, tokens: *Tokens, name: Entity) !Entity {
+    const function = try codebase.createEntity(.{components.AstKind.function});
     const begin = name.get(components.Span).begin;
     const parameters = try parseFunctionParameters(codebase, tokens);
-    _ = tokens.consume(.colon);
-    const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
-    _ = tokens.consume(.left_brace);
+    switch (tokens.next().?.get(components.TokenKind)) {
+        .colon => {
+            const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
+            _ = try function.set(.{return_type});
+            _ = tokens.consume(.left_brace);
+        },
+        .left_brace => {},
+        else => |k| panic("\nparse function invalid token {} \n", .{k}),
+    }
     const body = try parseFunctionBody(codebase, tokens);
     const end = tokens.consume(.right_brace).get(components.Span).end;
     const span = components.Span.init(begin, end);
-    return try codebase.createEntity(.{
-        components.AstKind.function,
+    return try function.set(.{
         parameters,
-        return_type,
         body,
         span,
     });

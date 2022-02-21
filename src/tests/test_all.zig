@@ -22,6 +22,7 @@ const test_define = @import("test_define.zig");
 const test_function = @import("test_function.zig");
 const test_primitive = @import("test_primitive.zig");
 const test_import = @import("test_import.zig");
+const test_return_type_inference = @import("test_return_type_inference.zig");
 
 test "run all tests" {
     std.testing.refAllDecls(@This());
