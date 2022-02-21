@@ -12,8 +12,8 @@ const ecs = @import("ecs.zig");
 const ECS = ecs.ECS;
 const List = @import("list.zig").List;
 const components = @import("components.zig");
-const test_utils = @import("test_utils.zig");
-const literalOf = test_utils.literalOf;
+const query = @import("query.zig");
+const literalOf = query.literalOf;
 const colors = @import("colors.zig");
 
 const Errors = List(u8, .{ .initial_capacity = 1000 });

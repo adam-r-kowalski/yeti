@@ -11,7 +11,7 @@ const analyzeSemantics = yeti.analyzeSemantics;
 const codegen = yeti.codegen;
 const printWasm = yeti.printWasm;
 const components = yeti.components;
-const literalOf = yeti.test_utils.literalOf;
+const literalOf = yeti.query.literalOf;
 const MockFileSystem = yeti.FileSystem;
 
 test "tokenize foreign export" {

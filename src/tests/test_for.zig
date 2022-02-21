@@ -11,8 +11,8 @@ const analyzeSemantics = yeti.analyzeSemantics;
 const codegen = yeti.codegen;
 const printWasm = yeti.printWasm;
 const components = yeti.components;
-const literalOf = yeti.test_utils.literalOf;
-const typeOf = yeti.test_utils.typeOf;
+const literalOf = yeti.query.literalOf;
+const typeOf = yeti.query.typeOf;
 const MockFileSystem = yeti.FileSystem;
 
 test "tokenize for" {

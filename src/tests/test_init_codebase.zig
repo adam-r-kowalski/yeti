@@ -6,8 +6,8 @@ const Arena = std.heap.ArenaAllocator;
 const yeti = @import("yeti");
 const initCodebase = yeti.initCodebase;
 const components = yeti.components;
-const literalOf = yeti.test_utils.literalOf;
-const typeOf = yeti.test_utils.typeOf;
+const literalOf = yeti.query.literalOf;
+const typeOf = yeti.query.typeOf;
 
 test "builtins" {
     var arena = Arena.init(std.heap.page_allocator);

@@ -15,7 +15,7 @@ const components = @import("components.zig");
 const tokenizer = @import("tokenizer.zig");
 const Tokens = tokenizer.Tokens;
 const tokenize = tokenizer.tokenize;
-const literalOf = @import("test_utils.zig").literalOf;
+const literalOf = @import("query.zig").literalOf;
 
 pub fn parseExpression(codebase: *ECS, tokens: *Tokens, precedence: u64) error{OutOfMemory}!Entity {
     const token = tokens.next().?;

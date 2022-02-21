@@ -13,11 +13,11 @@ const ecs = @import("ecs.zig");
 const Entity = ecs.Entity;
 const ECS = ecs.ECS;
 const components = @import("components.zig");
-const test_utils = @import("test_utils.zig");
-const literalOf = test_utils.literalOf;
-const typeOf = test_utils.typeOf;
-const parentType = test_utils.parentType;
-const valueType = test_utils.valueType;
+const query = @import("query.zig");
+const literalOf = query.literalOf;
+const typeOf = query.typeOf;
+const parentType = query.parentType;
+const valueType = query.valueType;
 const List = @import("list.zig").List;
 const Strings = @import("strings.zig").Strings;
 
