@@ -224,8 +224,26 @@ on_load() {
 }
 ```
 
-One of the core competancies of Yeti is the ability to interoparate with other languages.
+One of the core competencies of Yeti is the ability to interoperate with other languages.
 By marking a function with the `@import` attribute you can specify that it comes from another
 language. Check out the [javascript](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/javascript_interop)
 and [python](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/python_interop) examples for
 more details!
+
+# Pointers
+
+```
+start() {
+  x = cast(*i32, 0)
+  y = x + 1
+  z = y + 1
+  *x = 10
+  *y = 20
+  *z = *x + *y
+  *z
+}
+```
+
+Pointers and the ability to talk about memory are fundamental in programming.
+The syntax for casting from integers to pointers, doing arithmetic on pointers,
+reading and writing through pointers are all very light weight.
