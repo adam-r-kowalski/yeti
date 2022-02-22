@@ -174,3 +174,38 @@ start() {
 
 Object oriented languages have a nice syntax for chaining methods together in a left to right fashion.
 We can accomplish the same functionality while allowing external extension through uniform function call syntax.
+
+# Structs
+
+```
+struct Rectangle {
+  width: f64
+  height: f64
+}
+
+area(r: Rectangle) {
+  r.width * r.height
+}
+
+struct Square {
+  length: f64
+}
+
+area(s: Square) {
+  s.length * s.length
+}
+
+start() {
+  s = Square(10)
+  r = Rectangle(10, 20)
+  r.area
+}
+```
+
+```
+200
+```
+
+Structs allow us to group together common data into a single type.
+Function overloading can be leveraged to define multiple functions with the same name,
+but that operate on different types of data.
