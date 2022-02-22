@@ -147,3 +147,30 @@ start() {
 ```
 
 The same algorithm can be implemented using for loops
+
+# Uniform Function Call Syntax
+
+```
+square(n: i64) {
+  n * n
+}
+
+min(x: i64, y: i64) {
+  if x < y { x } else { y }
+}
+
+line(m: i64, x: i64, b: i64) {
+  m * x + b
+}
+
+start() {
+  line(5, min(square(10), 200), 3) == 10.square.min(200).line(5, _, 3)
+}
+```
+
+```
+1
+```
+
+Object oriented languages have a nice syntax for chaining methods together in a left to right fashion.
+We can accomplish the same functionality while allowing external extension through uniform function call syntax.
