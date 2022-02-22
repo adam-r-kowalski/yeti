@@ -40,13 +40,13 @@ Compile and execute the program
 yeti start.yeti
 ```
 
-This has the following output
+Has the following output
 
 ```
 42
 ```
 
-Our first program defined a function `start` which had `0` parameters and returned `42`.
+Our first program defines a function `start` which returns `42`.
 
 # Variables
 
@@ -61,3 +61,20 @@ start() {
 ```
 25
 ```
+
+This program defines two variables `x` and `y`, then adds them together.
+
+# Explicit Type Annotations
+
+```
+start(): i32 {
+  x: i32 = 10
+  y: i32 = 10
+  x + y
+}
+```
+
+You can explicitly define the return type of functions as well as the type of a local variable.
+This is encouraged when it helps the readability of a program. In this case we are stating that
+`x` and `y` are both variables of type `i32` which is a 32 bit integer.
+
