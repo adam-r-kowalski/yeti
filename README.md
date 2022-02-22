@@ -100,3 +100,29 @@ start() {
 
 Here we define a function `min` which takes two parameters `x` and `y` which have type `i64`.
 If `x` is less than `y` we return `x` otherwise we return `y`.
+
+# While Loops
+
+```
+fib(n: i64) {
+  prev = 0
+  curr = 1
+  while n > 0 {
+    next = prev + curr
+    prev = curr
+    curr = next
+    n = n - 1
+  }
+  curr
+}
+
+start() {
+  fib(10)
+}
+```
+
+```
+89
+```
+
+Here the nth fibonacci number is calculated using while loops
