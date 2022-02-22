@@ -226,7 +226,8 @@ on_load() {
 
 One of the core competencies of Yeti is the ability to interoperate with other languages.
 By marking a function with the `@import` attribute you can specify that it comes from another
-language. Check out the [javascript](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/javascript_interop)
+language. Marking a function with `@export` means it can be called from another language.
+Check out the [javascript](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/javascript_interop)
 and [python](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/python_interop) examples for
 more details!
 
@@ -247,3 +248,59 @@ start() {
 Pointers and the ability to talk about memory are fundamental in programming.
 The syntax for casting from integers to pointers, doing arithmetic on pointers,
 reading and writing through pointers are all very light weight.
+
+# SIMD
+
+```
+struct Vec4 {
+  a: i32
+  b: i32
+  c: i32
+  d: i32
+}
+
+start() {
+  x0 = cast(*i32, 0)
+  x1 = x0 + 1
+  x2 = x1 + 1
+  x3 = x2 + 1
+  
+  y0 = x3 + 1
+  y1 = y0 + 1
+  y2 = y1 + 1
+  y3 = y2 + 1
+  
+  z0 = y3 + 1
+  z1 = z0 + 1
+  z2 = z1 + 1
+  z3 = z2 + 1
+
+  x = cast(*i32x4, 0)
+  y = x + 1
+  z = y + 1
+
+  *x0 = 10
+  *x1 = 20
+  *x2 = 30
+  *x3 = 40
+  
+  *y0 = 50
+  *y1 = 60
+  *y2 = 70
+  *y3 = 80
+
+  *z = *x + *y
+
+  Vec4(*z0, *z1, *z2, *z3)
+}
+```
+
+```
+60
+80
+100
+120
+```
+
+SIMD (Single Instruction Multiple Data) is crucial for getting the most out of modern hardware.
+In this example we perform an addition of 4 `i32` values at the same time.
