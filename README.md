@@ -209,3 +209,23 @@ start() {
 Structs allow us to group together common data into a single type.
 Function overloading can be leveraged to define multiple functions with the same name,
 but that operate on different types of data.
+
+# Foreign Imports And Exports
+
+```
+@import("console", "log")
+log(value: i64): void
+
+@export
+on_load() {
+  log(10)
+  log(15)
+  log(20)
+}
+```
+
+One of the core competancies of Yeti is the ability to interoparate with other languages.
+By marking a function with the `@import` attribute you can specify that it comes from another
+language. Check out the [javascript](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/javascript_interop)
+and [python](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/python_interop) examples for
+more details!
