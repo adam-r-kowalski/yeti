@@ -126,3 +126,24 @@ start() {
 ```
 
 Here the nth fibonacci number is calculated using while loops
+
+# For Loops
+
+```
+start() {
+  prev = 0
+  curr = 1
+  for i in 0:10 {
+    next = prev + curr
+    prev = curr
+    curr = next
+  }
+  curr
+}
+```
+
+```
+89
+```
+
+The same algorithm can be implemented using for loops
