@@ -74,7 +74,29 @@ start(): i32 {
 }
 ```
 
+```
+20
+```
+
 You can explicitly define the return type of functions as well as the type of a local variable.
 This is encouraged when it helps the readability of a program. In this case we are stating that
 `x` and `y` are both variables of type `i32` which is a 32 bit integer.
 
+# Conditionals
+
+```
+min(x: i64, y: i64) {
+  if x < y { x } else { y }
+}
+
+start() {
+  min(20, 30)
+}
+```
+
+```
+20
+```
+
+Here we define a function `min` which takes two parameters `x` and `y` which have type `i64`.
+If `x` is less than `y` we return `x` otherwise we return `y`.
