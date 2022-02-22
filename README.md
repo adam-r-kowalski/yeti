@@ -23,3 +23,41 @@ zig build
 Add Yeti `zig-out/bin/yeti` to your `PATH`
 
 You're ready to use Yeti
+
+## Your First Yeti Program
+
+Create a file `start.yeti` with the following contents
+
+```
+start() {
+  42
+}
+```
+
+Compile and execute the program
+
+```
+yeti start.yeti
+```
+
+This has the following output
+
+```
+42
+```
+
+Our first program defined a function `start` which had `0` parameters and returned `42`.
+
+# Variables
+
+```
+start() {
+  x = 10
+  y = 15
+  x + y
+}
+```
+
+```
+25
+```
