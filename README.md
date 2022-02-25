@@ -130,15 +130,19 @@ Here the nth fibonacci number is calculated using while loops
 # For Loops
 
 ```
-start() {
+fib(n: i64) {
   prev = 0
   curr = 1
-  for i in 0:10 {
+  for i in 0:n {
     next = prev + curr
     prev = curr
     curr = next
   }
   curr
+}
+
+start() {
+  fib(10)
 }
 ```
 
@@ -149,15 +153,19 @@ start() {
 # For Loops With Implicit Start
 
 ```
-start() {
+fib(n: i64) {
   prev = 0
   curr = 1
-  for i in :10 {
+  for i in :n {
     next = prev + curr
     prev = curr
     curr = next
   }
   curr
+}
+
+start() {
+  fib(10)
 }
 ```
 
