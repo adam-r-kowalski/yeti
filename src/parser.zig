@@ -169,13 +169,12 @@ fn parsePointer(codebase: *ECS, tokens: *Tokens, star: Entity) !Entity {
 fn parseRange(codebase: *ECS, tokens: *Tokens, colon: Entity) !Entity {
     const last = try parseExpression(codebase, tokens, LOWEST);
     assert(last.get(components.AstKind) == .int);
-    const range = components.Range{ .first = null, .last = last };
     const begin = colon.get(components.Span).begin;
     const end = last.get(components.Span).end;
     return try codebase.createEntity(.{
         components.AstKind.range,
         components.Span.init(begin, end),
-        range,
+        components.Last.init(last),
     });
 }
 
@@ -370,11 +369,11 @@ fn parseDefineOrRange(codebase: *ECS, tokens: *Tokens, lhs: Entity, precedence: 
         .int => {
             const last = try parseExpression(codebase, tokens, LOWEST);
             assert(last.get(components.AstKind) == .int);
-            const range = components.Range{ .first = lhs, .last = last };
             return try codebase.createEntity(.{
                 components.AstKind.range,
                 components.Span.init(lhs.get(components.Span).begin, last.get(components.Span).end),
-                range,
+                components.First.init(lhs),
+                components.Last.init(last),
             });
         },
         else => panic("\nparsing define or range got kind {}\n", .{kind}),

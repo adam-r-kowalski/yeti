@@ -957,19 +957,19 @@ fn Context(comptime FileSystem: type) type {
         fn analyzeFor(self: *Self, for_: Entity) !Entity {
             const scopes = self.function.getPtr(components.Scopes);
             const iterator = try self.analyzeExpression(for_.get(components.Iterator).entity);
-            const range = iterator.get(components.Range);
             const loop_variable = for_.get(components.LoopVariable).entity;
             const name = components.Name.init(loop_variable);
+            const first = iterator.get(components.First).entity;
             const local = try self.codebase.createEntity(.{
                 components.AstKind.local,
                 name,
-                components.Type.init(typeOf(range.first.?)),
+                components.Type.init(typeOf(first)),
             });
             const define = try self.codebase.createEntity(.{
                 components.AstKind.define,
                 components.Local.init(local),
                 components.Type.init(self.builtins.Void),
-                components.Value.init(range.first.?),
+                components.Value.init(first),
             });
             try scopes.putName(name, local);
             const active_scopes = self.active_scopes;
@@ -1002,10 +1002,9 @@ fn Context(comptime FileSystem: type) type {
 
         fn analyzeRange(self: *Self, entity: Entity) !Entity {
             const b = self.builtins;
-            const range = entity.get(components.Range);
             const first = blk: {
-                if (range.first) |first| {
-                    break :blk try self.analyzeExpression(first);
+                if (entity.has(components.First)) |first| {
+                    break :blk try self.analyzeExpression(first.entity);
                 } else {
                     const interned = try self.codebase.getPtr(Strings).intern("0");
                     break :blk try self.codebase.createEntity(.{
@@ -1014,7 +1013,7 @@ fn Context(comptime FileSystem: type) type {
                     });
                 }
             };
-            const last = try self.analyzeExpression(range.last);
+            const last = try self.analyzeExpression(entity.get(components.Last).entity);
             const type_of = try self.unifyTypes(first, last);
             const range_type = blk: {
                 const memoized = b.Range.getPtr(components.Memoized);
@@ -1031,12 +1030,12 @@ fn Context(comptime FileSystem: type) type {
                     components.ValueType.init(type_of),
                 });
             };
-            const analyzed_range = components.Range{ .first = first, .last = last };
             return try self.codebase.createEntity(.{
                 components.Type.init(range_type),
                 components.AstKind.range,
                 entity.get(components.Span),
-                analyzed_range,
+                components.First.init(first),
+                components.Last.init(last),
             });
         }
 
