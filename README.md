@@ -146,6 +146,25 @@ start() {
 89
 ```
 
+# For Loops With Implicit Start
+
+```
+start() {
+  prev = 0
+  curr = 1
+  for i in :10 {
+    next = prev + curr
+    prev = curr
+    curr = next
+  }
+  curr
+}
+```
+
+```
+89
+```
+
 The same algorithm can be implemented using for loops
 
 # Uniform Function Call Syntax
@@ -227,8 +246,8 @@ on_load() {
 One of the core competencies of Yeti is the ability to interoperate with other languages.
 By marking a function with the `@import` attribute you can specify that it comes from another
 language. Marking a function with `@export` means it can be called from another language.
-Check out the [javascript](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/javascript_interop)
-and [python](https://github.com/adam-r-kowalski/yeti/tree/document-language/examples/python_interop) examples for
+Check out the [javascript](https://github.com/adam-r-kowalski/yeti/tree/main/examples/javascript_interop)
+and [python](https://github.com/adam-r-kowalski/yeti/tree/main/examples/python_interop) examples for
 more details!
 
 # Pointers

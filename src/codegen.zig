@@ -1248,7 +1248,7 @@ fn codegenFor(context: *Context, entity: Entity) !void {
     {
         const first = try context.codebase.createEntity(.{
             components.Type.init(builtins[i]),
-            range.first.get(components.Literal),
+            range.first.?.get(components.Literal),
         });
         const wasm_instruction = try context.codebase.createEntity(.{
             kinds[i],

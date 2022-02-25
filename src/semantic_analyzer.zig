@@ -963,13 +963,13 @@ fn Context(comptime FileSystem: type) type {
             const local = try self.codebase.createEntity(.{
                 components.AstKind.local,
                 name,
-                components.Type.init(typeOf(range.first)),
+                components.Type.init(typeOf(range.first.?)),
             });
             const define = try self.codebase.createEntity(.{
                 components.AstKind.define,
                 components.Local.init(local),
                 components.Type.init(self.builtins.Void),
-                components.Value.init(range.first),
+                components.Value.init(range.first.?),
             });
             try scopes.putName(name, local);
             const active_scopes = self.active_scopes;
@@ -1003,7 +1003,17 @@ fn Context(comptime FileSystem: type) type {
         fn analyzeRange(self: *Self, entity: Entity) !Entity {
             const b = self.builtins;
             const range = entity.get(components.Range);
-            const first = try self.analyzeExpression(range.first);
+            const first = blk: {
+                if (range.first) |first| {
+                    break :blk try self.analyzeExpression(first);
+                } else {
+                    const interned = try self.codebase.getPtr(Strings).intern("0");
+                    break :blk try self.codebase.createEntity(.{
+                        components.Literal.init(interned),
+                        components.Type.init(b.IntLiteral),
+                    });
+                }
+            };
             const last = try self.analyzeExpression(range.last);
             const type_of = try self.unifyTypes(first, last);
             const range_type = blk: {
@@ -1021,7 +1031,13 @@ fn Context(comptime FileSystem: type) type {
                     components.ValueType.init(type_of),
                 });
             };
-            return try entity.set(.{components.Type.init(range_type)});
+            const analyzed_range = components.Range{ .first = first, .last = last };
+            return try self.codebase.createEntity(.{
+                components.Type.init(range_type),
+                components.AstKind.range,
+                entity.get(components.Span),
+                analyzed_range,
+            });
         }
 
         fn analyzeString(self: *Self, entity: Entity) !Entity {
