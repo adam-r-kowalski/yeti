@@ -30,6 +30,17 @@ fib_iterative(n: i64): i64 {
   curr
 }
 
+fib_iterative_for_loop(n: i64): i64 {
+  prev = 0
+  curr = 1
+  for i in :n {
+    next = prev + curr
+    prev = curr
+    curr = next
+  }
+  curr
+}
+
 start(): i64 {
-  fib_iterative(10)
+  fib_iterative_for_loop(10)
 }

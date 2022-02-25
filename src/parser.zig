@@ -168,7 +168,6 @@ fn parsePointer(codebase: *ECS, tokens: *Tokens, star: Entity) !Entity {
 
 fn parseRange(codebase: *ECS, tokens: *Tokens, colon: Entity) !Entity {
     const last = try parseExpression(codebase, tokens, LOWEST);
-    assert(last.get(components.AstKind) == .int);
     const begin = colon.get(components.Span).begin;
     const end = last.get(components.Span).end;
     return try codebase.createEntity(.{
@@ -368,7 +367,6 @@ fn parseDefineOrRange(codebase: *ECS, tokens: *Tokens, lhs: Entity, precedence: 
         },
         .int => {
             const last = try parseExpression(codebase, tokens, LOWEST);
-            assert(last.get(components.AstKind) == .int);
             return try codebase.createEntity(.{
                 components.AstKind.range,
                 components.Span.init(lhs.get(components.Span).begin, last.get(components.Span).end),

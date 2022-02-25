@@ -960,11 +960,16 @@ fn Context(comptime FileSystem: type) type {
             const loop_variable = for_.get(components.LoopVariable).entity;
             const name = components.Name.init(loop_variable);
             const first = iterator.get(components.First).entity;
+            const last = iterator.get(components.Last).entity;
+            const type_of = typeOf(first);
             const local = try self.codebase.createEntity(.{
                 components.AstKind.local,
                 name,
-                components.Type.init(typeOf(first)),
+                components.Type.init(type_of),
             });
+            if (eql(type_of, self.builtins.IntLiteral)) {
+                try addDependentEntities(local, &.{ first, last });
+            }
             const define = try self.codebase.createEntity(.{
                 components.AstKind.define,
                 components.Local.init(local),

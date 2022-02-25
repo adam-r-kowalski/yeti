@@ -1280,17 +1280,7 @@ fn codegenFor(context: *Context, entity: Entity) !void {
         });
         _ = try context.wasm_instructions.append(wasm_instruction);
     }
-    {
-        const last = try context.codebase.createEntity(.{
-            components.Type.init(builtins[i]),
-            iterator.get(components.Last).entity.get(components.Literal),
-        });
-        const wasm_instruction = try context.codebase.createEntity(.{
-            kinds[i],
-            components.Constant.init(last),
-        });
-        _ = try context.wasm_instructions.append(wasm_instruction);
-    }
+    try codegenEntity(context, iterator.get(components.Last).entity);
     {
         const wasm_instruction = try context.codebase.createEntity(.{greaterEqualOps.kinds[i]});
         _ = try context.wasm_instructions.append(wasm_instruction);
