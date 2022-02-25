@@ -8,7 +8,7 @@ for_loop(): i64 {
 
 for_loop_implicit_start(): i64 {
   sum = 0
-  for i in :15 {
+  for i in :10 {
     sum += i
   }
   sum
