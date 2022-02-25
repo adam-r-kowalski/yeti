@@ -1244,17 +1244,7 @@ fn codegenFor(context: *Context, entity: Entity) !void {
         }
         panic("\nfor range unsupported type {s}\n", .{literalOf(type_of)});
     };
-    {
-        const first = try context.codebase.createEntity(.{
-            components.Type.init(builtins[i]),
-            iterator.get(components.First).entity.get(components.Literal),
-        });
-        const wasm_instruction = try context.codebase.createEntity(.{
-            kinds[i],
-            components.Constant.init(first),
-        });
-        _ = try context.wasm_instructions.append(wasm_instruction);
-    }
+    try codegenEntity(context, iterator.get(components.First).entity);
     {
         const wasm_instruction = try context.codebase.createEntity(.{
             components.WasmInstructionKind.local_set,

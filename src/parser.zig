@@ -355,14 +355,24 @@ fn parseDefineOrRange(codebase: *ECS, tokens: *Tokens, lhs: Entity, precedence: 
     switch (kind) {
         .symbol => {
             const type_ast = try parseExpression(codebase, tokens, DEFINE + NEXT_PRECEDENCE);
-            _ = tokens.consume(.equal);
-            const value = try parseExpression(codebase, tokens, precedence);
+            if (tokens.peek()) |token| {
+                if (token.get(components.TokenKind) == .equal) {
+                    _ = tokens.next();
+                    const value = try parseExpression(codebase, tokens, precedence);
+                    return try codebase.createEntity(.{
+                        components.AstKind.define,
+                        components.Name.init(lhs),
+                        components.TypeAst.init(type_ast),
+                        components.Value.init(value),
+                        components.Span.init(lhs.get(components.Span).begin, value.get(components.Span).end),
+                    });
+                }
+            }
             return try codebase.createEntity(.{
-                components.AstKind.define,
-                components.Name.init(lhs),
-                components.TypeAst.init(type_ast),
-                components.Value.init(value),
-                components.Span.init(lhs.get(components.Span).begin, value.get(components.Span).end),
+                components.AstKind.range,
+                components.Span.init(lhs.get(components.Span).begin, type_ast.get(components.Span).end),
+                components.First.init(lhs),
+                components.Last.init(type_ast),
             });
         },
         .int => {
