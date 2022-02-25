@@ -166,6 +166,18 @@ fn parsePointer(codebase: *ECS, tokens: *Tokens, star: Entity) !Entity {
     });
 }
 
+fn parseRange(codebase: *ECS, tokens: *Tokens, colon: Entity) !Entity {
+    const last = try parseExpression(codebase, tokens, LOWEST);
+    assert(last.get(components.AstKind) == .int);
+    const begin = colon.get(components.Span).begin;
+    const end = last.get(components.Span).end;
+    return try codebase.createEntity(.{
+        components.AstKind.range,
+        components.Span.init(begin, end),
+        components.Last.init(last),
+    });
+}
+
 fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
     const kind = token.get(components.TokenKind);
     return try switch (kind) {
@@ -187,6 +199,7 @@ fn prefixParser(tokens: *Tokens, token: Entity) !Entity {
         .for_ => parseFor(token.ecs, tokens, token),
         .underscore => token.set(.{components.AstKind.underscore}),
         .times => parsePointer(token.ecs, tokens, token),
+        .colon => parseRange(token.ecs, tokens, token),
         else => panic("\nno prefix parser for {}\n", .{kind}),
     };
 }
@@ -356,11 +369,11 @@ fn parseDefineOrRange(codebase: *ECS, tokens: *Tokens, lhs: Entity, precedence: 
         .int => {
             const last = try parseExpression(codebase, tokens, LOWEST);
             assert(last.get(components.AstKind) == .int);
-            const range = components.Range{ .first = lhs, .last = last };
             return try codebase.createEntity(.{
                 components.AstKind.range,
                 components.Span.init(lhs.get(components.Span).begin, last.get(components.Span).end),
-                range,
+                components.First.init(lhs),
+                components.Last.init(last),
             });
         },
         else => panic("\nparsing define or range got kind {}\n", .{kind}),

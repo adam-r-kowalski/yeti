@@ -1222,7 +1222,6 @@ fn codegenFor(context: *Context, entity: Entity) !void {
     const local = loop_variable.get(components.Local).entity;
     try context.locals.put(local);
     const iterator = entity.get(components.Iterator).entity;
-    const range = iterator.get(components.Range);
     const b = context.builtins;
     const builtins = [_]Entity{ b.I64, b.I32, b.I16, b.I8, b.U64, b.U32, b.U16, b.U8, b.F64, b.F32 };
     const kinds = &[_]components.WasmInstructionKind{
@@ -1248,7 +1247,7 @@ fn codegenFor(context: *Context, entity: Entity) !void {
     {
         const first = try context.codebase.createEntity(.{
             components.Type.init(builtins[i]),
-            range.first.get(components.Literal),
+            iterator.get(components.First).entity.get(components.Literal),
         });
         const wasm_instruction = try context.codebase.createEntity(.{
             kinds[i],
@@ -1284,7 +1283,7 @@ fn codegenFor(context: *Context, entity: Entity) !void {
     {
         const last = try context.codebase.createEntity(.{
             components.Type.init(builtins[i]),
-            range.last.get(components.Literal),
+            iterator.get(components.Last).entity.get(components.Literal),
         });
         const wasm_instruction = try context.codebase.createEntity(.{
             kinds[i],
