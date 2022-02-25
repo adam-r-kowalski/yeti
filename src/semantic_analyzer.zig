@@ -1013,6 +1013,7 @@ fn Context(comptime FileSystem: type) type {
                 } else {
                     const interned = try self.codebase.getPtr(Strings).intern("0");
                     break :blk try self.codebase.createEntity(.{
+                        components.AstKind.int,
                         components.Literal.init(interned),
                         components.Type.init(b.IntLiteral),
                     });
