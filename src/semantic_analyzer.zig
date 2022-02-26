@@ -53,6 +53,7 @@ fn Context(comptime FileSystem: type) type {
                 for (builtins) |builtin| {
                     if (eql(to, builtin)) return .implicit_conversion;
                 }
+                if (eql(to, b.FloatLiteral)) return .implicit_conversion;
                 return .no;
             }
             if (eql(from, b.FloatLiteral)) {

@@ -175,6 +175,7 @@ test "parse grouping with parenthesis" {
     try expectEqualStrings(literalOf(add_arguments[1]), "10");
     try expectEqualStrings(literalOf(multiply_arguments[1]), "3");
 }
+
 test "analyze semantics binary op two comptime known" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -338,6 +339,48 @@ test "codegen binary op two literals" {
             try expectEqualStrings(literalOf(constant.get(components.Constant).entity), results[op_index][i]);
         }
     }
+}
+
+test "codegen binary op int and float literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start() {
+        \\  8 + 2.0
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 1);
+    const constant = start_instructions[0];
+    try expectEqual(constant.get(components.WasmInstructionKind), .f32_const);
+    try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "1.0e+01");
+}
+
+test "codegen binary op float and int literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start() {
+        \\  8.0 + 2
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 1);
+    const constant = start_instructions[0];
+    try expectEqual(constant.get(components.WasmInstructionKind), .f32_const);
+    try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "1.0e+01");
 }
 
 test "codegen arithmetic binary op two local constants" {

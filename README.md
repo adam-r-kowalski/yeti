@@ -1,6 +1,6 @@
 # Yeti
 
-Programming language for writing fast, portable and secure code
+A programming language aiming to be fun and productive while mapping cleanly to the underlying hardware.
 
 ## Installation
 
