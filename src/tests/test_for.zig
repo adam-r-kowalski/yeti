@@ -318,7 +318,7 @@ test "codegen for loop" {
         \\start(): i32 {
         \\  sum = 0
         \\  for i in 0:10 {
-        \\    sum = sum + i
+        \\    sum += i
         \\  }
         \\  sum 
         \\}
@@ -329,7 +329,91 @@ test "codegen for loop" {
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
     const start_instructions = start.get(components.WasmInstructions).slice();
     try expectEqual(start_instructions.len, 22);
-    // TODO: test that proper for loop instructions are generated
+    {
+        const i32_const = start_instructions[0];
+        try expectEqual(i32_const.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(i32_const.get(components.Constant).entity), "0");
+        const local_set = start_instructions[1];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        const local = local_set.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "sum");
+    }
+    {
+        const i32_const = start_instructions[2];
+        try expectEqual(i32_const.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(i32_const.get(components.Constant).entity), "0");
+        const local_set = start_instructions[3];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        const local = local_set.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "i");
+    }
+    {
+        const block = start_instructions[4];
+        try expectEqual(block.get(components.WasmInstructionKind), .block);
+        try expectEqual(block.get(components.Label).value, 0);
+        const loop = start_instructions[5];
+        try expectEqual(loop.get(components.WasmInstructionKind), .loop);
+        try expectEqual(loop.get(components.Label).value, 1);
+        const local_get = start_instructions[6];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "i");
+        const i32_const = start_instructions[7];
+        try expectEqual(i32_const.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(i32_const.get(components.Constant).entity), "10");
+        try expectEqual(start_instructions[8].get(components.WasmInstructionKind), .i32_ge);
+        const br_if = start_instructions[9];
+        try expectEqual(br_if.get(components.WasmInstructionKind), .br_if);
+        try expectEqual(br_if.get(components.Label).value, 0);
+    }
+    const sum = blk: {
+        const local_get = start_instructions[10];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "sum");
+        break :blk local;
+    };
+    {
+        const local_get = start_instructions[11];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "i");
+    }
+    try expectEqual(start_instructions[12].get(components.WasmInstructionKind), .i32_add);
+    {
+        const local_set = start_instructions[13];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        try expectEqual(local_set.get(components.Local).entity, sum);
+    }
+    {
+        const i32_const = start_instructions[14];
+        try expectEqual(i32_const.get(components.WasmInstructionKind), .i32_const);
+        try expectEqualStrings(literalOf(i32_const.get(components.Constant).entity), "1");
+    }
+    const i = blk: {
+        const local_get = start_instructions[15];
+        try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+        const local = local_get.get(components.Local).entity;
+        try expectEqualStrings(literalOf(local.get(components.Name).entity), "i");
+        break :blk local;
+    };
+    try expectEqual(start_instructions[16].get(components.WasmInstructionKind), .i32_add);
+    {
+        const local_set = start_instructions[17];
+        try expectEqual(local_set.get(components.WasmInstructionKind), .local_set);
+        try expectEqual(local_set.get(components.Local).entity, i);
+    }
+    {
+        const br = start_instructions[18];
+        try expectEqual(br.get(components.WasmInstructionKind), .br);
+        try expectEqual(br.get(components.Label).value, 1);
+    }
+    try expectEqual(start_instructions[19].get(components.WasmInstructionKind), .end);
+    try expectEqual(start_instructions[20].get(components.WasmInstructionKind), .end);
+    const local_get = start_instructions[21];
+    try expectEqual(local_get.get(components.WasmInstructionKind), .local_get);
+    const local = local_get.get(components.Local).entity;
+    try expectEqualStrings(literalOf(local.get(components.Name).entity), "sum");
 }
 
 test "print wasm for loop" {
