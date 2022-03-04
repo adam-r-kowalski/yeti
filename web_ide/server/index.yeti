@@ -1,0 +1,7 @@
+@import("console", "log")
+log(value: f64): void
+
+@export
+on_load() {
+  log(5.3)
+}
