@@ -1,7 +1,28 @@
+@import("gl", "create_shader")
+create_shader(shader_type: i64): i64
+
+@import("gl", "shader_source")
+shader_source(shader: i64, source: []u8): void
+
+@import("gl", "compile_shader")
+compile_shader(shader: i64): void
+
+@import("gl", "get_shader_parameter")
+get_shader_parameter(shader: i64, pname: i64): i64
+
 @import("console", "log")
-log(value: f64): void
+log(value: i64): void
 
 @export
 on_load() {
-  log(5.3)
+  VERTEX_SHADER = 35633
+  vertex_shader = create_shader(VERTEX_SHADER)
+  FRAGMENT_SHADER = 35632
+  fragment_shader = create_shader(FRAGMENT_SHADER)
+  vertex_shader_source = "#version 300 es"
+  shader_source(vertex_shader, vertex_shader_source)
+  compile_shader(vertex_shader)
+  COMPILE_STATUS = 35713
+  success = get_shader_parameter(vertex_shader, COMPILE_STATUS)
+  log(success)
 }
