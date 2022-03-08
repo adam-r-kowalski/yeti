@@ -20,28 +20,29 @@ const on_page_load = () => {
     var memory = undefined
 
     const imports = {
-      "gl": {
-        "create_shader": (shader_type: number): bigint => {
+      "host": {
+        "create_shader": (shader_type: number): number => {
           const shader_index = shaders.length
-          const shader = gl.createShader(Number(shader_type))
+          const shader = gl.createShader(shader_type)
           shaders.push(shader)
-          return BigInt(shader_index)
+          return shader_index
         },
         "shader_source": (shader: number, source_ptr: number, source_len: number): void => {
           const buffer = new Uint8Array(memory.buffer, source_ptr, source_len)
-          gl.shaderSource(shaders[shader], buffer as unknown as string)
-          console.log(source_ptr)
-          console.log(source_len)
-          console.log(new TextDecoder('utf-8').decode(buffer))
+          gl.shaderSource(shaders[shader], new TextDecoder('utf-8').decode(buffer))
         },
         "compile_shader": (shader: number): void => {
           gl.compileShader(shaders[shader])
         },
-        "get_shader_parameter": (shader: number, pname: BigInt): BigInt => {
-          return BigInt(gl.getShaderParameter(shaders[shader], Number(pname)))
+        "get_shader_parameter": (shader: number, pname: number): number => {
+          return gl.getShaderParameter(shaders[shader], pname)
         },
-      },
-      "console": {
+        "log_shader_info": (shader: number): void => {
+          console.log(gl.getShaderInfoLog(shaders[shader]))
+        },
+        "delete_shader": (shader: number): void => {
+          gl.deleteShader(shaders[shader])
+        },
         "log": console.log,
       }
     }

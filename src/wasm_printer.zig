@@ -487,7 +487,12 @@ pub fn printWasm(module: Entity) ![]u8 {
             const string = try std.fmt.allocPrint(allocator, "{}", .{location});
             try wasm.appendSlice(string);
             try wasm.appendSlice(") \"");
-            try wasm.appendSlice(literalOf(entity));
+            for (literalOf(entity)) |c| {
+                switch (c) {
+                    '\n' => try wasm.appendSlice("\\n"),
+                    else => try wasm.append(c),
+                }
+            }
             try wasm.appendSlice("\")");
         }
         try wasm.appendSlice("\n\n  (memory 1)\n  (export \"memory\" (memory 0))");

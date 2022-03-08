@@ -568,7 +568,55 @@ fn parseAttributeExport(tokens: *Tokens, top_level: *components.TopLevel, foreig
     try foreign_exports.append(name);
 }
 
+fn parseAttributeImportInferName(tokens: *Tokens, top_level: *components.TopLevel) !void {
+    _ = tokens.consume(.new_line);
+    const name = tokens.consume(.symbol);
+    const foreign_module = blk: {
+        const interned = try name.ecs.getPtr(Strings).intern("host");
+        const literal = components.Literal.init(interned);
+        const length = components.Length{ .value = 4 };
+        const entity = try name.ecs.createEntity(.{
+            components.TokenKind.string,
+            literal,
+            length,
+        });
+        break :blk components.ForeignModule.init(entity);
+    };
+    const foreign_name = blk: {
+        const literal = name.get(components.Literal);
+        const span = name.get(components.Span);
+        const length = components.Length{ .value = @intCast(i32, span.end.column - span.begin.column) };
+        const entity = try name.ecs.createEntity(.{
+            components.TokenKind.string,
+            literal,
+            length,
+            span,
+        });
+        break :blk components.ForeignName.init(entity);
+    };
+    const begin = name.get(components.Span).begin;
+    _ = tokens.consume(.left_paren);
+    const codebase = name.ecs;
+    const parameters = try parseFunctionParameters(codebase, tokens);
+    _ = tokens.consume(.colon);
+    const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
+    const end = return_type.entity.get(components.Span).end;
+    const span = components.Span.init(begin, end);
+    const function = try codebase.createEntity(.{
+        components.AstKind.function,
+        foreign_module,
+        foreign_name,
+        parameters,
+        return_type,
+        span,
+    });
+    try overloadFunction(top_level, function, components.Name.init(name));
+}
+
 fn parseAttributeImport(tokens: *Tokens, top_level: *components.TopLevel) !void {
+    if (tokens.peek().?.get(components.TokenKind) != .left_paren) {
+        return parseAttributeImportInferName(tokens, top_level);
+    }
     const begin = tokens.consume(.left_paren).get(components.Span).begin;
     const foreign_module = components.ForeignModule.init(tokens.consume(.string));
     _ = tokens.consume(.comma);

@@ -316,6 +316,37 @@ test "print wasm string literal" {
     );
 }
 
+test "print wasm multi line string literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start(): []u8 {
+        \\  "
+        \\  hello
+        \\  world
+        \\  "
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32 i32)
+        \\    (i32.const 0)
+        \\    (i32.const 19))
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (data (i32.const 0) "\n  hello\n  world\n  ")
+        \\
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
+    );
+}
 test "print wasm assign string literal to variable" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();

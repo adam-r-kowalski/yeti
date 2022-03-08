@@ -33,7 +33,7 @@ test "tokenize foreign import" {
     try expectEqual(tokens.next(), null);
 }
 
-test "parse function with int literal" {
+test "parse foreign import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -60,6 +60,32 @@ test "parse function with int literal" {
     try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "void");
 }
 
+test "parse foreign import with module and name inferred" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\@import
+        \\log(value: i64): void
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const log = top_level.findString("log");
+    const overloads = log.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const function = overloads[0];
+    try expectEqual(function.get(components.AstKind), .function);
+    try expectEqualStrings(literalOf(function.get(components.ForeignModule).entity), "host");
+    try expectEqualStrings(literalOf(function.get(components.ForeignName).entity), "log");
+    const parameters = function.get(components.Parameters).slice();
+    try expectEqual(parameters.len, 1);
+    const parameter = parameters[0];
+    try expectEqualStrings(literalOf(parameter), "value");
+    try expectEqualStrings(literalOf(parameter.get(components.TypeAst).entity), "i64");
+    try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "void");
+}
 test "analyze semantics of foreign import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
