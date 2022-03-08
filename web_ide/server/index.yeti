@@ -19,7 +19,7 @@ on_load() {
   vertex_shader = create_shader(VERTEX_SHADER)
   FRAGMENT_SHADER = 35632
   fragment_shader = create_shader(FRAGMENT_SHADER)
-  vertex_shader_source = "#version 300 es"
+  vertex_shader_source = "#version 300 en"
   shader_source(vertex_shader, vertex_shader_source)
   compile_shader(vertex_shader)
   COMPILE_STATUS = 35713

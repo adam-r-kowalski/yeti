@@ -226,17 +226,28 @@ fn tokenizeNumber(module: Entity, source: *Source, starts_with_decimal: bool) !E
 fn tokenizeString(module: Entity, source: *Source) !Entity {
     const begin = source.position;
     var i: u64 = 1;
-    while (i < source.code.len) : (i += 1) {
+    while (i < source.code.len) {
         switch (source.code[i]) {
             '"' => {
                 i += 1;
+                source.position.column += 1;
                 break;
             },
-            else => continue,
+            '\n' => {
+                i += 1;
+                source.position.row += 1;
+                source.position.column = 0;
+            },
+            else => {
+                i += 1;
+                source.position.column += 1;
+            },
         }
     }
-    const string = source.advance(i);
+    const string = source.code[0..i];
+    source.code = source.code[i..];
     const span = components.Span{ .begin = begin, .end = source.position };
+    source.position.column += 1;
     const interned = try module.ecs.getPtr(Strings).intern(string[1 .. i - 1]);
     const length = components.Length{ .value = @intCast(i32, string.len - 2) };
     return try module.ecs.createEntity(.{
