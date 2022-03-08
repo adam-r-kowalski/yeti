@@ -1,0 +1,59 @@
+@import
+create_shader(shader_type: i32): i32
+
+@import
+shader_source(shader: i32, source: []u8): void
+
+@import
+compile_shader(shader: i32): void
+
+@import
+get_shader_parameter(shader: i32, pname: i32): i32
+
+@import
+log_shader_info(shader: i32): void
+
+@import
+delete_shader(shader: i32): void
+
+@import
+log(value: i32): void
+
+create_shader(shader_type: i32, source: []u8): i32 {
+  shader = create_shader(shader_type)
+  shader_source(shader, source)
+  compile_shader(shader)
+  COMPILE_STATUS = 35713
+  success = get_shader_parameter(shader, COMPILE_STATUS)
+  if success {
+    shader
+  } else {
+    log_shader_info(shader)
+    delete_shader(shader)
+    -1
+  }
+}
+
+@export
+on_load() {
+  VERTEX_SHADER = 35633
+  vertex_shader_source = "#version 300 es
+  in vec4 a_position;
+ 
+  void main() {
+    gl_Position = a_position;
+  }
+  "
+  vertex_shader = create_shader(VERTEX_SHADER, vertex_shader_source)
+  FRAGMENT_SHADER = 35632
+  fragment_shader_source = "#version 300 es
+  precision highp float;
+
+  out vec4 outColor;
+
+  void main() {
+    outColor = vec4(1, 0, 0.5, 1);
+  }
+  "
+  fragment_shader = create_shader(FRAGMENT_SHADER, fragment_shader_source)
+}
