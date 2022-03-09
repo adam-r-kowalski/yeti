@@ -15,10 +15,12 @@ const on_page_load = () => {
       return
     }
 
-    const shaders = []
-    const programs = []
+    const shaders: WebGLShader[] = []
+    const programs: WebGLProgram[] = []
+    const buffers: WebGLBuffer[] = []
+    const vertex_arrays: WebGLVertexArrayObject[] = []
 
-    var memory = undefined
+    var memory: WebAssembly.Memory = undefined
 
     const imports = {
       "host": {
@@ -69,12 +71,50 @@ const on_page_load = () => {
           const buffer = new Uint8Array(memory.buffer, attrib_ptr, attrib_len)
           return gl.getAttribLocation(programs[program], new TextDecoder('utf-8').decode(buffer))
         },
+        "create_buffer": (): number => {
+          const buffer_index = buffers.length
+          const buffer = gl.createBuffer()
+          buffers.push(buffer)
+          return buffer_index
+        },
+        "bind_buffer": (target: number, buffer: number): void => {
+          gl.bindBuffer(target, buffers[buffer])
+        },
+        "buffer_data": (target: number, usage: number): void => {
+          const positions = [
+            0, 0,
+            0, 0.5,
+            0.7, 0,
+          ]
+          gl.bufferData(target, new Float32Array(positions), usage)
+        },
+        "create_vertex_array": (): number => {
+          const vertex_array_index = vertex_arrays.length
+          const vertex_array = gl.createVertexArray()
+          vertex_arrays.push(vertex_array)
+          return vertex_array_index
+        },
+        "bind_vertex_array": (vertex_array: number): void => {
+          gl.bindVertexArray(vertex_arrays[vertex_array])
+        },
+        "enable_vertex_attrib_array": (index: number): void => {
+          gl.enableVertexAttribArray(index)
+        },
+        "vertex_attrib_pointer": (index: number, size: number, dtype: number, normalized: boolean, stride: number, offset: number): void => {
+          gl.vertexAttribPointer(index, size, dtype, normalized, stride, offset)
+        },
+        "clear_color": (red: number, green: number, blue: number, alpha: number): void => {
+          gl.clearColor(red, green, blue, alpha)
+        },
+        "clear": (mask: number): void => {
+          gl.clear(mask)
+        },
         "log": console.log,
       }
     }
 
     WebAssembly.instantiate(event.data, imports).then((module) => {
-      memory = module.instance.exports.memory;
+      memory = module.instance.exports.memory as WebAssembly.Memory;
 
       (module.instance.exports.on_load as Function)()
     })
