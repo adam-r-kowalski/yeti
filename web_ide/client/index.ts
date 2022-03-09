@@ -16,6 +16,7 @@ const on_page_load = () => {
     }
 
     const shaders = []
+    const programs = []
 
     var memory = undefined
 
@@ -42,6 +43,31 @@ const on_page_load = () => {
         },
         "delete_shader": (shader: number): void => {
           gl.deleteShader(shaders[shader])
+        },
+        "create_program": (): number => {
+          const program_index = programs.length
+          const program = gl.createProgram()
+          programs.push(program)
+          return program_index
+        },
+        "attach_shader": (program: number, shader: number): void => {
+          gl.attachShader(programs[program], shaders[shader])
+        },
+        "link_program": (program: number): void => {
+          gl.linkProgram(programs[program])
+        },
+        "get_program_parameter": (program: number, pname: number): number => {
+          return gl.getProgramParameter(programs[program], pname)
+        },
+        "log_program_info": (program: number): void => {
+          console.log(gl.getProgramInfoLog(programs[program]))
+        },
+        "delete_program": (program: number): void => {
+          gl.deleteProgram(programs[program])
+        },
+        "get_attrib_location": (program: number, attrib_ptr: number, attrib_len: number): number => {
+          const buffer = new Uint8Array(memory.buffer, attrib_ptr, attrib_len)
+          return gl.getAttribLocation(programs[program], new TextDecoder('utf-8').decode(buffer))
         },
         "log": console.log,
       }
