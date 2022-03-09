@@ -103,11 +103,28 @@ const on_page_load = () => {
         "vertex_attrib_pointer": (index: number, size: number, dtype: number, normalized: boolean, stride: number, offset: number): void => {
           gl.vertexAttribPointer(index, size, dtype, normalized, stride, offset)
         },
+        "resize_canvas_to_display_size": (): void => {
+          if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+            canvas.width = canvas.clientWidth
+            canvas.height = canvas.clientHeight
+          }
+        },
+        "viewport": (x: number, y: number, width: number, height: number): void => {
+          gl.viewport(x, y, width, height)
+        },
+        "canvas_width": (): number => gl.canvas.width,
+        "canvas_height": (): number => gl.canvas.height,
         "clear_color": (red: number, green: number, blue: number, alpha: number): void => {
           gl.clearColor(red, green, blue, alpha)
         },
         "clear": (mask: number): void => {
           gl.clear(mask)
+        },
+        "use_program": (program: number): void => {
+          gl.useProgram(programs[program])
+        },
+        "draw_arrays": (mode: number, first: number, count: number): void => {
+          gl.drawArrays(mode, first, count)
         },
         "log": console.log,
       }

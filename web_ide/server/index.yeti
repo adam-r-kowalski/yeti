@@ -59,10 +59,28 @@ enable_vertex_attrib_array(index: i32): void
 vertex_attrib_pointer(index: i32, size: i32, dtype: i32, normalized: i32, stride: i32, offset: i32): void
 
 @import
+resize_canvas_to_display_size(): void
+
+@import
+viewport(x: f32, y: f32, width: f32, height: f32): void
+
+@import
+canvas_width(): f32
+
+@import
+canvas_height(): f32
+
+@import
 clear_color(red: u8, green: u8, blue: u8, alpha: u8): void
 
 @import
 clear(mask: i32): void
+
+@import
+use_program(program: i32): void
+
+@import
+draw_arrays(mode: i32, first: i32, count: i32): void
 
 @import
 log(value: i32): void
@@ -137,7 +155,16 @@ on_load() {
   stride = 0
   offset = 0
   position_attribute_location.vertex_attrib_pointer(size, dtype, normalized, stride, offset)
-  clear_color(0, 255, 0, 255)
+  resize_canvas_to_display_size()
+  viewport(0, 0, canvas_width(), canvas_height())
+  clear_color(0, 0, 0, 0)
   COLOR_BUFFER_BIT = 16384
   COLOR_BUFFER_BIT.clear()
+  program.use_program()
+  vao.bind_vertex_array()
+  TRIANGLES = 4
+  primitive_type = TRIANGLES
+  offset = 0
+  count = 3
+  draw_arrays(primitive_type, offset, count)
 }
