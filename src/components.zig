@@ -234,6 +234,7 @@ pub const AstKind = enum(u8) {
     int,
     float,
     string,
+    array_literal,
     char,
     function,
     binary_op,
@@ -624,6 +625,7 @@ pub const LoopVariable = DistinctEntity("Loop Variable");
 pub const Iterator = DistinctEntity("Iterator");
 pub const First = DistinctEntity("First");
 pub const Last = DistinctEntity("Last");
+pub const Values = DistinctList("Values", Entity);
 pub const UsesMemory = struct { value: bool };
 pub const Size = struct { bytes: i32 };
 pub const Length = struct { value: i32 };
