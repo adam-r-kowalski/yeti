@@ -37,16 +37,46 @@ fn parseGrouping(codebase: *ECS, tokens: *Tokens) !Entity {
 }
 
 fn parseArray(codebase: *ECS, tokens: *Tokens, left_bracket: Entity) !Entity {
-    _ = tokens.consume(.right_bracket);
     const begin = left_bracket.get(components.Span).begin;
-    const value = try parseExpression(codebase, tokens, HIGHEST);
-    const end = value.get(components.Span).end;
-    const span = components.Span.init(begin, end);
-    return try codebase.createEntity(.{
-        components.AstKind.array,
-        components.Value.init(value),
-        span,
-    });
+    if (tokens.peek().?.get(components.TokenKind) == .right_bracket) {
+        _ = tokens.consume(.right_bracket);
+        const value = try parseExpression(codebase, tokens, HIGHEST);
+        const end = value.get(components.Span).end;
+        const span = components.Span.init(begin, end);
+        return try codebase.createEntity(.{
+            components.AstKind.array,
+            components.Value.init(value),
+            span,
+        });
+    }
+    const array_literal = try codebase.createEntity(.{components.AstKind.array_literal});
+    var values = components.Values.init(codebase.arena.allocator());
+    var token = tokens.peek().?;
+    while (true) {
+        const kind = token.get(components.TokenKind);
+        switch (kind) {
+            .right_bracket => {
+                const end = token.get(components.Span).end;
+                const span = components.Span.init(begin, end);
+                _ = try array_literal.set(.{
+                    values,
+                    span,
+                });
+                token = tokens.next().?;
+                break;
+            },
+            .comma => {
+                _ = tokens.next().?;
+                token = tokens.peek().?;
+            },
+            else => {
+                const expression = try parseExpression(codebase, tokens, LOWEST);
+                try values.append(expression);
+                token = tokens.peek().?;
+            },
+        }
+    }
+    return array_literal;
 }
 
 fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {

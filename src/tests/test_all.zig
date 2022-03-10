@@ -13,6 +13,7 @@ const test_struct = @import("test_struct.zig");
 const test_while = @import("test_while.zig");
 const test_for = @import("test_for.zig");
 const test_strings = @import("test_strings.zig");
+const test_arrays = @import("test_arrays.zig");
 const test_simd = @import("test_simd.zig");
 const test_pointer = @import("test_pointer.zig");
 const test_assignment = @import("test_assignment.zig");

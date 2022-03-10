@@ -18,6 +18,8 @@ const literalOf = query.literalOf;
 const typeOf = query.typeOf;
 const parentType = query.parentType;
 const valueType = query.valueType;
+const sizeOf = query.sizeOf;
+const valueOf = query.valueOf;
 const List = @import("list.zig").List;
 const Strings = @import("strings.zig").Strings;
 
@@ -145,33 +147,6 @@ fn codegenLocal(context: *Context, local: Entity) !void {
         components.Local.init(local),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
-}
-
-fn valueOf(comptime T: type, entity: Entity) !?T {
-    if (entity.has(T)) |value| {
-        return value;
-    }
-    if (entity.has(components.Literal)) |literal| {
-        const string = entity.ecs.get(Strings).get(literal.interned);
-        const types = [_]type{ i64, i32, i16, i8, u64, u32, u16, u8 };
-        inline for (&types) |E| {
-            if (T == E) {
-                const value = try std.fmt.parseInt(T, string, 10);
-                _ = try entity.set(.{value});
-                return value;
-            }
-        }
-        const float_types = [_]type{ f64, f32 };
-        inline for (&float_types) |E| {
-            if (T == E) {
-                const value = try std.fmt.parseFloat(T, string);
-                _ = try entity.set(.{value});
-                return value;
-            }
-        }
-        panic("\nvalue of unsupported type {s}\n", .{@typeName(T)});
-    }
-    return null;
 }
 
 const ArithmeticBinaryOps = struct {
@@ -1380,6 +1355,18 @@ fn codegenString(context: *Context, entity: Entity) !void {
     context.data_segment.end += length * 8;
 }
 
+fn codegenArrayLiteral(context: *Context, entity: Entity) !void {
+    try context.codebase.set(.{components.UsesMemory{ .value = true }});
+    const values = entity.get(components.Values).slice();
+    const length = @intCast(i32, values.len);
+    try context.data_segment.entities.append(entity);
+    try codegenConstant(i32, context, context.data_segment.end);
+    try codegenConstant(i32, context, length);
+    const location = components.Location{ .value = context.data_segment.end };
+    _ = try entity.set(.{location});
+    context.data_segment.end += length * sizeOf(valueType(typeOf(entity))) * 8;
+}
+
 fn codegenIndex(context: *Context, entity: Entity) !void {
     const arguments = entity.get(components.Arguments).slice();
     const array = arguments[0];
@@ -1399,8 +1386,7 @@ fn codegenIndex(context: *Context, entity: Entity) !void {
         break;
     }
     try codegenEntity(context, arguments[1]);
-    const size = typeOf(entity).get(components.Size).bytes;
-    try codegenConstant(i32, context, size);
+    try codegenConstant(i32, context, sizeOf(typeOf(entity)));
     const mul = try context.codebase.createEntity(.{components.WasmInstructionKind.i32_mul});
     try context.wasm_instructions.append(mul);
     const add = try context.codebase.createEntity(.{components.WasmInstructionKind.i32_add});
@@ -1426,6 +1412,7 @@ fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow
         .field => try codegenField(context, entity),
         .assign_field => try codegenAssignField(context, entity),
         .string => try codegenString(context, entity),
+        .array_literal => try codegenArrayLiteral(context, entity),
         .index => try codegenIndex(context, entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }

@@ -62,6 +62,12 @@ fn Context(comptime FileSystem: type) type {
                 }
                 return .no;
             }
+            if (from.has(components.ParentType)) |parent_type| {
+                assert(eql(parent_type.entity, b.Array));
+                const from_value_type = from.get(components.ValueType).entity;
+                const to_value_type = to.get(components.ValueType).entity;
+                return self.convertibleTo(to_value_type, from_value_type);
+            }
             return .no;
         }
 
@@ -368,13 +374,12 @@ fn Context(comptime FileSystem: type) type {
             panic("\npointer of type {s} not supported yet\n", .{literalOf(value_type)});
         }
 
-        fn analyzeArray(self: *Self, entity: Entity) !Entity {
-            const value = try self.analyzeExpression(entity.get(components.Value).entity);
+        fn arrayType(self: *Self, T: Entity) !Entity {
+            const literal = literalOf(T);
             const b = self.builtins;
-            const type_of = typeOf(value);
-            assert(eql(type_of, b.Type));
+            assert(eql(typeOf(T), b.Type));
             const memoized = b.Array.getPtr(components.Memoized);
-            const result = try memoized.getOrPut(value);
+            const result = try memoized.getOrPut(T);
             if (result.found_existing) {
                 return result.value_ptr.*;
             }
@@ -382,17 +387,18 @@ fn Context(comptime FileSystem: type) type {
             {
                 const interned = try self.codebase.getPtr(Strings).intern("ptr");
                 const pointer_memoized = b.Ptr.getPtr(components.Memoized);
-                const pointer_result = try pointer_memoized.getOrPut(b.U8);
+                const pointer_result = try pointer_memoized.getOrPut(T);
                 const pointer_type = blk: {
                     if (pointer_result.found_existing) {
                         break :blk pointer_result.value_ptr.*;
                     } else {
-                        const pointer_interned = try self.codebase.getPtr(Strings).intern("*u8");
+                        const pointer_string = try std.fmt.allocPrint(self.allocator, "*{s}", .{literal});
+                        const pointer_interned = try self.codebase.getPtr(Strings).intern(pointer_string);
                         const pointer_type = try self.codebase.createEntity(.{
                             components.Literal.init(pointer_interned),
                             components.Type.init(b.Type),
                             components.ParentType.init(b.Ptr),
-                            components.ValueType.init(b.U8),
+                            components.ValueType.init(T),
                         });
                         pointer_result.value_ptr.* = pointer_type;
                         break :blk pointer_type;
@@ -414,18 +420,23 @@ fn Context(comptime FileSystem: type) type {
                 _ = try len.set(.{components.Name.init(len)});
                 try fields.append(len);
             }
-            const string = try std.fmt.allocPrint(self.allocator, "[]{s}", .{literalOf(value)});
+            const string = try std.fmt.allocPrint(self.allocator, "[]{s}", .{literal});
             const interned = try self.codebase.getPtr(Strings).intern(string);
             const array_type = try self.codebase.createEntity(.{
                 components.AstKind.struct_,
                 components.Literal.init(interned),
                 components.Type.init(b.Type),
                 components.ParentType.init(b.Array),
-                components.ValueType.init(value),
+                components.ValueType.init(T),
                 fields,
             });
             result.value_ptr.* = array_type;
             return array_type;
+        }
+
+        fn analyzeArray(self: *Self, entity: Entity) !Entity {
+            const value = try self.analyzeExpression(entity.get(components.Value).entity);
+            return try self.arrayType(value);
         }
 
         fn analyzeCast(self: *Self, arguments: []const Entity) !Entity {
@@ -1048,59 +1059,26 @@ fn Context(comptime FileSystem: type) type {
 
         fn analyzeString(self: *Self, entity: Entity) !Entity {
             const b = self.builtins;
-            const memoized = b.Array.getPtr(components.Memoized);
-            const result = try memoized.getOrPut(b.U8);
-            if (result.found_existing) {
-                return entity.set(.{components.Type.init(result.value_ptr.*)});
-            }
-
-            var fields = components.Fields.init(self.allocator);
-            {
-                const interned = try self.codebase.getPtr(Strings).intern("ptr");
-                const pointer_memoized = b.Ptr.getPtr(components.Memoized);
-                const pointer_result = try pointer_memoized.getOrPut(b.U8);
-                const pointer_type = blk: {
-                    if (pointer_result.found_existing) {
-                        break :blk pointer_result.value_ptr.*;
-                    } else {
-                        const pointer_interned = try self.codebase.getPtr(Strings).intern("*u8");
-                        const pointer_type = try self.codebase.createEntity(.{
-                            components.Literal.init(pointer_interned),
-                            components.Type.init(b.Type),
-                            components.ParentType.init(b.Ptr),
-                            components.ValueType.init(b.U8),
-                        });
-                        pointer_result.value_ptr.* = pointer_type;
-                        break :blk pointer_type;
-                    }
-                };
-                const ptr = try self.codebase.createEntity(.{
-                    components.Literal.init(interned),
-                    components.Type.init(pointer_type),
-                });
-                _ = try ptr.set(.{components.Name.init(ptr)});
-                try fields.append(ptr);
-            }
-            {
-                const interned = try self.codebase.getPtr(Strings).intern("len");
-                const len = try self.codebase.createEntity(.{
-                    components.Literal.init(interned),
-                    components.Type.init(b.I32),
-                });
-                _ = try len.set(.{components.Name.init(len)});
-                try fields.append(len);
-            }
-            const interned = try self.codebase.getPtr(Strings).intern("[]u8");
-            const array_type = try self.codebase.createEntity(.{
-                components.AstKind.struct_,
-                components.Literal.init(interned),
-                components.Type.init(b.Type),
-                components.ParentType.init(b.Array),
-                components.ValueType.init(b.U8),
-                fields,
-            });
-            result.value_ptr.* = array_type;
+            const array_type = try self.arrayType(b.U8);
             return entity.set(.{components.Type.init(array_type)});
+        }
+
+        fn analyzeArrayLiteral(self: *Self, entity: Entity) !Entity {
+            const values = entity.get(components.Values).slice();
+            assert(values.len > 1);
+            var analyzed_values = try components.Values.withCapacity(self.allocator, values.len);
+            const first = try self.analyzeExpression(values[0]);
+            try analyzed_values.append(first);
+            for (values[1..]) |value| {
+                const analyzed_value = try self.analyzeExpression(value);
+                try analyzed_values.append(analyzed_value);
+            }
+            const array_type = try self.arrayType(typeOf(first));
+            return try self.codebase.createEntity(.{
+                components.AstKind.array_literal,
+                components.Type.init(array_type),
+                analyzed_values,
+            });
         }
 
         fn analyzeChar(self: *Self, entity: Entity) !Entity {
@@ -1150,6 +1128,7 @@ fn Context(comptime FileSystem: type) type {
                 .array => try self.analyzeArray(entity),
                 .range => try self.analyzeRange(entity),
                 .string => try self.analyzeString(entity),
+                .array_literal => try self.analyzeArrayLiteral(entity),
                 .char => try self.analyzeChar(entity),
                 .plus_equal => try self.analyzePlusEqual(entity),
                 .times_equal => try self.analyzeTimesEqual(entity),
