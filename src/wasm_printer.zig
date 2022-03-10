@@ -16,6 +16,8 @@ const components = @import("components.zig");
 const query = @import("query.zig");
 const literalOf = query.literalOf;
 const typeOf = query.typeOf;
+const valueType = query.valueType;
+const valueOf = query.valueOf;
 const List = @import("list.zig").List;
 const strings_module = @import("strings.zig");
 const Strings = strings_module.Strings;
@@ -480,18 +482,41 @@ pub fn printWasm(module: Entity) ![]u8 {
     if (codebase.contains(components.UsesMemory)) {
         const data_segment = codebase.get(components.DataSegment);
         const allocator = codebase.arena.allocator();
+        const b = codebase.get(components.Builtins);
         for (data_segment.entities.slice()) |entity| {
-            assert(entity.get(components.AstKind) == .string);
             try wasm.appendSlice("\n\n  (data (i32.const ");
             const location = entity.get(components.Location).value;
             const string = try std.fmt.allocPrint(allocator, "{}", .{location});
             try wasm.appendSlice(string);
             try wasm.appendSlice(") \"");
-            for (literalOf(entity)) |c| {
-                switch (c) {
-                    '\n' => try wasm.appendSlice("\\n"),
-                    else => try wasm.append(c),
-                }
+            switch (entity.get(components.AstKind)) {
+                .string => {
+                    for (literalOf(entity)) |c| {
+                        switch (c) {
+                            '\n' => try wasm.appendSlice("\\n"),
+                            else => try wasm.append(c),
+                        }
+                    }
+                },
+                .array_literal => {
+                    const values = entity.get(components.Values).slice();
+                    const value_type = valueType(typeOf(entity));
+                    assert(eql(value_type, b.I32));
+                    for (values) |value| {
+                        var data = (try valueOf(i32, value)).?;
+                        const bytes = @ptrCast([*]u8, &data);
+                        var i: usize = 0;
+                        while (i < 4) : (i += 1) {
+                            try wasm.append('\\');
+                            const octal = try std.fmt.allocPrint(allocator, "{x}", .{bytes[i]});
+                            if (octal.len == 1) {
+                                try wasm.append('0');
+                            }
+                            try wasm.appendSlice(octal);
+                        }
+                    }
+                },
+                else => |k| panic("\nwasm print data unsupported kind {}\n", .{k}),
             }
             try wasm.appendSlice("\")");
         }

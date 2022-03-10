@@ -19,6 +19,7 @@ const typeOf = query.typeOf;
 const parentType = query.parentType;
 const valueType = query.valueType;
 const sizeOf = query.sizeOf;
+const valueOf = query.valueOf;
 const List = @import("list.zig").List;
 const Strings = @import("strings.zig").Strings;
 
@@ -146,33 +147,6 @@ fn codegenLocal(context: *Context, local: Entity) !void {
         components.Local.init(local),
     });
     _ = try context.wasm_instructions.append(wasm_instruction);
-}
-
-fn valueOf(comptime T: type, entity: Entity) !?T {
-    if (entity.has(T)) |value| {
-        return value;
-    }
-    if (entity.has(components.Literal)) |literal| {
-        const string = entity.ecs.get(Strings).get(literal.interned);
-        const types = [_]type{ i64, i32, i16, i8, u64, u32, u16, u8 };
-        inline for (&types) |E| {
-            if (T == E) {
-                const value = try std.fmt.parseInt(T, string, 10);
-                _ = try entity.set(.{value});
-                return value;
-            }
-        }
-        const float_types = [_]type{ f64, f32 };
-        inline for (&float_types) |E| {
-            if (T == E) {
-                const value = try std.fmt.parseFloat(T, string);
-                _ = try entity.set(.{value});
-                return value;
-            }
-        }
-        panic("\nvalue of unsupported type {s}\n", .{@typeName(T)});
-    }
-    return null;
 }
 
 const ArithmeticBinaryOps = struct {
