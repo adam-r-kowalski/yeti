@@ -17,19 +17,101 @@ log_shader_info(shader: i32): void
 delete_shader(shader: i32): void
 
 @import
+create_program(): i32
+
+@import
+attach_shader(program: i32, shader: i32): void
+
+@import
+link_program(program: i32): void
+
+@import
+get_program_parameter(program: i32, pname: i32): i32
+
+@import
+log_program_info(program: i32): void
+
+@import
+delete_program(program: i32): void
+
+@import
+get_attrib_location(program: i32, attrib: []u8): i32
+
+@import
+create_buffer(): i32
+
+@import
+bind_buffer(target: i32, buffer: i32): void
+
+@import
+buffer_data(target: i32, usage: i32): void
+
+@import
+create_vertex_array(): i32
+
+@import
+bind_vertex_array(vertex_array: i32): void
+
+@import
+enable_vertex_attrib_array(index: i32): void
+
+@import
+vertex_attrib_pointer(index: i32, size: i32, dtype: i32, normalized: i32, stride: i32, offset: i32): void
+
+@import
+resize_canvas_to_display_size(): void
+
+@import
+viewport(x: f32, y: f32, width: f32, height: f32): void
+
+@import
+canvas_width(): f32
+
+@import
+canvas_height(): f32
+
+@import
+clear_color(red: u8, green: u8, blue: u8, alpha: u8): void
+
+@import
+clear(mask: i32): void
+
+@import
+use_program(program: i32): void
+
+@import
+draw_arrays(mode: i32, first: i32, count: i32): void
+
+@import
 log(value: i32): void
 
 create_shader(shader_type: i32, source: []u8): i32 {
-  shader = create_shader(shader_type)
-  shader_source(shader, source)
-  compile_shader(shader)
+  shader = shader_type.create_shader()
+  shader.shader_source(source)
+  shader.compile_shader()
   COMPILE_STATUS = 35713
-  success = get_shader_parameter(shader, COMPILE_STATUS)
+  success = shader.get_shader_parameter(COMPILE_STATUS)
   if success {
     shader
   } else {
-    log_shader_info(shader)
-    delete_shader(shader)
+    shader.log_shader_info()
+    shader.delete_shader()
+    -1
+  }
+}
+
+create_program(vertex_shader: i32, fragment_shader: i32): i32 {
+  program = create_program()
+  program.attach_shader(vertex_shader)
+  program.attach_shader(fragment_shader)
+  program.link_program()
+  LINK_STATUS = 35714
+  success = program.get_program_parameter(LINK_STATUS)
+  if success {
+    program
+  } else {
+    program.log_program_info()
+    program.delete_program()
     -1
   }
 }
@@ -44,7 +126,7 @@ on_load() {
     gl_Position = a_position;
   }
   "
-  vertex_shader = create_shader(VERTEX_SHADER, vertex_shader_source)
+  vertex_shader = VERTEX_SHADER.create_shader(vertex_shader_source)
   FRAGMENT_SHADER = 35632
   fragment_shader_source = "#version 300 es
   precision highp float;
@@ -55,5 +137,34 @@ on_load() {
     outColor = vec4(1, 0, 0.5, 1);
   }
   "
-  fragment_shader = create_shader(FRAGMENT_SHADER, fragment_shader_source)
+  fragment_shader = FRAGMENT_SHADER.create_shader(fragment_shader_source)
+  program = create_program(vertex_shader, fragment_shader)
+  position_attribute_location = program.get_attrib_location("a_position")
+  position_buffer = create_buffer()
+  ARRAY_BUFFER = 34962
+  ARRAY_BUFFER.bind_buffer(position_buffer)
+  STATIC_DRAW = 35044
+  ARRAY_BUFFER.buffer_data(STATIC_DRAW)
+  vao = create_vertex_array()
+  vao.bind_vertex_array()
+  position_attribute_location.enable_vertex_attrib_array()
+  size = 2
+  FLOAT = 5126
+  dtype = FLOAT
+  normalized = 0
+  stride = 0
+  offset = 0
+  position_attribute_location.vertex_attrib_pointer(size, dtype, normalized, stride, offset)
+  resize_canvas_to_display_size()
+  viewport(0, 0, canvas_width(), canvas_height())
+  clear_color(0, 0, 0, 0)
+  COLOR_BUFFER_BIT = 16384
+  COLOR_BUFFER_BIT.clear()
+  program.use_program()
+  vao.bind_vertex_array()
+  TRIANGLES = 4
+  primitive_type = TRIANGLES
+  offset = 0
+  count = 3
+  draw_arrays(primitive_type, offset, count)
 }
