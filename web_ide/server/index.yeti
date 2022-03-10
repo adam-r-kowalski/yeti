@@ -126,7 +126,7 @@ on_load() {
     gl_Position = a_position;
   }
   "
-  vertex_shader = VERTEX_SHADER.create_shader(vertex_shader_source)
+  vertex_shader = create_shader(VERTEX_SHADER, vertex_shader_source)
   FRAGMENT_SHADER = 35632
   fragment_shader_source = "#version 300 es
   precision highp float;
@@ -137,14 +137,14 @@ on_load() {
     outColor = vec4(1, 0, 0.5, 1);
   }
   "
-  fragment_shader = FRAGMENT_SHADER.create_shader(fragment_shader_source)
+  fragment_shader = create_shader(FRAGMENT_SHADER, fragment_shader_source)
   program = create_program(vertex_shader, fragment_shader)
   position_attribute_location = program.get_attrib_location("a_position")
   position_buffer = create_buffer()
   ARRAY_BUFFER = 34962
-  ARRAY_BUFFER.bind_buffer(position_buffer)
+  bind_buffer(ARRAY_BUFFER, position_buffer)
   STATIC_DRAW = 35044
-  ARRAY_BUFFER.buffer_data(STATIC_DRAW, [-0.5, 0, 0, 0.5, 0.5, 0])
+  buffer_data(ARRAY_BUFFER, STATIC_DRAW, [-0.5, 0, 0, 0.5, 0.5, 0])
   vao = create_vertex_array()
   vao.bind_vertex_array()
   position_attribute_location.enable_vertex_attrib_array()
@@ -159,7 +159,7 @@ on_load() {
   viewport(0, 0, canvas_width(), canvas_height())
   clear_color(0, 0, 0, 0)
   COLOR_BUFFER_BIT = 16384
-  COLOR_BUFFER_BIT.clear()
+  clear(COLOR_BUFFER_BIT)
   program.use_program()
   vao.bind_vertex_array()
   TRIANGLES = 4
