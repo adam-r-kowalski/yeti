@@ -19,3 +19,7 @@ pub fn parentType(entity: Entity) Entity {
 pub fn valueType(entity: Entity) Entity {
     return entity.get(components.ValueType).entity;
 }
+
+pub fn sizeOf(entity: Entity) i32 {
+    return entity.get(components.Size).bytes;
+}

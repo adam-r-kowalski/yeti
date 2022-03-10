@@ -18,6 +18,7 @@ const literalOf = query.literalOf;
 const typeOf = query.typeOf;
 const parentType = query.parentType;
 const valueType = query.valueType;
+const sizeOf = query.sizeOf;
 const List = @import("list.zig").List;
 const Strings = @import("strings.zig").Strings;
 
@@ -1380,6 +1381,18 @@ fn codegenString(context: *Context, entity: Entity) !void {
     context.data_segment.end += length * 8;
 }
 
+fn codegenArrayLiteral(context: *Context, entity: Entity) !void {
+    try context.codebase.set(.{components.UsesMemory{ .value = true }});
+    const values = entity.get(components.Values).slice();
+    const length = @intCast(i32, values.len);
+    try context.data_segment.entities.append(entity);
+    try codegenConstant(i32, context, context.data_segment.end);
+    try codegenConstant(i32, context, length);
+    const location = components.Location{ .value = context.data_segment.end };
+    _ = try entity.set(.{location});
+    context.data_segment.end += length * sizeOf(valueType(typeOf(entity))) * 8;
+}
+
 fn codegenIndex(context: *Context, entity: Entity) !void {
     const arguments = entity.get(components.Arguments).slice();
     const array = arguments[0];
@@ -1399,8 +1412,7 @@ fn codegenIndex(context: *Context, entity: Entity) !void {
         break;
     }
     try codegenEntity(context, arguments[1]);
-    const size = typeOf(entity).get(components.Size).bytes;
-    try codegenConstant(i32, context, size);
+    try codegenConstant(i32, context, sizeOf(typeOf(entity)));
     const mul = try context.codebase.createEntity(.{components.WasmInstructionKind.i32_mul});
     try context.wasm_instructions.append(mul);
     const add = try context.codebase.createEntity(.{components.WasmInstructionKind.i32_add});
@@ -1426,6 +1438,7 @@ fn codegenEntity(context: *Context, entity: Entity) error{ OutOfMemory, Overflow
         .field => try codegenField(context, entity),
         .assign_field => try codegenAssignField(context, entity),
         .string => try codegenString(context, entity),
+        .array_literal => try codegenArrayLiteral(context, entity),
         .index => try codegenIndex(context, entity),
         else => panic("\ncodegen entity {} not implmented\n", .{kind}),
     }
