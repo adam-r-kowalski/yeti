@@ -451,6 +451,61 @@ fn printWasmForeignImport(wasm: *Wasm, function: Entity) !void {
     try wasm.appendSlice("))");
 }
 
+fn printBytesAsHex(comptime T: type, wasm: *Wasm, allocator: Allocator, values: []const Entity) !void {
+    for (values) |value| {
+        var data = (try valueOf(T, value)).?;
+        const bytes = @ptrCast([*]u8, &data);
+        var i: usize = 0;
+        while (i < @sizeOf(T)) : (i += 1) {
+            try wasm.append('\\');
+            const octal = try std.fmt.allocPrint(allocator, "{x}", .{bytes[i]});
+            if (octal.len == 1) {
+                try wasm.append('0');
+            }
+            try wasm.appendSlice(octal);
+        }
+    }
+}
+
+fn printDataSegment(wasm: *Wasm, codebase: *ECS) !void {
+    if (codebase.contains(components.UsesMemory)) {
+        const data_segment = codebase.get(components.DataSegment);
+        const allocator = codebase.arena.allocator();
+        const b = codebase.get(components.Builtins);
+        for (data_segment.entities.slice()) |entity| {
+            try wasm.appendSlice("\n\n  (data (i32.const ");
+            const location = entity.get(components.Location).value;
+            const string = try std.fmt.allocPrint(allocator, "{}", .{location});
+            try wasm.appendSlice(string);
+            try wasm.appendSlice(") \"");
+            switch (entity.get(components.AstKind)) {
+                .string => {
+                    for (literalOf(entity)) |c| {
+                        switch (c) {
+                            '\n' => try wasm.appendSlice("\\n"),
+                            else => try wasm.append(c),
+                        }
+                    }
+                },
+                .array_literal => {
+                    const values = entity.get(components.Values).slice();
+                    const value_type = valueType(typeOf(entity));
+                    if (eql(value_type, b.I32)) {
+                        try printBytesAsHex(i32, wasm, allocator, values);
+                    } else if (eql(value_type, b.F32)) {
+                        try printBytesAsHex(f32, wasm, allocator, values);
+                    } else {
+                        panic("\n print bytes as hex unsupported type {s} \n", .{literalOf(value_type)});
+                    }
+                },
+                else => |k| panic("\nwasm print data unsupported kind {}\n", .{k}),
+            }
+            try wasm.appendSlice("\")");
+        }
+        try wasm.appendSlice("\n\n  (memory 1)\n  (export \"memory\" (memory 0))");
+    }
+}
+
 pub fn printWasm(module: Entity) ![]u8 {
     const codebase = module.ecs;
     var wasm = Wasm.init(codebase.arena.allocator());
@@ -479,49 +534,7 @@ pub fn printWasm(module: Entity) ![]u8 {
         try wasm.appendSlice(try functionName(start));
         try wasm.appendSlice("))");
     }
-    if (codebase.contains(components.UsesMemory)) {
-        const data_segment = codebase.get(components.DataSegment);
-        const allocator = codebase.arena.allocator();
-        const b = codebase.get(components.Builtins);
-        for (data_segment.entities.slice()) |entity| {
-            try wasm.appendSlice("\n\n  (data (i32.const ");
-            const location = entity.get(components.Location).value;
-            const string = try std.fmt.allocPrint(allocator, "{}", .{location});
-            try wasm.appendSlice(string);
-            try wasm.appendSlice(") \"");
-            switch (entity.get(components.AstKind)) {
-                .string => {
-                    for (literalOf(entity)) |c| {
-                        switch (c) {
-                            '\n' => try wasm.appendSlice("\\n"),
-                            else => try wasm.append(c),
-                        }
-                    }
-                },
-                .array_literal => {
-                    const values = entity.get(components.Values).slice();
-                    const value_type = valueType(typeOf(entity));
-                    assert(eql(value_type, b.I32));
-                    for (values) |value| {
-                        var data = (try valueOf(i32, value)).?;
-                        const bytes = @ptrCast([*]u8, &data);
-                        var i: usize = 0;
-                        while (i < 4) : (i += 1) {
-                            try wasm.append('\\');
-                            const octal = try std.fmt.allocPrint(allocator, "{x}", .{bytes[i]});
-                            if (octal.len == 1) {
-                                try wasm.append('0');
-                            }
-                            try wasm.appendSlice(octal);
-                        }
-                    }
-                },
-                else => |k| panic("\nwasm print data unsupported kind {}\n", .{k}),
-            }
-            try wasm.appendSlice("\")");
-        }
-        try wasm.appendSlice("\n\n  (memory 1)\n  (export \"memory\" (memory 0))");
-    }
+    try printDataSegment(&wasm, codebase);
     try wasm.append(')');
     return wasm.mutSlice();
 }

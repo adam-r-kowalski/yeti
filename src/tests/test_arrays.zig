@@ -178,7 +178,7 @@ test "codegen of array literal" {
     try expectEqual(entities.len, 1);
 }
 
-test "print wasm array literal" {
+test "print wasm i32 array literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -201,6 +201,35 @@ test "print wasm array literal" {
         \\  (export "_start" (func $foo/start))
         \\
         \\  (data (i32.const 0) "\01\00\00\00\02\00\00\00\03\00\00\00")
+        \\
+        \\  (memory 1)
+        \\  (export "memory" (memory 0)))
+    );
+}
+
+test "print wasm f32 array literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start(): []f32 {
+        \\  [1, 2, 3]
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32 i32)
+        \\    (i32.const 0)
+        \\    (i32.const 3))
+        \\
+        \\  (export "_start" (func $foo/start))
+        \\
+        \\  (data (i32.const 0) "\00\00\80\3f\00\00\00\40\00\00\40\40")
         \\
         \\  (memory 1)
         \\  (export "memory" (memory 0)))
