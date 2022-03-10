@@ -80,12 +80,8 @@ const on_page_load = () => {
         "bind_buffer": (target: number, buffer: number): void => {
           gl.bindBuffer(target, buffers[buffer])
         },
-        "buffer_data": (target: number, usage: number): void => {
-          const positions = [
-            0, 0,
-            0, 0.5,
-            0.7, 0,
-          ]
+        "buffer_data": (target: number, usage: number, positions_ptr: number, positions_len: number): void => {
+          const positions = new Float32Array(memory.buffer, positions_ptr, positions_len)
           gl.bufferData(target, new Float32Array(positions), usage)
         },
         "create_vertex_array": (): number => {

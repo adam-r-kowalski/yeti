@@ -44,7 +44,7 @@ create_buffer(): i32
 bind_buffer(target: i32, buffer: i32): void
 
 @import
-buffer_data(target: i32, usage: i32): void
+buffer_data(target: i32, usage: i32, positions: []f32): void
 
 @import
 create_vertex_array(): i32
@@ -144,7 +144,7 @@ on_load() {
   ARRAY_BUFFER = 34962
   ARRAY_BUFFER.bind_buffer(position_buffer)
   STATIC_DRAW = 35044
-  ARRAY_BUFFER.buffer_data(STATIC_DRAW)
+  ARRAY_BUFFER.buffer_data(STATIC_DRAW, [-0.5, 0, 0, 0.5, 0.5, 0])
   vao = create_vertex_array()
   vao.bind_vertex_array()
   position_attribute_location.enable_vertex_attrib_array()
