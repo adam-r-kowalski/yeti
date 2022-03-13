@@ -65,7 +65,7 @@ fn parseArray(codebase: *ECS, tokens: *Tokens, left_bracket: Entity) !Entity {
                 token = tokens.next().?;
                 break;
             },
-            .comma => {
+            .comma, .new_line => {
                 _ = tokens.next().?;
                 token = tokens.peek().?;
             },
