@@ -114,6 +114,41 @@ test "parse array literal" {
     try expectEqualStrings(literalOf(values[2]), "3");
 }
 
+test "parse multiline array literal" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\start(): []f32 {
+        \\  [ 1, 2,
+        \\    3, 4,
+        \\    5, 6 ]
+        \\}
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const overloads = top_level.findString("start").get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const start = overloads[0];
+    const return_type = start.get(components.ReturnTypeAst).entity;
+    try expectEqual(return_type.get(components.AstKind), .array);
+    try expectEqualStrings(literalOf(return_type.get(components.Value).entity), "f32");
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const array_literal = body[0];
+    try expectEqual(array_literal.get(components.AstKind), .array_literal);
+    const values = array_literal.get(components.Values).slice();
+    try expectEqual(values.len, 6);
+    try expectEqualStrings(literalOf(values[0]), "1");
+    try expectEqualStrings(literalOf(values[1]), "2");
+    try expectEqualStrings(literalOf(values[2]), "3");
+    try expectEqualStrings(literalOf(values[3]), "4");
+    try expectEqualStrings(literalOf(values[4]), "5");
+    try expectEqualStrings(literalOf(values[5]), "6");
+}
+
 test "analyze semantics of array literal" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
