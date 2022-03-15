@@ -82,7 +82,7 @@ const on_page_load = () => {
         },
         "buffer_data": (target: number, usage: number, positions_ptr: number, positions_len: number): void => {
           const positions = new Float32Array(memory.buffer, positions_ptr, positions_len)
-          gl.bufferData(target, new Float32Array(positions), usage)
+          gl.bufferData(target, positions, usage)
         },
         "create_vertex_array": (): number => {
           const vertex_array_index = vertex_arrays.length

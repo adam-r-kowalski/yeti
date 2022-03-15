@@ -163,7 +163,7 @@ fn Context(comptime FileSystem: type) type {
             panic("\nanalyzeSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
-        fn bestOverload(self: *Self, call: Entity, callable: Entity, arguments: []const Entity) !Entity {
+        fn bestOverload(self: *Self, call: Entity, callable: Entity, arguments: []const Entity, _: components.NamedArguments) !Entity {
             const top_level = self.module.get(components.TopLevel);
             const literal = callable.get(components.Literal);
             var best_overload: Entity = undefined;
@@ -226,6 +226,7 @@ fn Context(comptime FileSystem: type) type {
                 const parameters = overload.get(components.Parameters).slice();
                 if (parameters.len != arguments.len) continue;
                 var match = Match.exact;
+                panic("\n TODO(ADAM): if we are out of arguments then use named arguments \n", .{});
                 for (parameters) |parameter, i| {
                     const parameter_type = typeOf(parameter);
                     const argument_type = typeOf(arguments[i]);
@@ -458,13 +459,21 @@ fn Context(comptime FileSystem: type) type {
             const call_arguments = call.get(components.Arguments).slice();
             var analyzed_arguments = try components.Arguments.withCapacity(self.allocator, call_arguments.len);
             for (call_arguments) |argument| {
-                analyzed_arguments.appendAssumeCapacity(try callingContext.analyzeExpression(argument));
+                const analyzed_argument = try callingContext.analyzeExpression(argument);
+                analyzed_arguments.appendAssumeCapacity(analyzed_argument);
+            }
+            var analyzed_named_arguments = components.NamedArguments.init(self.allocator, call.ecs.getPtr(Strings));
+            var iterator = call.get(components.NamedArguments).iterator();
+            while (iterator.next()) |pair| {
+                const argument = pair.value_ptr.*;
+                const analyzed_argument = try callingContext.analyzeExpression(argument);
+                try analyzed_named_arguments.putInterned(pair.key_ptr.*, analyzed_argument);
             }
             const callable_literal = callable.get(components.Literal);
             if (eql(callable_literal, self.builtins.Cast.get(components.Literal))) {
                 return try self.analyzeCast(analyzed_arguments.slice());
             }
-            const overload = try self.bestOverload(call, callable, analyzed_arguments.slice());
+            const overload = try self.bestOverload(call, callable, analyzed_arguments.slice(), analyzed_named_arguments);
             const kind = overload.get(components.AstKind);
             if (kind == .function) {
                 if (!overload.contains(components.AnalyzedBody)) {

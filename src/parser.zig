@@ -420,17 +420,27 @@ fn parseDefineOrRange(codebase: *ECS, tokens: *Tokens, lhs: Entity, precedence: 
 
 fn parseCall(codebase: *ECS, tokens: *Tokens, callable: Entity) !Entity {
     var arguments = components.Arguments.init(codebase.arena.allocator());
+    var named_arguments = components.NamedArguments.init(codebase.arena.allocator(), codebase.getPtr(Strings));
     while (tokens.peek()) |token| {
         switch (token.get(components.TokenKind)) {
             .right_paren => break,
             .comma => _ = tokens.next(),
-            else => try arguments.append(try parseExpression(codebase, tokens, LOWEST)),
+            else => {
+                const argument = try parseExpression(codebase, tokens, LOWEST);
+                if (argument.get(components.AstKind) == .define) {
+                    const name = argument.get(components.Name);
+                    const value = argument.get(components.Value).entity;
+                    try named_arguments.putName(name, value);
+                }
+                try arguments.append(argument);
+            },
         }
     }
     return try codebase.createEntity(.{
         components.AstKind.call,
         components.Callable.init(callable),
         arguments,
+        named_arguments,
         components.Span.init(callable.get(components.Span).begin, tokens.next().?.get(components.Span).end),
     });
 }

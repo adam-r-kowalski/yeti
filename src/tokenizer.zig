@@ -125,7 +125,7 @@ pub fn tokenize(module: Entity, code: []const u8) !Tokens {
 
 fn validSymbol(char: u8) bool {
     return switch (char) {
-        '(', ')', '[', ']', '{', '}', ' ', ':', '+', '-', '*', '/', '&', '|', '<', '>', ',', '\n', '\r', '.' => false,
+        '(', ')', '[', ']', '{', '}', ' ', ':', '+', '-', '*', '/', '&', '|', '<', '>', ',', '\n', '\r', '.', '=' => false,
         else => true,
     };
 }

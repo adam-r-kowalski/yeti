@@ -145,9 +145,9 @@ on_load() {
   bind_buffer(ARRAY_BUFFER, position_buffer)
   STATIC_DRAW = 35044
   buffer_data(ARRAY_BUFFER, STATIC_DRAW, [
-    -0.5, 0,
-    0, 0.5,
-    0.5, 0
+    -0.5, -0.5,
+    0,     0.5,
+    0.5,  -0.5
   ])
   vao = create_vertex_array()
   vao.bind_vertex_array()

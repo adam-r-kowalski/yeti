@@ -93,6 +93,10 @@ pub fn DistinctEntityMap(comptime unique_id: []const u8) type {
             return Self{ .map = Map.init(allocator), .strings = strings };
         }
 
+        pub fn iterator(self: *const Self) Map.Iterator {
+            return self.map.iterator();
+        }
+
         pub fn putInterned(self: *Self, interned: InternedString, entity: Entity) !void {
             try self.map.putNoClobber(interned, entity);
         }
@@ -589,6 +593,7 @@ pub const Type = DistinctEntity("Type");
 pub const Parameters = DistinctList("Parameters", Entity);
 pub const Body = DistinctList("Body", Entity);
 pub const Arguments = DistinctList("Arguments", Entity);
+pub const NamedArguments = DistinctEntityMap("Named Arguments");
 pub const Overloads = DistinctList("Overloads", Entity);
 pub const Fields = DistinctList("Fields", Entity);
 pub const TopLevel = DistinctEntityMap("Top Level");
