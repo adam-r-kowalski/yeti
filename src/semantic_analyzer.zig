@@ -163,7 +163,13 @@ fn Context(comptime FileSystem: type) type {
             panic("\nanalyzeSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
-        fn bestOverload(self: *Self, call: Entity, callable: Entity, arguments: []const Entity, _: components.NamedArguments) !Entity {
+        fn bestOverload(
+            self: *Self,
+            call: Entity,
+            callable: Entity,
+            arguments: []const Entity,
+            named_arguments: components.NamedArguments,
+        ) !Entity {
             const top_level = self.module.get(components.TopLevel);
             const literal = callable.get(components.Literal);
             var best_overload: Entity = undefined;
@@ -224,11 +230,11 @@ fn Context(comptime FileSystem: type) type {
                     try context.analyzeFunctionParameters();
                 }
                 const parameters = overload.get(components.Parameters).slice();
-                if (parameters.len != arguments.len) continue;
+                if (parameters.len < arguments.len) continue;
                 var match = Match.exact;
-                panic("\n TODO(ADAM): if we are out of arguments then use named arguments \n", .{});
-                for (parameters) |parameter, i| {
-                    const parameter_type = typeOf(parameter);
+                var i: usize = 0;
+                while (i < arguments.len) : (i += 1) {
+                    const parameter_type = typeOf(parameters[i]);
                     const argument_type = typeOf(arguments[i]);
                     switch (self.convertibleTo(parameter_type, argument_type)) {
                         .exact => continue,
@@ -239,6 +245,26 @@ fn Context(comptime FileSystem: type) type {
                             match = .no;
                             break;
                         },
+                    }
+                }
+                while (i < parameters.len) : (i += 1) {
+                    const parameter = parameters[i];
+                    const parameter_type = typeOf(parameter);
+                    if (named_arguments.hasLiteral(parameter.get(components.Literal))) |argument| {
+                        const argument_type = typeOf(argument);
+                        switch (self.convertibleTo(parameter_type, argument_type)) {
+                            .exact => continue,
+                            .implicit_conversion => if (match == .exact) {
+                                match = .implicit_conversion;
+                            },
+                            .no => {
+                                match = .no;
+                                break;
+                            },
+                        }
+                    } else {
+                        match = .no;
+                        break;
                     }
                 }
                 if (@enumToInt(match) < @enumToInt(best_match)) continue;
@@ -502,6 +528,7 @@ fn Context(comptime FileSystem: type) type {
                     components.Callable.init(overload),
                     components.AstKind.call,
                     analyzed_arguments,
+                    analyzed_named_arguments,
                     call.get(components.Span),
                 });
             }
@@ -526,20 +553,24 @@ fn Context(comptime FileSystem: type) type {
             switch (rhs.get(components.AstKind)) {
                 .call => {
                     const call_arguments = try self.uniformFunctionCallArguments(lhs, rhs);
+                    const named_arguments = components.NamedArguments.init(self.allocator, self.codebase.getPtr(Strings));
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         rhs.get(components.Callable),
                         call_arguments,
+                        named_arguments,
                         span,
                     });
                     return try self.analyzeCall(call, self);
                 },
                 .symbol => {
                     const call_arguments = try components.Arguments.fromSlice(self.allocator, &.{lhs});
+                    const named_arguments = components.NamedArguments.init(self.allocator, self.codebase.getPtr(Strings));
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         components.Callable.init(rhs),
                         call_arguments,
+                        named_arguments,
                         span,
                     });
                     return try self.analyzeCall(call, self);

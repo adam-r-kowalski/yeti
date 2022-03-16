@@ -431,8 +431,9 @@ fn parseCall(codebase: *ECS, tokens: *Tokens, callable: Entity) !Entity {
                     const name = argument.get(components.Name);
                     const value = argument.get(components.Value).entity;
                     try named_arguments.putName(name, value);
+                } else {
+                    try arguments.append(argument);
                 }
-                try arguments.append(argument);
             },
         }
     }

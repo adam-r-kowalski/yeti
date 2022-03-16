@@ -18,7 +18,7 @@ const valueType = yeti.query.valueType;
 const Entity = yeti.ecs.Entity;
 const MockFileSystem = yeti.FileSystem;
 
-test "analyze semantics call local function" {
+test "analyze semantics of named argument" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
@@ -40,23 +40,25 @@ test "analyze semantics call local function" {
     try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
     try expectEqual(start.get(components.Parameters).len(), 0);
     try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
-    const baz = blk: {
+    const id = blk: {
         const body = start.get(components.Body).slice();
         try expectEqual(body.len, 1);
         const call = body[0];
         try expectEqual(call.get(components.AstKind), .call);
         try expectEqual(call.get(components.Arguments).len(), 0);
+        const named_arguments = call.get(components.NamedArguments);
+        try expectEqual(named_arguments.count(), 1);
         try expectEqual(typeOf(call), builtins.I64);
         break :blk call.get(components.Callable).entity;
     };
-    try expectEqualStrings(literalOf(baz.get(components.Module).entity), "foo");
-    try expectEqualStrings(literalOf(baz.get(components.Name).entity), "baz");
-    try expectEqual(baz.get(components.Parameters).len(), 0);
-    try expectEqual(baz.get(components.ReturnType).entity, builtins.I64);
-    const body = baz.get(components.Body).slice();
+    try expectEqualStrings(literalOf(id.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(id.get(components.Name).entity), "id");
+    try expectEqual(id.get(components.Parameters).len(), 1);
+    try expectEqual(id.get(components.ReturnType).entity, builtins.I64);
+    const body = id.get(components.Body).slice();
     try expectEqual(body.len, 1);
-    const int_literal = body[0];
-    try expectEqual(int_literal.get(components.AstKind), .int);
-    try expectEqual(typeOf(int_literal), builtins.I64);
-    try expectEqualStrings(literalOf(int_literal), "10");
+    const x = body[0];
+    try expectEqual(x.get(components.AstKind), .local);
+    try expectEqual(typeOf(x), builtins.I64);
+    try expectEqualStrings(literalOf(x), "x");
 }

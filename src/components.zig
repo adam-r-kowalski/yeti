@@ -130,6 +130,10 @@ pub fn DistinctEntityMap(comptime unique_id: []const u8) type {
             const interned = name.entity.get(Literal).interned;
             return self.map.get(interned);
         }
+
+        pub fn count(self: Self) usize {
+            return self.map.count();
+        }
     };
 }
 
