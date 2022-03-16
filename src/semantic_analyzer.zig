@@ -174,6 +174,9 @@ fn Context(comptime FileSystem: type) type {
             const literal = callable.get(components.Literal);
             var best_overload: Entity = undefined;
             var best_match = Match.no;
+            var best_ordered_named_arguments = try components.OrderedNamedArguments.withCapacity(self.allocator, named_arguments.count());
+            best_ordered_named_arguments.values.len = named_arguments.count();
+            var ordered_named_arguments = try self.allocator.alloc(Entity, named_arguments.count());
             const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
             for (overloads) |overload| {
                 const kind = overload.get(components.AstKind);
@@ -251,6 +254,7 @@ fn Context(comptime FileSystem: type) type {
                     const parameter = parameters[i];
                     const parameter_type = typeOf(parameter);
                     if (named_arguments.hasLiteral(parameter.get(components.Literal))) |argument| {
+                        ordered_named_arguments[i - arguments.len] = argument;
                         const argument_type = typeOf(argument);
                         switch (self.convertibleTo(parameter_type, argument_type)) {
                             .exact => continue,
@@ -273,6 +277,7 @@ fn Context(comptime FileSystem: type) type {
                 }
                 best_match = match;
                 best_overload = overload;
+                std.mem.copy(Entity, best_ordered_named_arguments.mutSlice(), ordered_named_arguments);
             }
             if (best_match == .no) {
                 var body = List(u8, .{ .initial_capacity = 1000 }).init(self.allocator);
@@ -350,6 +355,7 @@ fn Context(comptime FileSystem: type) type {
                 _ = try call.set(.{error_component});
                 return error.CompileError;
             }
+            _ = try call.set(.{best_ordered_named_arguments});
             return best_overload;
         }
 
@@ -499,7 +505,8 @@ fn Context(comptime FileSystem: type) type {
             if (eql(callable_literal, self.builtins.Cast.get(components.Literal))) {
                 return try self.analyzeCast(analyzed_arguments.slice());
             }
-            const overload = try self.bestOverload(call, callable, analyzed_arguments.slice(), analyzed_named_arguments);
+            const analyzed_arguments_slice = analyzed_arguments.slice();
+            const overload = try self.bestOverload(call, callable, analyzed_arguments_slice, analyzed_named_arguments);
             const kind = overload.get(components.AstKind);
             if (kind == .function) {
                 if (!overload.contains(components.AnalyzedBody)) {
@@ -519,8 +526,14 @@ fn Context(comptime FileSystem: type) type {
                     try context.analyzeFunction();
                 }
                 const parameters = overload.get(components.Parameters).slice();
-                for (analyzed_arguments.slice()) |argument, i| {
-                    try self.implicitTypeConversion(argument, typeOf(parameters[i]));
+                var i: usize = 0;
+                while (i < analyzed_arguments_slice.len) : (i += 1) {
+                    try self.implicitTypeConversion(analyzed_arguments_slice[i], typeOf(parameters[i]));
+                }
+                const ordered_named_arguments = call.get(components.OrderedNamedArguments);
+                const ordered_named_arguments_slice = ordered_named_arguments.slice();
+                while (i < parameters.len) : (i += 1) {
+                    try self.implicitTypeConversion(ordered_named_arguments_slice[i - analyzed_arguments_slice.len], typeOf(parameters[i]));
                 }
                 const return_type = overload.get(components.ReturnType).entity;
                 return try self.codebase.createEntity(.{
@@ -530,6 +543,7 @@ fn Context(comptime FileSystem: type) type {
                     analyzed_arguments,
                     analyzed_named_arguments,
                     call.get(components.Span),
+                    ordered_named_arguments,
                 });
             }
             assert(kind == .struct_);

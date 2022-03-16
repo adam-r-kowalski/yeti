@@ -152,13 +152,8 @@ on_load() {
   vao = create_vertex_array()
   vao.bind_vertex_array()
   position_attribute_location.enable_vertex_attrib_array()
-  size = 2
   FLOAT = 5126
-  dtype = FLOAT
-  normalized = 0
-  stride = 0
-  offset = 0
-  position_attribute_location.vertex_attrib_pointer(size, dtype, normalized, stride, offset)
+  vertex_attrib_pointer(position_attribute_location, size=2, dtype=FLOAT, normalized=0, stride=0, offset=0)
   resize_canvas_to_display_size()
   viewport(0, 0, canvas_width(), canvas_height())
   clear_color(0, 0, 0, 0)
@@ -167,8 +162,5 @@ on_load() {
   program.use_program()
   vao.bind_vertex_array()
   TRIANGLES = 4
-  primitive_type = TRIANGLES
-  offset = 0
-  count = 3
-  draw_arrays(primitive_type, offset, count)
+  draw_arrays(mode=TRIANGLES, first=0, count=3)
 }

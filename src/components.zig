@@ -598,6 +598,7 @@ pub const Parameters = DistinctList("Parameters", Entity);
 pub const Body = DistinctList("Body", Entity);
 pub const Arguments = DistinctList("Arguments", Entity);
 pub const NamedArguments = DistinctEntityMap("Named Arguments");
+pub const OrderedNamedArguments = DistinctList("Ordered Named Arguments", Entity);
 pub const Overloads = DistinctList("Overloads", Entity);
 pub const Fields = DistinctList("Fields", Entity);
 pub const TopLevel = DistinctEntityMap("Top Level");

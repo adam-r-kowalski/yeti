@@ -68,6 +68,9 @@ fn codegenCall(context: *Context, entity: Entity) !void {
     for (entity.get(components.Arguments).slice()) |argument| {
         try codegenEntity(context, argument);
     }
+    for (entity.get(components.OrderedNamedArguments).slice()) |argument| {
+        try codegenEntity(context, argument);
+    }
     const wasm_instruction = try context.codebase.createEntity(.{
         components.WasmInstructionKind.call,
         entity.get(components.Callable),

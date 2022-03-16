@@ -46,9 +46,9 @@ test "analyze semantics of named argument" {
         const call = body[0];
         try expectEqual(call.get(components.AstKind), .call);
         try expectEqual(call.get(components.Arguments).len(), 0);
-        const named_arguments = call.get(components.NamedArguments);
-        try expectEqual(named_arguments.count(), 1);
-        try expectEqualStrings(literalOf(named_arguments.findString("x")), "5");
+        const named_arguments = call.get(components.OrderedNamedArguments).slice();
+        try expectEqual(named_arguments.len, 1);
+        try expectEqualStrings(literalOf(named_arguments[0]), "5");
         try expectEqual(typeOf(call), builtins.I64);
         break :blk call.get(components.Callable).entity;
     };
@@ -94,9 +94,9 @@ test "analyze semantics of positional then named argument" {
         const arguments = call.get(components.Arguments).slice();
         try expectEqual(arguments.len, 1);
         try expectEqualStrings(literalOf(arguments[0]), "3");
-        const named_arguments = call.get(components.NamedArguments);
-        try expectEqualStrings(literalOf(named_arguments.findString("y")), "5");
-        try expectEqual(named_arguments.count(), 1);
+        const named_arguments = call.get(components.OrderedNamedArguments).slice();
+        try expectEqual(named_arguments.len, 1);
+        try expectEqualStrings(literalOf(named_arguments[0]), "5");
         try expectEqual(typeOf(call), builtins.I64);
         break :blk call.get(components.Callable).entity;
     };
@@ -110,4 +110,34 @@ test "analyze semantics of positional then named argument" {
     try expectEqual(x.get(components.AstKind), .local);
     try expectEqual(typeOf(x), builtins.I64);
     try expectEqualStrings(literalOf(x), "x");
+}
+
+test "codegen named arguments" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start(): i32 {
+        \\  id(x=5)
+        \\}
+        \\
+        \\id(x: i32): i32 {
+        \\  x
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 2);
+    const constant = start_instructions[0];
+    try expectEqual(constant.get(components.WasmInstructionKind), components.WasmInstructionKind.i32_const);
+    try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "5");
+    const call = start_instructions[1];
+    try expectEqual(call.get(components.WasmInstructionKind), .call);
+    const baz = call.get(components.Callable).entity;
+    const baz_instructions = baz.get(components.WasmInstructions).slice();
+    try expectEqual(baz_instructions.len, 1);
 }
