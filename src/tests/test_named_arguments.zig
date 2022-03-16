@@ -48,6 +48,7 @@ test "analyze semantics of named argument" {
         try expectEqual(call.get(components.Arguments).len(), 0);
         const named_arguments = call.get(components.NamedArguments);
         try expectEqual(named_arguments.count(), 1);
+        try expectEqualStrings(literalOf(named_arguments.findString("x")), "5");
         try expectEqual(typeOf(call), builtins.I64);
         break :blk call.get(components.Callable).entity;
     };
@@ -56,6 +57,54 @@ test "analyze semantics of named argument" {
     try expectEqual(id.get(components.Parameters).len(), 1);
     try expectEqual(id.get(components.ReturnType).entity, builtins.I64);
     const body = id.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const x = body[0];
+    try expectEqual(x.get(components.AstKind), .local);
+    try expectEqual(typeOf(x), builtins.I64);
+    try expectEqualStrings(literalOf(x), "x");
+}
+
+test "analyze semantics of positional then named argument" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const builtins = codebase.get(components.Builtins);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start(): i64 {
+        \\  bar(3, y=5)
+        \\}
+        \\
+        \\bar(x: i64, y: i64): i64 {
+        \\  x
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    try expectEqual(start.get(components.ReturnType).entity, builtins.I64);
+    const bar = blk: {
+        const body = start.get(components.Body).slice();
+        try expectEqual(body.len, 1);
+        const call = body[0];
+        try expectEqual(call.get(components.AstKind), .call);
+        const arguments = call.get(components.Arguments).slice();
+        try expectEqual(arguments.len, 1);
+        try expectEqualStrings(literalOf(arguments[0]), "3");
+        const named_arguments = call.get(components.NamedArguments);
+        try expectEqualStrings(literalOf(named_arguments.findString("y")), "5");
+        try expectEqual(named_arguments.count(), 1);
+        try expectEqual(typeOf(call), builtins.I64);
+        break :blk call.get(components.Callable).entity;
+    };
+    try expectEqualStrings(literalOf(bar.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(bar.get(components.Name).entity), "bar");
+    try expectEqual(bar.get(components.Parameters).len(), 2);
+    try expectEqual(bar.get(components.ReturnType).entity, builtins.I64);
+    const body = bar.get(components.Body).slice();
     try expectEqual(body.len, 1);
     const x = body[0];
     try expectEqual(x.get(components.AstKind), .local);
