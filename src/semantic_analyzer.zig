@@ -566,15 +566,13 @@ fn Context(comptime FileSystem: type) type {
             );
             switch (rhs.get(components.AstKind)) {
                 .call => {
-                    const call_arguments = try self.uniformFunctionCallArguments(lhs, rhs);
-                    const named_arguments = components.NamedArguments.init(self.allocator, self.codebase.getPtr(Strings));
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         rhs.get(components.Callable),
-                        call_arguments,
-                        named_arguments,
                         span,
+                        rhs.get(components.NamedArguments),
                     });
+                    try self.uniformFunctionCallArguments(call, lhs, rhs);
                     return try self.analyzeCall(call, self);
                 },
                 .symbol => {
@@ -640,26 +638,27 @@ fn Context(comptime FileSystem: type) type {
             return try self.uniformFunctionCall(lhs, rhs);
         }
 
-        fn uniformFunctionCallArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
+        fn uniformFunctionCallArguments(self: Self, analyzed_call: Entity, lhs: Entity, call: Entity) !void {
             const arguments = call.get(components.Arguments).slice();
-            var underscore: ?u64 = null;
+            var underscore_index: ?u64 = null;
             for (arguments) |argument, i| {
                 if (argument.get(components.AstKind) == .underscore) {
-                    assert(underscore == null);
-                    underscore = i;
+                    assert(underscore_index == null);
+                    underscore_index = i;
                 }
             }
-            if (underscore == null) {
+            if (underscore_index == null) {
                 var call_arguments = try components.Arguments.withCapacity(self.allocator, arguments.len + 1);
-                try call_arguments.append(lhs);
+                call_arguments.appendAssumeCapacity(lhs);
                 for (arguments) |argument| {
-                    try call_arguments.append(argument);
+                    call_arguments.appendAssumeCapacity(argument);
                 }
-                return call_arguments;
+                _ = try analyzed_call.set(.{call_arguments});
+                return;
             }
             const call_arguments = try components.Arguments.fromSlice(self.allocator, arguments);
-            call_arguments.mutSlice()[underscore.?] = lhs;
-            return call_arguments;
+            call_arguments.mutSlice()[underscore_index.?] = lhs;
+            _ = try analyzed_call.set(.{call_arguments});
         }
 
         fn analyzePointerArithmetic(self: *Self, lhs: Entity, rhs: Entity, intrinsic: components.Intrinsic) !Entity {
