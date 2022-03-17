@@ -1,4 +1,4 @@
-clamp(value: f64, low: f64, high: f64): f64 {
+clamp(value: f64, low: f64, high: f64) {
   if value < low {
     low
   } else {
@@ -11,6 +11,6 @@ clamp(value: f64, low: f64, high: f64): f64 {
 }
 
 start() {
-  value = -5
-  clamp(value, low=-2, high=2)
+  value = 5
+  value.clamp(low=-2, high=2)
 }
