@@ -1,0 +1,16 @@
+clamp(value: f64, low: f64, high: f64) {
+  if value < low {
+    low
+  } else {
+    if value > high {
+      high
+    } else {
+      value
+    }
+  }
+}
+
+start() {
+  value = 5
+  value.clamp(low=-2, high=2)
+}

@@ -192,9 +192,11 @@ fn Context(comptime FileSystem: type) type {
                         }
                         _ = try overload.set(.{components.AnalyzedFields{ .value = true }});
                     }
+                    if (fields.len < arguments.len) continue;
                     var match = Match.exact;
-                    for (fields) |field, i| {
-                        const field_type = typeOf(field);
+                    var i: usize = 0;
+                    while (i < arguments.len) : (i += 1) {
+                        const field_type = typeOf(fields[i]);
                         const argument_type = typeOf(arguments[i]);
                         switch (self.convertibleTo(field_type, argument_type)) {
                             .exact => continue,
@@ -207,12 +209,34 @@ fn Context(comptime FileSystem: type) type {
                             },
                         }
                     }
+                    while (i < fields.len) : (i += 1) {
+                        const field = fields[i];
+                        const field_type = typeOf(field);
+                        if (named_arguments.hasLiteral(field.get(components.Literal))) |argument| {
+                            ordered_named_arguments[i - arguments.len] = argument;
+                            const argument_type = typeOf(argument);
+                            switch (self.convertibleTo(field_type, argument_type)) {
+                                .exact => continue,
+                                .implicit_conversion => if (match == .exact) {
+                                    match = .implicit_conversion;
+                                },
+                                .no => {
+                                    match = .no;
+                                    break;
+                                },
+                            }
+                        } else {
+                            match = .no;
+                            break;
+                        }
+                    }
                     if (@enumToInt(match) < @enumToInt(best_match)) continue;
                     if (match != .no and match == best_match) {
                         panic("ambiguous overload set overload match {} best match {}", .{ match, best_match });
                     }
                     best_match = match;
                     best_overload = overload;
+                    std.mem.copy(Entity, best_ordered_named_arguments.mutSlice(), ordered_named_arguments);
                     continue;
                 }
                 assert(kind == .function);
@@ -548,14 +572,22 @@ fn Context(comptime FileSystem: type) type {
             }
             assert(kind == .struct_);
             const fields = overload.get(components.Fields).slice();
-            for (analyzed_arguments.slice()) |argument, i| {
-                try self.implicitTypeConversion(argument, typeOf(fields[i]));
+            var i: usize = 0;
+            while (i < analyzed_arguments_slice.len) : (i += 1) {
+                try self.implicitTypeConversion(analyzed_arguments_slice[i], typeOf(fields[i]));
+            }
+            const ordered_named_arguments = call.get(components.OrderedNamedArguments);
+            const ordered_named_arguments_slice = ordered_named_arguments.slice();
+            while (i < fields.len) : (i += 1) {
+                try self.implicitTypeConversion(ordered_named_arguments_slice[i - analyzed_arguments_slice.len], typeOf(fields[i]));
             }
             return try self.codebase.createEntity(.{
                 components.Type.init(overload),
                 components.AstKind.construct,
                 analyzed_arguments,
+                analyzed_named_arguments,
                 call.get(components.Span),
+                ordered_named_arguments,
             });
         }
 
@@ -566,15 +598,13 @@ fn Context(comptime FileSystem: type) type {
             );
             switch (rhs.get(components.AstKind)) {
                 .call => {
-                    const call_arguments = try self.uniformFunctionCallArguments(lhs, rhs);
-                    const named_arguments = components.NamedArguments.init(self.allocator, self.codebase.getPtr(Strings));
                     const call = try self.codebase.createEntity(.{
                         components.AstKind.call,
                         rhs.get(components.Callable),
-                        call_arguments,
-                        named_arguments,
                         span,
+                        rhs.get(components.NamedArguments),
                     });
+                    try self.uniformFunctionCallArguments(call, lhs, rhs);
                     return try self.analyzeCall(call, self);
                 },
                 .symbol => {
@@ -640,26 +670,27 @@ fn Context(comptime FileSystem: type) type {
             return try self.uniformFunctionCall(lhs, rhs);
         }
 
-        fn uniformFunctionCallArguments(self: Self, lhs: Entity, call: Entity) !components.Arguments {
+        fn uniformFunctionCallArguments(self: Self, analyzed_call: Entity, lhs: Entity, call: Entity) !void {
             const arguments = call.get(components.Arguments).slice();
-            var underscore: ?u64 = null;
+            var underscore_index: ?u64 = null;
             for (arguments) |argument, i| {
                 if (argument.get(components.AstKind) == .underscore) {
-                    assert(underscore == null);
-                    underscore = i;
+                    assert(underscore_index == null);
+                    underscore_index = i;
                 }
             }
-            if (underscore == null) {
+            if (underscore_index == null) {
                 var call_arguments = try components.Arguments.withCapacity(self.allocator, arguments.len + 1);
-                try call_arguments.append(lhs);
+                call_arguments.appendAssumeCapacity(lhs);
                 for (arguments) |argument| {
-                    try call_arguments.append(argument);
+                    call_arguments.appendAssumeCapacity(argument);
                 }
-                return call_arguments;
+                _ = try analyzed_call.set(.{call_arguments});
+                return;
             }
             const call_arguments = try components.Arguments.fromSlice(self.allocator, arguments);
-            call_arguments.mutSlice()[underscore.?] = lhs;
-            return call_arguments;
+            call_arguments.mutSlice()[underscore_index.?] = lhs;
+            _ = try analyzed_call.set(.{call_arguments});
         }
 
         fn analyzePointerArithmetic(self: *Self, lhs: Entity, rhs: Entity, intrinsic: components.Intrinsic) !Entity {

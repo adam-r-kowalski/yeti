@@ -153,7 +153,7 @@ on_load() {
   vao.bind_vertex_array()
   position_attribute_location.enable_vertex_attrib_array()
   FLOAT = 5126
-  vertex_attrib_pointer(position_attribute_location, size=2, dtype=FLOAT, normalized=0, stride=0, offset=0)
+  position_attribute_location.vertex_attrib_pointer(size=2, dtype=FLOAT, normalized=0, stride=0, offset=0)
   resize_canvas_to_display_size()
   viewport(0, 0, canvas_width(), canvas_height())
   clear_color(0, 0, 0, 0)
