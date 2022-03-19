@@ -1,16 +1,15 @@
+min(x: f64, y: f64) {
+  if x < y { x } else { y }
+}
+
+max(x: f64, y: f64) {
+  if x > y { x } else { y }
+}
+
 clamp(value: f64, low: f64, high: f64) {
-  if value < low {
-    low
-  } else {
-    if value > high {
-      high
-    } else {
-      value
-    }
-  }
+  value.min(high).max(low)
 }
 
 start() {
-  value = 5
-  value.clamp(low=-2, high=2)
+  clamp(3, low=-2, high=2)
 }

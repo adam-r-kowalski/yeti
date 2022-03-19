@@ -202,6 +202,33 @@ start() {
 Object oriented languages have a nice syntax for chaining methods together in a left to right fashion.
 We can accomplish the same functionality while allowing external extension through uniform function call syntax.
 
+# Named arguments
+
+```
+min(x: f64, y: f64) {
+  if x < y { x } else { y }
+}
+
+max(x: f64, y: f64) {
+  if x > y { x } else { y }
+}
+
+clamp(value: f64, low: f64, high: f64) {
+  value.min(high).max(low)
+}
+
+start() {
+  clamp(3, low=-2, high=2)
+}
+```
+
+```
+2
+```
+
+When functions have multiple parameters it can be helpful when calling them to utilize named arguments
+as demonstrated with the call to `clamp`.
+
 # Structs
 
 ```
@@ -224,7 +251,7 @@ area(s: Square) {
 
 start() {
   s = Square(10)
-  r = Rectangle(10, 20)
+  r = Rectangle(width=10, height=20)
   r.area
 }
 ```
