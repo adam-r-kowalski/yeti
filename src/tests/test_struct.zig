@@ -393,9 +393,9 @@ test "print wasm pass struct to function" {
         \\  (func $foo/start (result f64 f64)
         \\    (f64.const 10)
         \\    (f64.const 30)
-        \\    (call $foo/id.Rectangle))
+        \\    (call $foo/id..r.Rectangle))
         \\
-        \\  (func $foo/id.Rectangle (param $r.width f64) (param $r.height f64) (result f64 f64)
+        \\  (func $foo/id..r.Rectangle (param $r.width f64) (param $r.height f64) (result f64 f64)
         \\    (local.get $r.width)
         \\    (local.get $r.height))
         \\

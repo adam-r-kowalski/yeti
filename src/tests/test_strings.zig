@@ -406,9 +406,9 @@ test "print wasm pass string literal as argument" {
         \\  (func $foo/start (result i32)
         \\    (i32.const 0)
         \\    (i32.const 11)
-        \\    (call $foo/first.array.u8))
+        \\    (call $foo/first..text.array.u8))
         \\
-        \\  (func $foo/first.array.u8 (param $text.ptr i32) (param $text.len i32) (result i32)
+        \\  (func $foo/first..text.array.u8 (param $text.ptr i32) (param $text.len i32) (result i32)
         \\    (local.get $text.ptr)
         \\    i32.load8_u)
         \\

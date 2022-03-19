@@ -1,0 +1,11 @@
+area(width: f64, height: f64) {
+  width * height
+}
+
+area(base: f64, height: f64) {
+  area(width=base, height=height) / 2
+}
+
+start() {
+  area(base=10, height=15)
+}

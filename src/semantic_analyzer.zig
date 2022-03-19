@@ -192,9 +192,11 @@ fn Context(comptime FileSystem: type) type {
                         }
                         _ = try overload.set(.{components.AnalyzedFields{ .value = true }});
                     }
+                    if (fields.len < arguments.len) continue;
                     var match = Match.exact;
-                    for (fields) |field, i| {
-                        const field_type = typeOf(field);
+                    var i: usize = 0;
+                    while (i < arguments.len) : (i += 1) {
+                        const field_type = typeOf(fields[i]);
                         const argument_type = typeOf(arguments[i]);
                         switch (self.convertibleTo(field_type, argument_type)) {
                             .exact => continue,
@@ -207,12 +209,34 @@ fn Context(comptime FileSystem: type) type {
                             },
                         }
                     }
+                    while (i < fields.len) : (i += 1) {
+                        const field = fields[i];
+                        const field_type = typeOf(field);
+                        if (named_arguments.hasLiteral(field.get(components.Literal))) |argument| {
+                            ordered_named_arguments[i - arguments.len] = argument;
+                            const argument_type = typeOf(argument);
+                            switch (self.convertibleTo(field_type, argument_type)) {
+                                .exact => continue,
+                                .implicit_conversion => if (match == .exact) {
+                                    match = .implicit_conversion;
+                                },
+                                .no => {
+                                    match = .no;
+                                    break;
+                                },
+                            }
+                        } else {
+                            match = .no;
+                            break;
+                        }
+                    }
                     if (@enumToInt(match) < @enumToInt(best_match)) continue;
                     if (match != .no and match == best_match) {
                         panic("ambiguous overload set overload match {} best match {}", .{ match, best_match });
                     }
                     best_match = match;
                     best_overload = overload;
+                    std.mem.copy(Entity, best_ordered_named_arguments.mutSlice(), ordered_named_arguments);
                     continue;
                 }
                 assert(kind == .function);
@@ -548,14 +572,22 @@ fn Context(comptime FileSystem: type) type {
             }
             assert(kind == .struct_);
             const fields = overload.get(components.Fields).slice();
-            for (analyzed_arguments.slice()) |argument, i| {
-                try self.implicitTypeConversion(argument, typeOf(fields[i]));
+            var i: usize = 0;
+            while (i < analyzed_arguments_slice.len) : (i += 1) {
+                try self.implicitTypeConversion(analyzed_arguments_slice[i], typeOf(fields[i]));
+            }
+            const ordered_named_arguments = call.get(components.OrderedNamedArguments);
+            const ordered_named_arguments_slice = ordered_named_arguments.slice();
+            while (i < fields.len) : (i += 1) {
+                try self.implicitTypeConversion(ordered_named_arguments_slice[i - analyzed_arguments_slice.len], typeOf(fields[i]));
             }
             return try self.codebase.createEntity(.{
                 components.Type.init(overload),
                 components.AstKind.construct,
                 analyzed_arguments,
+                analyzed_named_arguments,
                 call.get(components.Span),
+                ordered_named_arguments,
             });
         }
 

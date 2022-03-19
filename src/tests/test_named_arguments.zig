@@ -160,6 +160,42 @@ test "analyze semantics of uniform function call syntax with named argument" {
     try expectEqualStrings(literalOf(x), "x");
 }
 
+test "analyze semantics of struct using named arguments" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\struct Rectangle {
+        \\  width: f64
+        \\  height: f64
+        \\}
+        \\
+        \\start(): Rectangle {
+        \\  Rectangle(width=10, height=30)
+        \\}
+    );
+    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    try expectEqualStrings(literalOf(start.get(components.Module).entity), "foo");
+    try expectEqualStrings(literalOf(start.get(components.Name).entity), "start");
+    try expectEqual(start.get(components.Parameters).len(), 0);
+    const rectangle = start.get(components.ReturnType).entity;
+    try expectEqualStrings(literalOf(rectangle.get(components.Name).entity), "Rectangle");
+    const body = start.get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const construct = body[0];
+    try expectEqual(construct.get(components.AstKind), .construct);
+    try expectEqual(typeOf(construct), rectangle);
+    try expectEqual(construct.get(components.Arguments).slice().len, 0);
+    const arguments = construct.get(components.OrderedNamedArguments).slice();
+    try expectEqual(arguments.len, 2);
+    try expectEqualStrings(literalOf(arguments[0]), "10");
+    try expectEqualStrings(literalOf(arguments[1]), "30");
+}
+
 test "codegen named arguments" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -188,4 +224,68 @@ test "codegen named arguments" {
     const baz = call.get(components.Callable).entity;
     const baz_instructions = baz.get(components.WasmInstructions).slice();
     try expectEqual(baz_instructions.len, 1);
+}
+
+test "print wasm named arguments" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\start(): i32 {
+        \\  id(x=5)
+        \\}
+        \\
+        \\id(x: i32): i32 {
+        \\  x
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const wasm = try printWasm(module);
+    try expectEqualStrings(wasm,
+        \\(module
+        \\
+        \\  (func $foo/start (result i32)
+        \\    (i32.const 5)
+        \\    (call $foo/id..x.i32))
+        \\
+        \\  (func $foo/id..x.i32 (param $x i32) (result i32)
+        \\    (local.get $x))
+        \\
+        \\  (export "_start" (func $foo/start)))
+    );
+}
+
+test "codegen struct with named arguments" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    var fs = try MockFileSystem.init(&arena);
+    _ = try fs.newFile("foo.yeti",
+        \\struct Rectangle {
+        \\  width: f64
+        \\  height: f64
+        \\}
+        \\
+        \\start() {
+        \\  Rectangle(width=5, height=10)
+        \\}
+    );
+    const module = try analyzeSemantics(codebase, fs, "foo.yeti");
+    try codegen(module);
+    const top_level = module.get(components.TopLevel);
+    const start = top_level.findString("start").get(components.Overloads).slice()[0];
+    const start_instructions = start.get(components.WasmInstructions).slice();
+    try expectEqual(start_instructions.len, 2);
+    {
+        const constant = start_instructions[0];
+        try expectEqual(constant.get(components.WasmInstructionKind), components.WasmInstructionKind.f64_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "5");
+    }
+    {
+        const constant = start_instructions[1];
+        try expectEqual(constant.get(components.WasmInstructionKind), components.WasmInstructionKind.f64_const);
+        try expectEqualStrings(literalOf(constant.get(components.Constant).entity), "10");
+    }
 }

@@ -64,6 +64,8 @@ fn functionName(function: Entity) ![]const u8 {
     try wasm_name.appendSlice(literalOf(function.get(components.Name).entity));
     const builtins = function.ecs.get(components.Builtins);
     for (function.get(components.Parameters).slice()) |parameter| {
+        try wasm_name.appendSlice("..");
+        try wasm_name.appendSlice(literalOf(parameter.get(components.Name).entity));
         try wasm_name.append('.');
         const type_of = typeOf(parameter);
         const literal = literalOf(type_of);

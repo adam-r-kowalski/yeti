@@ -852,10 +852,10 @@ test "print wasm pointer as parameter" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.ptr.i32 (param $ptr i32) (result i32)
+        \\  (func $foo/f..ptr.ptr.i32 (param $ptr i32) (result i32)
         \\    (i32.const 0))
         \\
-        \\  (export "f" (func $foo/f.ptr.i32)))
+        \\  (export "f" (func $foo/f..ptr.ptr.i32)))
     );
 }
 
@@ -876,12 +876,12 @@ test "print wasm adding pointer and int literal" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.ptr.i64 (param $ptr i32) (result i32)
+        \\  (func $foo/f..ptr.ptr.i64 (param $ptr i32) (result i32)
         \\    (local.get $ptr)
         \\    (i32.const 8)
         \\    i32.add)
         \\
-        \\  (export "f" (func $foo/f.ptr.i64)))
+        \\  (export "f" (func $foo/f..ptr.ptr.i64)))
     );
 }
 
@@ -902,12 +902,12 @@ test "print wasm subtracting pointer and int literal" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.ptr.i64 (param $ptr i32) (result i32)
+        \\  (func $foo/f..ptr.ptr.i64 (param $ptr i32) (result i32)
         \\    (local.get $ptr)
         \\    (i32.const 8)
         \\    i32.sub)
         \\
-        \\  (export "f" (func $foo/f.ptr.i64)))
+        \\  (export "f" (func $foo/f..ptr.ptr.i64)))
     );
 }
 
@@ -928,13 +928,13 @@ test "print wasm adding pointer and i32" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/f.ptr.i64.i32 (param $ptr i32) (param $len i32) (result i32)
+        \\  (func $foo/f..ptr.ptr.i64..len.i32 (param $ptr i32) (param $len i32) (result i32)
         \\    (local.get $ptr)
         \\    (local.get $len)
         \\    (i32.const 8)
         \\    i32.mul
         \\    i32.add)
         \\
-        \\  (export "f" (func $foo/f.ptr.i64.i32)))
+        \\  (export "f" (func $foo/f..ptr.ptr.i64..len.i32)))
     );
 }

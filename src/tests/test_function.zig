@@ -519,9 +519,9 @@ test "print wasm call local function with argument" {
             \\
             \\  (func $foo/start (result {s})
             \\    ({s} 5)
-            \\    (call $foo/id.{s}))
+            \\    (call $foo/id..x.{s}))
             \\
-            \\  (func $foo/id.{s} (param $x {s}) (result {s})
+            \\  (func $foo/id..x.{s} (param $x {s}) (result {s})
             \\    (local.get $x))
             \\
             \\  (export "_start" (func $foo/start)))

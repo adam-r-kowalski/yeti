@@ -144,11 +144,11 @@ test "print wasm foreign import" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (import "console" "log" (func $foo/log.i64 (param $value i64)))
+        \\  (import "console" "log" (func $foo/log..value.i64 (param $value i64)))
         \\
         \\  (func $foo/start
         \\    (i64.const 10)
-        \\    (call $foo/log.i64))
+        \\    (call $foo/log..value.i64))
         \\
         \\  (export "_start" (func $foo/start)))
     );

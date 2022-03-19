@@ -830,12 +830,12 @@ test "print wasm arithmetic binary op non constant" {
                 \\
                 \\  (func $foo/start (result {s})
                 \\    ({s}.const 10)
-                \\    (call $foo/id.{s})
+                \\    (call $foo/id..x.{s})
                 \\    ({s}.const 25)
-                \\    (call $foo/id.{s})
+                \\    (call $foo/id..x.{s})
                 \\    {s})
                 \\
-                \\  (func $foo/id.{s} (param $x {s}) (result {s})
+                \\  (func $foo/id..x.{s} (param $x {s}) (result {s})
                 \\    (local.get $x))
                 \\
                 \\  (export "_start" (func $foo/start)))
@@ -887,14 +887,14 @@ test "print wasm arithmetic binary op non constant modulo" {
                 \\
                 \\  (func $foo/start (result {s})
                 \\    ({s}.const 10)
-                \\    (call $foo/id.{s})
+                \\    (call $foo/id..x.{s})
                 \\    ({s}.const 25)
-                \\    (call $foo/id.{s})
+                \\    (call $foo/id..x.{s})
                 \\    {s}
                 \\    (i32.const {s})
                 \\    i32.and)
                 \\
-                \\  (func $foo/id.{s} (param $x {s}) (result {s})
+                \\  (func $foo/id..x.{s} (param $x {s}) (result {s})
                 \\    (local.get $x))
                 \\
                 \\  (export "_start" (func $foo/start)))
@@ -949,12 +949,12 @@ test "print wasm int binary op non constant" {
                 \\
                 \\  (func $foo/start (result {s})
                 \\    ({s}.const 10)
-                \\    (call $foo/id.{s})
+                \\    (call $foo/id..x.{s})
                 \\    ({s}.const 25)
-                \\    (call $foo/id.{s})
+                \\    (call $foo/id..x.{s})
                 \\    {s})
                 \\
-                \\  (func $foo/id.{s} (param $x {s}) (result {s})
+                \\  (func $foo/id..x.{s} (param $x {s}) (result {s})
                 \\    (local.get $x))
                 \\
                 \\  (export "_start" (func $foo/start)))

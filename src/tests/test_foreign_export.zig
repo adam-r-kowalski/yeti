@@ -131,18 +131,18 @@ test "print wasm foreign export" {
     try expectEqualStrings(wasm,
         \\(module
         \\
-        \\  (func $foo/square.i64 (param $x i64) (result i64)
+        \\  (func $foo/square..x.i64 (param $x i64) (result i64)
         \\    (local.get $x)
         \\    (local.get $x)
         \\    i64.mul)
         \\
-        \\  (func $foo/area.f64.f64 (param $width f64) (param $height f64) (result f64)
+        \\  (func $foo/area..width.f64..height.f64 (param $width f64) (param $height f64) (result f64)
         \\    (local.get $width)
         \\    (local.get $height)
         \\    f64.mul)
         \\
-        \\  (export "square" (func $foo/square.i64))
+        \\  (export "square" (func $foo/square..x.i64))
         \\
-        \\  (export "area" (func $foo/area.f64.f64)))
+        \\  (export "area" (func $foo/area..width.f64..height.f64)))
     );
 }
