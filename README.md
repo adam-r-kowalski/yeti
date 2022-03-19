@@ -267,7 +267,7 @@ but that operate on different types of data.
 # Foreign Imports And Exports
 
 ```
-@import("console", "log")
+@import
 log(value: i64): void
 
 @export
