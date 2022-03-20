@@ -504,6 +504,17 @@ pub fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
     });
 }
 
+fn parseNewImportSyntax(tokens: *Tokens, top_level: *components.TopLevel) !void {
+    const string = tokens.consume(.string);
+    const path = components.Path.init(string);
+    const import = try string.ecs.createEntity(.{
+        components.AstKind.import,
+        path,
+        string.get(components.Span),
+    });
+    try top_level.putInterned(string.get(components.Literal).interned, import);
+}
+
 fn overloadFunction(top_level: *components.TopLevel, function: Entity, name: components.Name) !void {
     const codebase = function.ecs;
     _ = try function.set(.{name});
@@ -694,6 +705,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
             .symbol => try parseTopLevel(tokens, &top_level, token),
             .new_line => continue,
             .struct_ => try parseStruct(tokens, &top_level, token),
+            .import => try parseNewImportSyntax(tokens, &top_level),
             .attribute_export => try parseAttributeExport(tokens, &top_level, &foreign_exports),
             .attribute_import => try parseAttributeImport(tokens, &top_level),
             else => panic("\nparse unsupported kind {}\n", .{kind}),

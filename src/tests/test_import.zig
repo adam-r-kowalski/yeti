@@ -16,6 +16,41 @@ const typeOf = yeti.query.typeOf;
 const MockFileSystem = yeti.FileSystem;
 const Entity = yeti.ecs.Entity;
 
+test "parse new import syntax" {
+    var arena = Arena.init(std.heap.page_allocator);
+    defer arena.deinit();
+    var codebase = try initCodebase(&arena);
+    const module = try codebase.createEntity(.{});
+    const code =
+        \\import "math.yeti"
+        \\
+        \\start(): f64 {
+        \\  clamp(7, low=0, high=5)
+        \\}
+    ;
+    var tokens = try tokenize(module, code);
+    try parse(module, &tokens);
+    const top_level = module.get(components.TopLevel);
+    const math = top_level.findString("math.yeti");
+    try expectEqual(math.get(components.AstKind), .import);
+    try expectEqualStrings(literalOf(math.get(components.Path).entity), "math.yeti");
+    const start = top_level.findString("start");
+    const overloads = start.get(components.Overloads).slice();
+    try expectEqual(overloads.len, 1);
+    const body = overloads[0].get(components.Body).slice();
+    try expectEqual(body.len, 1);
+    const clamp = body[0];
+    const callable = clamp.get(components.Callable).entity;
+    try expectEqualStrings(literalOf(callable), "clamp");
+    const arguments = clamp.get(components.Arguments).slice();
+    try expectEqual(arguments.len, 1);
+    try expectEqualStrings(literalOf(arguments[0]), "7");
+    const named_arguments = clamp.get(components.NamedArguments);
+    try expectEqual(named_arguments.count(), 2);
+    try expectEqualStrings(literalOf(named_arguments.findString("low")), "0");
+    try expectEqualStrings(literalOf(named_arguments.findString("high")), "5");
+}
+
 test "parse import and function" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
