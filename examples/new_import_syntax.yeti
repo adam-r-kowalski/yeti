@@ -1,0 +1,5 @@
+import "clamp.yeti"
+
+start() {
+  clamp(7, low=2, high=5)
+}

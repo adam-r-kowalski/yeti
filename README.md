@@ -264,6 +264,42 @@ Structs allow us to group together common data into a single type.
 Function overloading can be leveraged to define multiple functions with the same name,
 but that operate on different types of data.
 
+# Imports
+
+### clamp.yeti
+```
+min(x: f64, y: f64) {
+  if x < y { x } else { y }
+}
+
+max(x: f64, y: f64) {
+  if x > y { x } else { y }
+}
+
+clamp(value: f64, low: f64, high: f64) {
+  value.min(high).max(low)
+}
+```
+
+### start.yeti
+```
+import "clamp.yeti"
+
+start() {
+  clamp(7, low=2, high=5)
+}
+```
+
+### output
+```
+5
+```
+
+You can split yeti programs into multiple files which can then be imported to facilate code reuse.
+Unlike some languages Yeti does not require that you qualify the calls after importing a module.
+Instead we rely on overloading to resolve ambiguities.
+
+
 # Foreign Imports And Exports
 
 ```
