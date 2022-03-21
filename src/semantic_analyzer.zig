@@ -163,42 +163,114 @@ fn Context(comptime FileSystem: type) type {
             panic("\nanalyzeSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
 
-        fn bestOverload(
-            self: *Self,
+        const Candidate = struct {
+            overload: Entity,
+            match: Match,
+            named_arguments: components.OrderedNamedArguments,
+            literal: components.Literal,
+            module: Entity,
+        };
+
+        const CalleeContext = struct {
+            module: Entity,
             call: Entity,
             callable: Entity,
             arguments: []const Entity,
             named_arguments: components.NamedArguments,
-        ) !Entity {
+            literal: components.Literal,
+        };
+
+        fn checkCandidatesForModule(self: *Self, callee_context: CalleeContext, candidate: *Candidate, ordered_named_arguments: []Entity) !void {
             const top_level = self.module.get(components.TopLevel);
-            const literal = callable.get(components.Literal);
-            var best_overload: Entity = undefined;
-            var best_match = Match.no;
-            var best_ordered_named_arguments = try components.OrderedNamedArguments.withCapacity(self.allocator, named_arguments.count());
-            best_ordered_named_arguments.values.len = named_arguments.count();
-            var ordered_named_arguments = try self.allocator.alloc(Entity, named_arguments.count());
-            const overloads = top_level.findLiteral(literal).get(components.Overloads).slice();
-            for (overloads) |overload| {
-                const kind = overload.get(components.AstKind);
-                if (kind == .struct_) {
-                    const fields = overload.get(components.Fields).slice();
-                    if (!overload.contains(components.AnalyzedFields)) {
-                        for (fields) |field| {
-                            const field_type = try self.analyzeExpression(field.get(components.TypeAst).entity);
-                            _ = try field.set(.{
-                                components.Type.init(field_type),
-                                components.Name.init(field),
-                            });
+            if (top_level.hasLiteral(candidate.literal)) |function| {
+                const overloads = function.get(components.Overloads).slice();
+                for (overloads) |overload| {
+                    const kind = overload.get(components.AstKind);
+                    if (kind == .struct_) {
+                        const fields = overload.get(components.Fields).slice();
+                        if (!overload.contains(components.AnalyzedFields)) {
+                            for (fields) |field| {
+                                const field_type = try self.analyzeExpression(field.get(components.TypeAst).entity);
+                                _ = try field.set(.{
+                                    components.Type.init(field_type),
+                                    components.Name.init(field),
+                                });
+                            }
+                            _ = try overload.set(.{components.AnalyzedFields{ .value = true }});
                         }
-                        _ = try overload.set(.{components.AnalyzedFields{ .value = true }});
+                        if (fields.len < callee_context.arguments.len) continue;
+                        var match = Match.exact;
+                        var i: usize = 0;
+                        while (i < callee_context.arguments.len) : (i += 1) {
+                            const field_type = typeOf(fields[i]);
+                            const argument_type = typeOf(callee_context.arguments[i]);
+                            switch (self.convertibleTo(field_type, argument_type)) {
+                                .exact => continue,
+                                .implicit_conversion => if (match == .exact) {
+                                    match = .implicit_conversion;
+                                },
+                                .no => {
+                                    match = .no;
+                                    break;
+                                },
+                            }
+                        }
+                        while (i < fields.len) : (i += 1) {
+                            const field = fields[i];
+                            const field_type = typeOf(field);
+                            if (callee_context.named_arguments.hasLiteral(field.get(components.Literal))) |argument| {
+                                ordered_named_arguments[i - callee_context.arguments.len] = argument;
+                                const argument_type = typeOf(argument);
+                                switch (self.convertibleTo(field_type, argument_type)) {
+                                    .exact => continue,
+                                    .implicit_conversion => if (match == .exact) {
+                                        match = .implicit_conversion;
+                                    },
+                                    .no => {
+                                        match = .no;
+                                        break;
+                                    },
+                                }
+                            } else {
+                                match = .no;
+                                break;
+                            }
+                        }
+                        if (@enumToInt(match) < @enumToInt(candidate.match)) continue;
+                        if (match != .no and match == candidate.match) {
+                            panic("ambiguous overload set overload match {} best match {}", .{ match, candidate.match });
+                        }
+                        candidate.match = match;
+                        candidate.overload = overload;
+                        candidate.module = self.module;
+                        std.mem.copy(Entity, candidate.named_arguments.mutSlice(), ordered_named_arguments);
+                        continue;
                     }
-                    if (fields.len < arguments.len) continue;
+                    assert(kind == .function);
+                    if (!overload.contains(components.AnalyzedParameters)) {
+                        var scopes = components.Scopes.init(self.allocator, self.codebase.getPtr(Strings));
+                        const scope = try scopes.pushScope();
+                        _ = try overload.set(.{scopes});
+                        const active_scopes = [_]u64{scope};
+                        var context = Self{
+                            .allocator = self.allocator,
+                            .codebase = self.codebase,
+                            .file_system = self.file_system,
+                            .module = self.module,
+                            .function = overload,
+                            .active_scopes = &active_scopes,
+                            .builtins = self.builtins,
+                        };
+                        try context.analyzeFunctionParameters();
+                    }
+                    const parameters = overload.get(components.Parameters).slice();
+                    if (parameters.len < callee_context.arguments.len) continue;
                     var match = Match.exact;
                     var i: usize = 0;
-                    while (i < arguments.len) : (i += 1) {
-                        const field_type = typeOf(fields[i]);
-                        const argument_type = typeOf(arguments[i]);
-                        switch (self.convertibleTo(field_type, argument_type)) {
+                    while (i < callee_context.arguments.len) : (i += 1) {
+                        const parameter_type = typeOf(parameters[i]);
+                        const argument_type = typeOf(callee_context.arguments[i]);
+                        switch (self.convertibleTo(parameter_type, argument_type)) {
                             .exact => continue,
                             .implicit_conversion => if (match == .exact) {
                                 match = .implicit_conversion;
@@ -209,13 +281,13 @@ fn Context(comptime FileSystem: type) type {
                             },
                         }
                     }
-                    while (i < fields.len) : (i += 1) {
-                        const field = fields[i];
-                        const field_type = typeOf(field);
-                        if (named_arguments.hasLiteral(field.get(components.Literal))) |argument| {
-                            ordered_named_arguments[i - arguments.len] = argument;
+                    while (i < parameters.len) : (i += 1) {
+                        const parameter = parameters[i];
+                        const parameter_type = typeOf(parameter);
+                        if (callee_context.named_arguments.hasLiteral(parameter.get(components.Literal))) |argument| {
+                            ordered_named_arguments[i - callee_context.arguments.len] = argument;
                             const argument_type = typeOf(argument);
-                            switch (self.convertibleTo(field_type, argument_type)) {
+                            switch (self.convertibleTo(parameter_type, argument_type)) {
                                 .exact => continue,
                                 .implicit_conversion => if (match == .exact) {
                                     match = .implicit_conversion;
@@ -230,86 +302,70 @@ fn Context(comptime FileSystem: type) type {
                             break;
                         }
                     }
-                    if (@enumToInt(match) < @enumToInt(best_match)) continue;
-                    if (match != .no and match == best_match) {
-                        panic("ambiguous overload set overload match {} best match {}", .{ match, best_match });
+                    if (@enumToInt(match) < @enumToInt(candidate.match)) continue;
+                    if (match != .no and match == candidate.match) {
+                        panic("ambiguous overload set overload match {} best match {}", .{ match, candidate.match });
                     }
-                    best_match = match;
-                    best_overload = overload;
-                    std.mem.copy(Entity, best_ordered_named_arguments.mutSlice(), ordered_named_arguments);
-                    continue;
+                    candidate.match = match;
+                    candidate.overload = overload;
+                    candidate.module = self.module;
+                    std.mem.copy(Entity, candidate.named_arguments.mutSlice(), ordered_named_arguments);
                 }
-                assert(kind == .function);
-                if (!overload.contains(components.AnalyzedParameters)) {
-                    var scopes = components.Scopes.init(self.allocator, self.codebase.getPtr(Strings));
-                    const scope = try scopes.pushScope();
-                    _ = try overload.set(.{scopes});
-                    const active_scopes = [_]u64{scope};
-                    var context = Self{
-                        .allocator = self.allocator,
-                        .codebase = self.codebase,
-                        .file_system = self.file_system,
-                        .module = self.module,
-                        .function = overload,
-                        .active_scopes = &active_scopes,
-                        .builtins = self.builtins,
-                    };
-                    try context.analyzeFunctionParameters();
-                }
-                const parameters = overload.get(components.Parameters).slice();
-                if (parameters.len < arguments.len) continue;
-                var match = Match.exact;
-                var i: usize = 0;
-                while (i < arguments.len) : (i += 1) {
-                    const parameter_type = typeOf(parameters[i]);
-                    const argument_type = typeOf(arguments[i]);
-                    switch (self.convertibleTo(parameter_type, argument_type)) {
-                        .exact => continue,
-                        .implicit_conversion => if (match == .exact) {
-                            match = .implicit_conversion;
-                        },
-                        .no => {
-                            match = .no;
-                            break;
-                        },
-                    }
-                }
-                while (i < parameters.len) : (i += 1) {
-                    const parameter = parameters[i];
-                    const parameter_type = typeOf(parameter);
-                    if (named_arguments.hasLiteral(parameter.get(components.Literal))) |argument| {
-                        ordered_named_arguments[i - arguments.len] = argument;
-                        const argument_type = typeOf(argument);
-                        switch (self.convertibleTo(parameter_type, argument_type)) {
-                            .exact => continue,
-                            .implicit_conversion => if (match == .exact) {
-                                match = .implicit_conversion;
-                            },
-                            .no => {
-                                match = .no;
-                                break;
-                            },
-                        }
+            } else {}
+        }
+
+        fn bestOverloadCandidate(self: *Self, callee_context: CalleeContext) !Candidate {
+            const count = callee_context.named_arguments.count();
+            var candidate = Candidate{
+                .overload = undefined,
+                .match = .no,
+                .named_arguments = try components.OrderedNamedArguments.withCapacity(self.allocator, count),
+                .literal = callee_context.callable.get(components.Literal),
+                .module = undefined,
+            };
+            candidate.named_arguments.values.len = count;
+            var ordered_named_arguments = try self.allocator.alloc(Entity, count);
+            try checkCandidatesForModule(self, callee_context, &candidate, ordered_named_arguments);
+            const imports = self.module.get(components.Imports).slice();
+            for (imports) |import| {
+                const module = blk: {
+                    if (import.has(components.Module)) |m| {
+                        break :blk m.entity;
                     } else {
-                        match = .no;
-                        break;
+                        const module_name = literalOf(import.get(components.Path).entity);
+                        const contents = try self.file_system.read(module_name);
+                        const interned = try self.codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
+                        const module = try self.codebase.createEntity(.{components.Literal.init(interned)});
+                        var tokens = try tokenize(module, contents);
+                        try parse(module, &tokens);
+                        const source = components.ModuleSource{ .string = contents };
+                        const path = components.ModulePath{ .string = module_name };
+                        _ = try module.set(.{
+                            source,
+                            path,
+                        });
+                        _ = try import.set(.{components.Module.init(module)});
+                        break :blk module;
                     }
-                }
-                if (@enumToInt(match) < @enumToInt(best_match)) continue;
-                if (match != .no and match == best_match) {
-                    panic("ambiguous overload set overload match {} best match {}", .{ match, best_match });
-                }
-                best_match = match;
-                best_overload = overload;
-                std.mem.copy(Entity, best_ordered_named_arguments.mutSlice(), ordered_named_arguments);
+                };
+                var context = Self{
+                    .allocator = self.allocator,
+                    .codebase = self.codebase,
+                    .file_system = self.file_system,
+                    .module = module,
+                    .function = self.function,
+                    .active_scopes = self.active_scopes,
+                    .builtins = self.builtins,
+                };
+                try checkCandidatesForModule(&context, callee_context, &candidate, ordered_named_arguments);
             }
-            if (best_match == .no) {
+            if (candidate.match == .no) {
                 var body = List(u8, .{ .initial_capacity = 1000 }).init(self.allocator);
                 try body.appendSlice("No matching function overload found for argument types (");
-                for (arguments) |argument, i| {
+                for (callee_context.arguments) |argument, i| {
                     const argument_type = typeOf(argument);
                     try body.appendSlice(literalOf(argument_type));
-                    if (i < arguments.len - 1) {
+                    if (i < callee_context.arguments.len - 1) {
                         try body.appendSlice(", ");
                     }
                 }
@@ -319,46 +375,52 @@ fn Context(comptime FileSystem: type) type {
                 var candidates = List(List(u8, .{}), .{ .initial_capacity = 8 }).init(self.allocator);
                 var file_and_lines = List(List(u8, .{}), .{ .initial_capacity = 8 }).init(self.allocator);
                 var candidate_width: usize = 0;
-                for (overloads) |overload| {
-                    var candidate = List(u8, .{}).init(self.allocator);
-                    try candidate.append('\n');
-                    try candidate.appendSlice(literalOf(overload.get(components.Name).entity));
-                    try candidate.append('(');
-                    const parameters = overload.get(components.Parameters).slice();
-                    for (parameters) |parameter, i| {
-                        const parameter_type = typeOf(parameter);
-                        var mismatch = false;
-                        if (i < arguments.len) {
-                            mismatch = self.convertibleTo(parameter_type, typeOf(arguments[i])) == .no;
-                        } else {
-                            mismatch = true;
+                const top_level = self.module.get(components.TopLevel);
+
+                if (top_level.hasLiteral(candidate.literal)) |function| {
+                    const overloads = function.get(components.Overloads).slice();
+                    for (overloads) |overload| {
+                        var candidate_error = List(u8, .{}).init(self.allocator);
+                        try candidate_error.append('\n');
+                        try candidate_error.appendSlice(literalOf(overload.get(components.Name).entity));
+                        try candidate_error.append('(');
+                        const parameters = overload.get(components.Parameters).slice();
+                        for (parameters) |parameter, i| {
+                            const parameter_type = typeOf(parameter);
+                            var mismatch = false;
+                            if (i < callee_context.arguments.len) {
+                                mismatch = self.convertibleTo(parameter_type, typeOf(callee_context.arguments[i])) == .no;
+                            } else {
+                                mismatch = true;
+                            }
+                            if (mismatch) {
+                                try candidate_error.appendSlice(colors.RED);
+                            }
+                            try candidate_error.appendSlice(literalOf(parameter));
+                            try candidate_error.appendSlice(": ");
+                            try candidate_error.appendSlice(literalOf(parameter_type));
+                            if (mismatch) {
+                                try candidate_error.appendSlice(colors.RESET);
+                            }
+                            if (i < parameters.len - 1) {
+                                try candidate_error.appendSlice(", ");
+                            }
                         }
-                        if (mismatch) {
-                            try candidate.appendSlice(colors.RED);
-                        }
-                        try candidate.appendSlice(literalOf(parameter));
-                        try candidate.appendSlice(": ");
-                        try candidate.appendSlice(literalOf(parameter_type));
-                        if (mismatch) {
-                            try candidate.appendSlice(colors.RESET);
-                        }
-                        if (i < parameters.len - 1) {
-                            try candidate.appendSlice(", ");
-                        }
+                        try candidate_error.append(')');
+                        try candidates.append(candidate_error);
+                        candidate_width = std.math.max(candidate_width, candidate_error.len);
+                        var file_and_line = List(u8, .{}).init(self.allocator);
+                        try file_and_line.appendSlice(self.module.get(components.ModulePath).string);
+                        try file_and_line.append(':');
+                        const result = try std.fmt.allocPrint(self.allocator, "{}", .{overload.get(components.Span).begin.row + 1});
+                        try file_and_line.appendSlice(result);
+                        try file_and_lines.append(file_and_line);
                     }
-                    try candidate.append(')');
-                    try candidates.append(candidate);
-                    candidate_width = std.math.max(candidate_width, candidate.len);
-                    var file_and_line = List(u8, .{}).init(self.allocator);
-                    try file_and_line.appendSlice(self.module.get(components.ModulePath).string);
-                    try file_and_line.append(':');
-                    const result = try std.fmt.allocPrint(self.allocator, "{}", .{overload.get(components.Span).begin.row + 1});
-                    try file_and_line.appendSlice(result);
-                    try file_and_lines.append(file_and_line);
                 }
+
                 const file_and_lines_slice = file_and_lines.slice();
-                for (candidates.slice()) |candidate, i| {
-                    const candidate_slice = candidate.slice();
+                for (candidates.slice()) |candidate_error, i| {
+                    const candidate_slice = candidate_error.slice();
                     try hint.appendSlice(candidate_slice);
                     const delta = candidate_width - candidate_slice.len;
                     var spaces: usize = 0;
@@ -372,15 +434,15 @@ fn Context(comptime FileSystem: type) type {
                 const error_component = components.Error{
                     .header = "FUNCTION CALL ERROR",
                     .body = body.mutSlice(),
-                    .span = call.get(components.Span),
+                    .span = callee_context.call.get(components.Span),
                     .hint = hint.mutSlice(),
                     .module = self.module,
                 };
-                _ = try call.set(.{error_component});
+                _ = try callee_context.call.set(.{error_component});
                 return error.CompileError;
             }
-            _ = try call.set(.{best_ordered_named_arguments});
-            return best_overload;
+            _ = try callee_context.call.set(.{candidate.named_arguments});
+            return candidate;
         }
 
         fn analyzePointer(self: *Self, entity: Entity) !Entity {
@@ -530,26 +592,35 @@ fn Context(comptime FileSystem: type) type {
                 return try self.analyzeCast(analyzed_arguments.slice());
             }
             const analyzed_arguments_slice = analyzed_arguments.slice();
-            const overload = try self.bestOverload(call, callable, analyzed_arguments_slice, analyzed_named_arguments);
-            const kind = overload.get(components.AstKind);
+
+            const candidate = try self.bestOverloadCandidate(.{
+                .module = self.module,
+                .call = call,
+                .callable = callable,
+                .arguments = analyzed_arguments_slice,
+                .named_arguments = analyzed_named_arguments,
+                .literal = callable.get(components.Literal),
+            });
+
+            const kind = candidate.overload.get(components.AstKind);
             if (kind == .function) {
-                if (!overload.contains(components.AnalyzedBody)) {
-                    _ = try overload.set(.{components.AnalyzedBody{ .value = true }});
-                    const scopes = overload.getPtr(components.Scopes).slice();
+                if (!candidate.overload.contains(components.AnalyzedBody)) {
+                    _ = try candidate.overload.set(.{components.AnalyzedBody{ .value = true }});
+                    const scopes = candidate.overload.getPtr(components.Scopes).slice();
                     assert(scopes.len == 1);
                     const active_scopes = [_]u64{0};
                     var context = Self{
                         .allocator = self.allocator,
                         .codebase = self.codebase,
                         .file_system = self.file_system,
-                        .module = self.module,
-                        .function = overload,
+                        .module = candidate.module,
+                        .function = candidate.overload,
                         .active_scopes = &active_scopes,
                         .builtins = self.builtins,
                     };
                     try context.analyzeFunction();
                 }
-                const parameters = overload.get(components.Parameters).slice();
+                const parameters = candidate.overload.get(components.Parameters).slice();
                 var i: usize = 0;
                 while (i < analyzed_arguments_slice.len) : (i += 1) {
                     try self.implicitTypeConversion(analyzed_arguments_slice[i], typeOf(parameters[i]));
@@ -559,10 +630,10 @@ fn Context(comptime FileSystem: type) type {
                 while (i < parameters.len) : (i += 1) {
                     try self.implicitTypeConversion(ordered_named_arguments_slice[i - analyzed_arguments_slice.len], typeOf(parameters[i]));
                 }
-                const return_type = overload.get(components.ReturnType).entity;
+                const return_type = candidate.overload.get(components.ReturnType).entity;
                 return try self.codebase.createEntity(.{
                     components.Type.init(return_type),
-                    components.Callable.init(overload),
+                    components.Callable.init(candidate.overload),
                     components.AstKind.call,
                     analyzed_arguments,
                     analyzed_named_arguments,
@@ -571,7 +642,7 @@ fn Context(comptime FileSystem: type) type {
                 });
             }
             assert(kind == .struct_);
-            const fields = overload.get(components.Fields).slice();
+            const fields = candidate.overload.get(components.Fields).slice();
             var i: usize = 0;
             while (i < analyzed_arguments_slice.len) : (i += 1) {
                 try self.implicitTypeConversion(analyzed_arguments_slice[i], typeOf(fields[i]));
@@ -582,7 +653,7 @@ fn Context(comptime FileSystem: type) type {
                 try self.implicitTypeConversion(ordered_named_arguments_slice[i - analyzed_arguments_slice.len], typeOf(fields[i]));
             }
             return try self.codebase.createEntity(.{
-                components.Type.init(overload),
+                components.Type.init(candidate.overload),
                 components.AstKind.construct,
                 analyzed_arguments,
                 analyzed_named_arguments,

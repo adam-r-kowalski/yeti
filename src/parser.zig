@@ -504,7 +504,7 @@ pub fn parseImport(codebase: *ECS, tokens: *Tokens) !Entity {
     });
 }
 
-fn parseNewImportSyntax(tokens: *Tokens, top_level: *components.TopLevel) !void {
+fn parseNewImportSyntax(tokens: *Tokens, imports: *components.Imports) !void {
     const string = tokens.consume(.string);
     const path = components.Path.init(string);
     const import = try string.ecs.createEntity(.{
@@ -512,7 +512,7 @@ fn parseNewImportSyntax(tokens: *Tokens, top_level: *components.TopLevel) !void 
         path,
         string.get(components.Span),
     });
-    try top_level.putInterned(string.get(components.Literal).interned, import);
+    try imports.append(import);
 }
 
 fn overloadFunction(top_level: *components.TopLevel, function: Entity, name: components.Name) !void {
@@ -698,6 +698,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
     const codebase = module.ecs;
     const allocator = codebase.arena.allocator();
     var top_level = components.TopLevel.init(allocator, codebase.getPtr(Strings));
+    var imports = components.Imports.init(allocator);
     var foreign_exports = components.ForeignExports.init(allocator);
     while (tokens.next()) |token| {
         const kind = token.get(components.TokenKind);
@@ -705,7 +706,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
             .symbol => try parseTopLevel(tokens, &top_level, token),
             .new_line => continue,
             .struct_ => try parseStruct(tokens, &top_level, token),
-            .import => try parseNewImportSyntax(tokens, &top_level),
+            .import => try parseNewImportSyntax(tokens, &imports),
             .attribute_export => try parseAttributeExport(tokens, &top_level, &foreign_exports),
             .attribute_import => try parseAttributeImport(tokens, &top_level),
             else => panic("\nparse unsupported kind {}\n", .{kind}),
@@ -714,6 +715,7 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
     _ = try module.set(.{
         top_level,
         foreign_exports,
+        imports,
         components.Type.init(codebase.get(components.Builtins).Module),
     });
 }

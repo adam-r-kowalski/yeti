@@ -624,6 +624,7 @@ pub const AnalyzedBody = struct { value: bool };
 pub const AnalyzedFields = struct { value: bool };
 pub const AnalyzedExpression = struct { value: bool };
 pub const WasmName = DistinctList("Wasm Name", u8);
+pub const Imports = DistinctList("Imports", Entity);
 pub const ForeignImports = DistinctList("Foreign Imports", Entity);
 pub const ForeignExports = DistinctList("Foreign Exports", Entity);
 pub const ForeignModule = DistinctEntity("Foreign Module");
