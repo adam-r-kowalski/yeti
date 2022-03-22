@@ -39,7 +39,7 @@ test "parse while" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): i32 {
+        \\start() i32 {
         \\  i = 0
         \\  while i < 10 {
         \\      i = i + 1
@@ -84,7 +84,7 @@ test "analyze semantics of while loop" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  i = 0
         \\  while i < 10 {
         \\      i = i + 1
@@ -135,7 +135,7 @@ test "codegen while loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  i = 0
         \\  while i < 10 {
         \\    i = i + 1
@@ -208,7 +208,7 @@ test "codegen while loop proper type inference" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  i = 0
         \\  while i < 10 {
         \\    i = i + 1
@@ -281,7 +281,7 @@ test "print wasm while loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  i = 0
         \\  while i < 10 {
         \\      i = i + 1
@@ -325,7 +325,7 @@ test "print wasm properly infer type for while loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  sum = 0
         \\  i = 0
         \\  while i < 10 {

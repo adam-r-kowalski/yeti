@@ -1,4 +1,4 @@
-fib_naive(n: i64): i64 {
+fib_naive(n: i64) i64 {
   if n < 2 {
     1
   } else {
@@ -6,11 +6,11 @@ fib_naive(n: i64): i64 {
   }
 }
 
-fib_recursive(n: i64): i64 {
+fib_recursive(n: i64) i64 {
   fib_recursive(n, 0, 1)
 }
 
-fib_recursive(n: i64, prev: i64, curr: i64): i64 {
+fib_recursive(n: i64, prev: i64, curr: i64) i64 {
   if n == 0 {
     curr
   } else {
@@ -18,7 +18,7 @@ fib_recursive(n: i64, prev: i64, curr: i64): i64 {
   }
 }
 
-fib_iterative(n: i64): i64 {
+fib_iterative(n: i64) i64 {
   prev = 0
   curr = 1
   while n > 0 {
@@ -30,7 +30,7 @@ fib_iterative(n: i64): i64 {
   curr
 }
 
-fib_iterative_for_loop(n: i64): i64 {
+fib_iterative_for_loop(n: i64) i64 {
   prev = 0
   curr = 1
   for i in :n {
@@ -41,6 +41,6 @@ fib_iterative_for_loop(n: i64): i64 {
   curr
 }
 
-start(): i64 {
+start() i64 {
   fib_iterative_for_loop(10)
 }

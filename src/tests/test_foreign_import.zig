@@ -40,7 +40,7 @@ test "parse foreign import" {
     const module = try codebase.createEntity(.{});
     const code =
         \\@import("console", "log")
-        \\log(value: i64): void
+        \\log(value: i64) void
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -67,7 +67,7 @@ test "parse foreign import with module and name inferred" {
     const module = try codebase.createEntity(.{});
     const code =
         \\@import
-        \\log(value: i64): void
+        \\log(value: i64) void
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -86,6 +86,7 @@ test "parse foreign import with module and name inferred" {
     try expectEqualStrings(literalOf(parameter.get(components.TypeAst).entity), "i64");
     try expectEqualStrings(literalOf(function.get(components.ReturnTypeAst).entity), "void");
 }
+
 test "analyze semantics of foreign import" {
     var arena = Arena.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -94,9 +95,9 @@ test "analyze semantics of foreign import" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@import("console", "log")
-        \\log(value: i64): void
+        \\log(value: i64) void
         \\
-        \\start(): void {
+        \\start() void {
         \\  log(10)
         \\}
     );
@@ -132,9 +133,9 @@ test "print wasm foreign import" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@import("console", "log")
-        \\log(value: i64): void
+        \\log(value: i64) void
         \\
-        \\start(): void {
+        \\start() void {
         \\  log(10)
         \\}
     );

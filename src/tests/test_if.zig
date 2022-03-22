@@ -22,7 +22,7 @@ test "parse if" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): u64 {
+        \\start() u64 {
         \\  if 10 > 5 { 20 } else { 30 }
         \\}
     ;
@@ -53,7 +53,7 @@ test "parse if using arguments of function" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\min(x: i64, y: i64): i64 {
+        \\min(x: i64, y: i64) i64 {
         \\  if x < y { x } else { y }
         \\}
     ;
@@ -86,7 +86,7 @@ test "parse multiline if then else" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): u64 {
+        \\start() u64 {
         \\  if 10 > 5 {
         \\    x = 20
         \\    x
@@ -143,7 +143,7 @@ test "analyze semantics if" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if 1 {{ 20 }} else {{ 30 }}
             \\}}
         , .{type_of}));
@@ -188,11 +188,11 @@ test "analyze semantics if non constant conditional" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if f() {{ 20 }} else {{ 30 }}
             \\}}
             \\
-            \\f(): i32 {{
+            \\f() i32 {{
             \\  1
             \\}}
         , .{type_of}));
@@ -246,11 +246,11 @@ test "analyze semantics if with different type branches" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if 1 {{ 20 }} else {{ f() }}
             \\}}
             \\
-            \\f(): {s} {{
+            \\f() {s} {{
             \\  0
             \\}}
         , .{ type_of, type_of }));
@@ -299,7 +299,7 @@ test "codegen if where then branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if 1 {{ 20 }} else {{ 30 }}
             \\}}
         , .{type_of}));
@@ -331,7 +331,7 @@ test "codegen if where else branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if 0 {{ 20 }} else {{ 30 }}
             \\}}
         , .{type_of}));
@@ -372,11 +372,11 @@ test "codegen if non const conditional" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if f() {{ 20 }} else {{ 30 }}
             \\}}
             \\
-            \\f(): i32 {{ 1 }}
+            \\f() i32 {{ 1 }}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);
@@ -416,7 +416,7 @@ test "print wasm if where then branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if 1 {{ 20 }} else {{ 30 }}
             \\}}
         , .{type_of}));
@@ -443,7 +443,7 @@ test "print wasm if where else branch taken statically" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if 0 {{ 20 }} else {{ 30 }}
             \\}}
         , .{type_of}));
@@ -470,11 +470,11 @@ test "print wasm if non const conditional" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  if f() {{ 20 }} else {{ 30 }}
             \\}}
             \\
-            \\f(): i32 {{ 1 }}
+            \\f() i32 {{ 1 }}
         , .{type_of}));
         const module = try analyzeSemantics(codebase, fs, "foo.yeti");
         try codegen(module);

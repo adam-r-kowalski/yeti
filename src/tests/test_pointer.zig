@@ -23,7 +23,7 @@ test "parse pointer" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(ptr: *i32): i32 {
+        \\start(ptr: *i32) i32 {
         \\  0
         \\}
     ;
@@ -54,7 +54,7 @@ test "parse pointer load" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(ptr: *i32): i32 {
+        \\start(ptr: *i32) i32 {
         \\  *ptr
         \\}
     ;
@@ -87,7 +87,7 @@ test "parse pointer load after new line" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): i32 {
+        \\start() i32 {
         \\  ptr = cast(*i32, 0)
         \\  *ptr
         \\}
@@ -117,7 +117,7 @@ test "analyze semantics of casting int literal to *i64" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): *i64 {
+        \\start() *i64 {
         \\  cast(*i64, 0)
         \\}
     );
@@ -153,7 +153,7 @@ test "analyze semantics of casting i32 to *i64" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): *i64 {
+        \\start() *i64 {
         \\  i: i32 = 0
         \\  cast(*i64, i)
         \\}
@@ -198,7 +198,7 @@ test "analyze semantics of pointer store" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): void {
+        \\start() void {
         \\  ptr = cast(*i64, 0)
         \\  *ptr = 10
         \\}
@@ -252,7 +252,7 @@ test "analyze semantics of pointer load" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  ptr = cast(*i64, 0)
         \\  *ptr
         \\}
@@ -302,7 +302,7 @@ test "analyze semantics of adding *i64 and int literal" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): *i64 {
+        \\start() *i64 {
         \\  ptr = cast(*i64, 0)
         \\  ptr + 1
         \\}
@@ -349,7 +349,7 @@ test "analyze semantics of subtracting *i64 and int literal" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): *i64 {
+        \\start() *i64 {
         \\  ptr = cast(*i64, 0)
         \\  ptr - 1
         \\}
@@ -396,7 +396,7 @@ test "analyze semantics of comparing two *i64" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  ptr = cast(*i64, 0)
         \\  ptr == ptr
         \\}
@@ -442,7 +442,7 @@ test "codegen of casting int literal to *i64" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): *i64 {
+        \\start() *i64 {
         \\  cast(*i64, 0)
         \\}
     );
@@ -463,7 +463,7 @@ test "codegen of storing through pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): void {
+        \\start() void {
         \\  ptr = cast(*i64, 0)
         \\  *ptr = 10
         \\}
@@ -507,7 +507,7 @@ test "codegen of loading through pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  ptr = cast(*i64, 0)
         \\  *ptr
         \\}
@@ -544,7 +544,7 @@ test "codegen of adding pointer and int literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): *i64 {
+        \\start() *i64 {
         \\  ptr = cast(*i64, 0)
         \\  ptr + 1
         \\}
@@ -586,7 +586,7 @@ test "codegen of subtracting pointer and int literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): *i64 {
+        \\start() *i64 {
         \\  ptr = cast(*i64, 0)
         \\  ptr - 1
         \\}
@@ -631,7 +631,7 @@ test "codegen of comparing two *i64" {
     for (op_strings) |op_string, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): i32 {{
+            \\start() i32 {{
             \\  ptr = cast(*i64, 0)
             \\  ptr {s} ptr
             \\}}
@@ -675,7 +675,7 @@ test "codegen of subtracting two *i64" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  ptr = cast(*i64, 0)
         \\  ptr - ptr
         \\}
@@ -724,7 +724,7 @@ test "print wasm pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): *i64 {
+        \\start() *i64 {
         \\  cast(*i64, 0)
         \\}
     );
@@ -747,7 +747,7 @@ test "print wasm pointer store" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): void {
+        \\start() void {
         \\  ptr = cast(*i64, 0)
         \\  *ptr = 10
         \\}
@@ -779,7 +779,7 @@ test "print wasm pointer load" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  ptr = cast(*i64, 0)
         \\  *ptr
         \\}
@@ -810,7 +810,7 @@ test "print wasm pointer load u8" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): u8 {
+        \\start() u8 {
         \\  ptr = cast(*u8, 0)
         \\  *ptr
         \\}
@@ -842,7 +842,7 @@ test "print wasm pointer as parameter" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@export
-        \\f(ptr: *i32): i32 {
+        \\f(ptr: *i32) i32 {
         \\  0
         \\}
     );
@@ -866,7 +866,7 @@ test "print wasm adding pointer and int literal" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@export
-        \\f(ptr: *i64): *i64 {
+        \\f(ptr: *i64) *i64 {
         \\  ptr + 1
         \\}
     );
@@ -892,7 +892,7 @@ test "print wasm subtracting pointer and int literal" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@export
-        \\f(ptr: *i64): *i64 {
+        \\f(ptr: *i64) *i64 {
         \\  ptr - 1
         \\}
     );
@@ -918,7 +918,7 @@ test "print wasm adding pointer and i32" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@export
-        \\f(ptr: *i64, len: i32): *i64 {
+        \\f(ptr: *i64, len: i32) *i64 {
         \\  ptr + len
         \\}
     );

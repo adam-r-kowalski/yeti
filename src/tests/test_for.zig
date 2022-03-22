@@ -39,7 +39,7 @@ test "parse for loop" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): i32 {
+        \\start() i32 {
         \\  sum = 0
         \\  for i in 0:10 {
         \\      sum = sum + i
@@ -87,7 +87,7 @@ test "analyze semantics of for loop" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  sum = 0
         \\  for i in 0:10 {
         \\      sum = sum + i
@@ -160,7 +160,7 @@ test "analyze semantics of for loop implicit range start" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  sum = 0
         \\  for i in :10 {
         \\      sum = sum + i
@@ -233,7 +233,7 @@ test "analyze semantics of for loop non int literal last" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  sum = 0
         \\  n = 10
         \\  for i in 0:n {
@@ -315,7 +315,7 @@ test "codegen for loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  sum = 0
         \\  for i in 0:10 {
         \\    sum += i
@@ -422,7 +422,7 @@ test "print wasm for loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  sum = 0
         \\  for i in 0:10 {
         \\    sum = sum + i
@@ -472,7 +472,7 @@ test "print wasm properly infer type for for loop" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  sum = 0
         \\  for i in 0:10 {
         \\    sum += 1
@@ -522,7 +522,7 @@ test "print wasm for loop non int literal last" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  sum = 0
         \\  n = 10
         \\  for i in 0:n {
@@ -573,7 +573,7 @@ test "print wasm for loop non int literal last implicit range start" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  sum = 0
         \\  n = 10
         \\  for i in :n {
@@ -624,7 +624,7 @@ test "print wasm for loop non int literal first" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  sum = 0
         \\  n = 0
         \\  for i in n:10 {
@@ -675,7 +675,7 @@ test "print wasm for loop non int literal first and last" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  sum = 0
         \\  first = 0
         \\  last = 10

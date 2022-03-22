@@ -67,7 +67,7 @@ This program defines two variables `x` and `y`, then adds them together.
 # Explicit Type Annotations
 
 ```
-start(): i32 {
+start() i32 {
   x: i32 = 10
   y: i32 = 10
   x + y
@@ -304,7 +304,7 @@ Instead we rely on overloading to resolve ambiguities.
 
 ```
 @import
-log(value: i64): void
+log(value: i64) void
 
 @export
 on_load() {

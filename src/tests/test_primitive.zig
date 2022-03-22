@@ -165,7 +165,7 @@ test "parse char literal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): u8 {
+        \\start() u8 {
         \\  'h'
         \\}
     ;
@@ -195,7 +195,7 @@ test "analyze semantics int literal" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  5
             \\}}
         , .{type_of}));
@@ -225,7 +225,7 @@ test "analyze semantics float literal" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  5.3
             \\}}
         , .{type_of}));
@@ -252,7 +252,7 @@ test "analyze semantics of char literal" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): u8 {
+        \\start() u8 {
         \\  'h'
         \\}
     );
@@ -281,7 +281,7 @@ test "codegen int literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  5
             \\}}
         , .{type_}));
@@ -306,7 +306,7 @@ test "codegen float literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  5
             \\}}
         , .{type_}));
@@ -331,7 +331,7 @@ test "print wasm int literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  5
             \\}}
         , .{type_}));
@@ -358,7 +358,7 @@ test "print wasm float literal" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  5.3
             \\}}
         , .{type_}));

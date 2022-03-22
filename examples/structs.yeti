@@ -3,7 +3,7 @@ struct Rectangle {
   height: f64
 }
 
-area(r: Rectangle): f64 {
+area(r: Rectangle) f64 {
   r.width * r.height
 }
 
@@ -11,7 +11,7 @@ struct Square {
   length: f64
 }
 
-area(s: Square): f64 {
+area(s: Square) f64 {
   s.length * s.length
 }
 
@@ -20,11 +20,11 @@ struct Triangle {
   height: f64
 }
 
-area(t: Triangle): f64 {
+area(t: Triangle) f64 {
   t.base * t.height / 2
 }
 
-start(): f64 {
+start() f64 {
   r = Rectangle(5, 4)
   s = Square(5)
   t = Triangle(base=5, height=4)

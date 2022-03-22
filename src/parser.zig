@@ -535,14 +535,13 @@ pub fn parseFunction(codebase: *ECS, tokens: *Tokens, name: Entity) !Entity {
     const function = try codebase.createEntity(.{components.AstKind.function});
     const begin = name.get(components.Span).begin;
     const parameters = try parseFunctionParameters(codebase, tokens);
-    switch (tokens.next().?.get(components.TokenKind)) {
-        .colon => {
+    switch (tokens.peek().?.get(components.TokenKind)) {
+        .left_brace => _ = tokens.next(),
+        else => {
             const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
             _ = try function.set(.{return_type});
             _ = tokens.consume(.left_brace);
         },
-        .left_brace => {},
-        else => |k| panic("\nparse function invalid token {} \n", .{k}),
     }
     const body = try parseFunctionBody(codebase, tokens);
     const end = tokens.consume(.right_brace).get(components.Span).end;
@@ -650,7 +649,6 @@ fn parseAttributeImportInferName(tokens: *Tokens, top_level: *components.TopLeve
     _ = tokens.consume(.left_paren);
     const codebase = name.ecs;
     const parameters = try parseFunctionParameters(codebase, tokens);
-    _ = tokens.consume(.colon);
     const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
     const end = return_type.entity.get(components.Span).end;
     const span = components.Span.init(begin, end);
@@ -679,7 +677,6 @@ fn parseAttributeImport(tokens: *Tokens, top_level: *components.TopLevel) !void 
     _ = tokens.consume(.left_paren);
     const codebase = name.ecs;
     const parameters = try parseFunctionParameters(codebase, tokens);
-    _ = tokens.consume(.colon);
     const return_type = components.ReturnTypeAst.init(try parseExpression(codebase, tokens, HIGHEST));
     const end = return_type.entity.get(components.Span).end;
     const span = components.Span.init(begin, end);

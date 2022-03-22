@@ -5,7 +5,7 @@ struct Vec4 {
   d: i32
 }
 
-start(): Vec4 {
+start() Vec4 {
   x0 = cast(*i32, 0)
   x1 = x0 + 1
   x2 = x1 + 1

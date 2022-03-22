@@ -73,7 +73,7 @@ test "parse string literal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): []u8 {
+        \\start() []u8 {
         \\  "hello world"
         \\}
     ;
@@ -99,7 +99,7 @@ test "parse array index" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): u8 {
+        \\start() u8 {
         \\  text = "hello world"
         \\  text[0]
         \\}
@@ -135,7 +135,7 @@ test "analyze semantics of string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []u8 {
+        \\start() []u8 {
         \\  "hello world"
         \\}
     );
@@ -163,7 +163,7 @@ test "analyze semantics of array index" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): u8 {
+        \\start() u8 {
         \\  text = "hello world"
         \\  text[0]
         \\}
@@ -202,7 +202,7 @@ test "codegen of string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []u8 {
+        \\start() []u8 {
         \\  "hello world"
         \\}
     );
@@ -235,7 +235,7 @@ test "codegen of array index" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): u8 {
+        \\start() u8 {
         \\  text = "hello world"
         \\  text[0]
         \\}
@@ -293,7 +293,7 @@ test "print wasm string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []u8 {
+        \\start() []u8 {
         \\  "hello world"
         \\}
     );
@@ -322,7 +322,7 @@ test "print wasm multi line string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []u8 {
+        \\start() []u8 {
         \\  "
         \\  hello
         \\  world
@@ -353,7 +353,7 @@ test "print wasm assign string literal to variable" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []u8 {
+        \\start() []u8 {
         \\  text = "hello world"
         \\  text
         \\}
@@ -389,11 +389,11 @@ test "print wasm pass string literal as argument" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\first(text: []u8): u8 {
+        \\first(text: []u8) u8 {
         \\  *text.ptr
         \\}
         \\
-        \\start(): u8 {
+        \\start() u8 {
         \\  first("hello world")
         \\}
     );
@@ -427,7 +427,7 @@ test "print wasm dereference string literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): u8 {
+        \\start() u8 {
         \\  text = "hello world"
         \\  *text.ptr
         \\}
@@ -463,7 +463,7 @@ test "print wasm write through **u8" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): void {
+        \\start() void {
         \\  text = "hello world"
         \\  ptr = cast(**u8, 100)
         \\  *ptr = text.ptr

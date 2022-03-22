@@ -25,7 +25,7 @@ test "analyze semantics of vector load" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64x2 {
+        \\start() i64x2 {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr
         \\}
@@ -81,7 +81,7 @@ test "analyze semantics of binary operators on two int vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
                 \\}}
@@ -146,7 +146,7 @@ test "analyze semantics of binary operators on two float vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
                 \\}}
@@ -205,7 +205,7 @@ test "analyze semantics of vector store" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): void {
+        \\start() void {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr = *ptr
         \\}
@@ -260,7 +260,7 @@ test "codegen of loading i64x2 through pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64x2 {
+        \\start() i64x2 {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr
         \\}
@@ -311,7 +311,7 @@ test "codegen of binary op on two int vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
                 \\}}
@@ -365,7 +365,7 @@ test "codegen of binary op on two float vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
                 \\}}
@@ -411,7 +411,7 @@ test "codegen of storing i64x2 through pointer" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): void {
+        \\start() void {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr = *ptr
         \\}
@@ -455,7 +455,7 @@ test "print wasm pointer v128 load" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64x2 {
+        \\start() i64x2 {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr
         \\}
@@ -486,7 +486,7 @@ test "print wasm pointer v128 store" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): void {
+        \\start() void {
         \\  ptr = cast(*i64x2, 0)
         \\  *ptr = *ptr
         \\}
@@ -533,7 +533,7 @@ test "print wasm binary op on two int vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
                 \\}}
@@ -576,7 +576,7 @@ test "print wasm binary op on two float vectors" {
         for (op_strings) |op_string, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  v = *cast(*{s}, 0)
                 \\  v {s} v
                 \\}}

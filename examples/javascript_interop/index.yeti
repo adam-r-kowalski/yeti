@@ -1,8 +1,8 @@
 @import("draw", "square")
-draw_square(length: i64): void
+draw_square(length: i64) void
 
 @export
-on_load(): void {
+on_load() void {
   length = 20
   while length < 100 {
     draw_square(length)

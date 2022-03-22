@@ -24,7 +24,7 @@ test "parse new import syntax" {
     const code =
         \\import "math.yeti"
         \\
-        \\start(): f64 {
+        \\start() f64 {
         \\  clamp(7, low=0, high=5)
         \\}
     ;
@@ -61,7 +61,7 @@ test "parse import and function" {
     const code =
         \\math = import("math.yeti")
         \\
-        \\start(): u64 {
+        \\start() u64 {
         \\  math.sum_of_squares(10, 56 * 3)
         \\}
     ;
@@ -104,12 +104,12 @@ test "analyze semantics call function import" {
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
             \\bar = import("bar.yeti")
             \\
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  bar.baz()
             \\}}
         , .{type_of}));
         _ = try fs.newFile("bar.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\baz(): {s} {{
+            \\baz() {s} {{
             \\  10
             \\}}
         , .{type_of}));
@@ -151,16 +151,16 @@ test "analyze semantics of calling imported function with local arguments" {
     _ = try fs.newFile("foo.yeti",
         \\bar = import("bar.yeti")
         \\
-        \\g(x: i64): i64 {
+        \\g(x: i64) i64 {
         \\  x + x
         \\}
         \\
-        \\start(): i64 {
+        \\start() i64 {
         \\  bar.f(g(300))
         \\}
     );
     _ = try fs.newFile("bar.yeti",
-        \\f(x: i64): i64 {
+        \\f(x: i64) i64 {
         \\  x * x
         \\}
     );
@@ -205,12 +205,12 @@ test "analyze semantics of calling imported function twice" {
     _ = try fs.newFile("foo.yeti",
         \\bar = import("bar.yeti")
         \\
-        \\start(): i64 {
+        \\start() i64 {
         \\  bar.f(bar.f(300))
         \\}
     );
     _ = try fs.newFile("bar.yeti",
-        \\f(x: i64): i64 {
+        \\f(x: i64) i64 {
         \\  x * x
         \\}
     );
@@ -250,20 +250,20 @@ test "analyze semantics of new import syntax" {
     _ = try fs.newFile("start.yeti",
         \\import "math.yeti"
         \\
-        \\start(): f64 {
+        \\start() f64 {
         \\  clamp(7, low=0, high=5)
         \\}
     );
     _ = try fs.newFile("math.yeti",
-        \\min(x: f64, y: f64): f64 {
+        \\min(x: f64, y: f64) f64 {
         \\  if x < y { x } else { y }
         \\}
         \\
-        \\max(x: f64, y: f64): f64 {
+        \\max(x: f64, y: f64) f64 {
         \\  if x > y { x } else { y }
         \\}
         \\
-        \\clamp(x: f64, low: f64, high: f64): f64 {
+        \\clamp(x: f64, low: f64, high: f64) f64 {
         \\  x.min(high).max(low)
         \\}
     );

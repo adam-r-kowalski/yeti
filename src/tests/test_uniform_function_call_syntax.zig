@@ -82,11 +82,11 @@ test "analyze semantics of uniform function call syntax" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\min(x: i64, y: i64): i64 {
+        \\min(x: i64, y: i64) i64 {
         \\  if x < y { x } else { y }
         \\}
         \\
-        \\start(): i64 {
+        \\start() i64 {
         \\  10.min(20)
         \\}
     );
@@ -118,11 +118,11 @@ test "analyze semantics of uniform function call syntax omit parenthesis" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square(x: i64): i64 {
+        \\square(x: i64) i64 {
         \\  x * x
         \\}
         \\
-        \\start(): i64 {
+        \\start() i64 {
         \\  10.square
         \\}
     );
@@ -153,11 +153,11 @@ test "analyze semantics of uniform function call syntax on locals" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\square(x: i64): i64 {
+        \\square(x: i64) i64 {
         \\  x * x
         \\}
         \\
-        \\start(): i64 {
+        \\start() i64 {
         \\  x = 10
         \\  x.square()
         \\}
@@ -200,11 +200,11 @@ test "analyze semantics of uniform function call syntax on structs" {
         \\  length: f64
         \\}
         \\
-        \\area(s: Square): f64 {
+        \\area(s: Square) f64 {
         \\  s.length * s.length
         \\}
         \\
-        \\start(): f64 {
+        \\start() f64 {
         \\  s = Square(10)
         \\  s.area()
         \\}
@@ -248,11 +248,11 @@ test "analyze semantics of uniform function call syntax on structs omit parenthe
         \\  length: f64
         \\}
         \\
-        \\area(s: Square): f64 {
+        \\area(s: Square) f64 {
         \\  s.length * s.length
         \\}
         \\
-        \\start(): f64 {
+        \\start() f64 {
         \\  s = Square(10)
         \\  s.area
         \\}
