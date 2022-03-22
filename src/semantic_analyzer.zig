@@ -134,31 +134,12 @@ fn Context(comptime FileSystem: type) type {
             }
             const top_level_scope = self.module.get(components.TopLevel);
             if (top_level_scope.hasLiteral(literal)) |top_level| {
-                const kind = top_level.get(components.AstKind);
-                switch (kind) {
-                    .import => {
-                        if (top_level.has(components.Module)) |module| {
-                            return module.entity;
-                        }
-                        const module_name = literalOf(top_level.get(components.Path).entity);
-                        const contents = try self.file_system.read(module_name);
-                        const module = try self.codebase.createEntity(.{});
-                        var tokens = try tokenize(module, contents);
-                        try parse(module, &tokens);
-                        const interned = try self.codebase.getPtr(Strings).intern(module_name[0 .. module_name.len - 5]);
-                        _ = try module.set(.{components.Literal.init(interned)});
-                        _ = try top_level.set(.{components.Module.init(module)});
-                        return module;
-                    },
-                    .overload_set => {
-                        const overloads = top_level.get(components.Overloads).slice();
-                        assert(overloads.len == 1);
-                        const overload = overloads[0];
-                        assert(overload.get(components.AstKind) == .struct_);
-                        return overload;
-                    },
-                    else => panic("\nanalyzeSumbol unspported top level kind {}\n", .{kind}),
-                }
+                assert(top_level.get(components.AstKind) == .overload_set);
+                const overloads = top_level.get(components.Overloads).slice();
+                assert(overloads.len == 1);
+                const overload = overloads[0];
+                assert(overload.get(components.AstKind) == .struct_);
+                return overload;
             }
             panic("\nanalyzeSymbol failed for symbol {s}\n", .{literalOf(entity)});
         }
@@ -695,24 +676,10 @@ fn Context(comptime FileSystem: type) type {
         }
 
         fn analyzeDot(self: *Self, entity: Entity) !Entity {
-            const b = self.builtins;
             const dot_arguments = entity.get(components.Arguments).slice();
             const lhs = try self.analyzeExpression(dot_arguments[0]);
             const rhs = dot_arguments[1];
             const lhs_type = typeOf(lhs);
-            if (eql(lhs_type, b.Module)) {
-                assert(rhs.get(components.AstKind) == .call);
-                var context = Self{
-                    .allocator = self.allocator,
-                    .codebase = self.codebase,
-                    .file_system = self.file_system,
-                    .module = lhs,
-                    .function = self.function,
-                    .active_scopes = self.active_scopes,
-                    .builtins = self.builtins,
-                };
-                return try context.analyzeCall(rhs, self);
-            }
             if (lhs.get(components.AstKind) == .local) {
                 if (lhs_type.has(components.AstKind)) |lhs_type_kind| {
                     assert(lhs_type_kind == .struct_);
@@ -729,14 +696,10 @@ fn Context(comptime FileSystem: type) type {
                                 });
                             }
                         },
-                        .call => {
-                            return try self.uniformFunctionCall(lhs, rhs);
-                        },
+                        .call => return try self.uniformFunctionCall(lhs, rhs),
                         else => |k| panic("\nanalyzed ot invalid rhs kind {}\n", .{k}),
                     }
-                } else {
-                    return try self.uniformFunctionCall(lhs, rhs);
-                }
+                } else return try self.uniformFunctionCall(lhs, rhs);
             }
             return try self.uniformFunctionCall(lhs, rhs);
         }
