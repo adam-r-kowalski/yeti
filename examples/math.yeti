@@ -1,7 +1,7 @@
-max(x: i32, y: i32): i32 {
+max(x: i32, y: i32) i32 {
   if x > y { x } else { y }
 }
 
-min(x: i32, y: i32): i32 {
+min(x: i32, y: i32) i32 {
   if x < y { x } else { y }
 }

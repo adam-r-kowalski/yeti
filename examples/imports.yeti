@@ -1,5 +1,5 @@
 math = import("math.yeti")
 
-start(): i32 {
+start() i32 {
   math.min(100, 20)
 }

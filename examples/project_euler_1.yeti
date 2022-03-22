@@ -1,4 +1,4 @@
-problem1(upper_bound: i32): i32 {
+problem1(upper_bound: i32) i32 {
   n = 0
   sum = 0
   while n < upper_bound {
@@ -9,6 +9,6 @@ problem1(upper_bound: i32): i32 {
   sum
 }
 
-start(): i32 {
+start() i32 {
   problem1(1000)
 }

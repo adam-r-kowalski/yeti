@@ -1,4 +1,4 @@
-problem2(upper_bound: i32): i32 {
+problem2(upper_bound: i32) i32 {
   previous = 1
   current = 1
   sum = 0
@@ -12,6 +12,6 @@ problem2(upper_bound: i32): i32 {
   sum
 }
 
-start(): i32 {
+start() i32 {
   problem2(4000000)
 }

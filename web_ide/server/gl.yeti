@@ -1,91 +1,91 @@
 @import
-create_shader(shader_type: i32): i32
+create_shader(shader_type: i32) i32
 
 @import
-shader_source(shader: i32, source: []u8): void
+shader_source(shader: i32, source: []u8) void
 
 @import
-compile_shader(shader: i32): void
+compile_shader(shader: i32) void
 
 @import
-get_shader_parameter(shader: i32, pname: i32): i32
+get_shader_parameter(shader: i32, pname: i32) i32
 
 @import
-log_shader_info(shader: i32): void
+log_shader_info(shader: i32) void
 
 @import
-delete_shader(shader: i32): void
+delete_shader(shader: i32) void
 
 @import
-create_program(): i32
+create_program() i32
 
 @import
-attach_shader(program: i32, shader: i32): void
+attach_shader(program: i32, shader: i32) void
 
 @import
-link_program(program: i32): void
+link_program(program: i32) void
 
 @import
-get_program_parameter(program: i32, pname: i32): i32
+get_program_parameter(program: i32, pname: i32) i32
 
 @import
-log_program_info(program: i32): void
+log_program_info(program: i32) void
 
 @import
-delete_program(program: i32): void
+delete_program(program: i32) void
 
 @import
-get_attrib_location(program: i32, attrib: []u8): i32
+get_attrib_location(program: i32, attrib: []u8) i32
 
 @import
-create_buffer(): i32
+create_buffer() i32
 
 @import
-bind_buffer(target: i32, buffer: i32): void
+bind_buffer(target: i32, buffer: i32) void
 
 @import
-buffer_data(target: i32, usage: i32, positions: []f32): void
+buffer_data(target: i32, usage: i32, positions: []f32) void
 
 @import
-create_vertex_array(): i32
+create_vertex_array() i32
 
 @import
-bind_vertex_array(vertex_array: i32): void
+bind_vertex_array(vertex_array: i32) void
 
 @import
-enable_vertex_attrib_array(index: i32): void
+enable_vertex_attrib_array(index: i32) void
 
 @import
-vertex_attrib_pointer(index: i32, size: i32, dtype: i32, normalized: i32, stride: i32, offset: i32): void
+vertex_attrib_pointer(index: i32, size: i32, dtype: i32, normalized: i32, stride: i32, offset: i32) void
 
 @import
-resize_canvas_to_display_size(): void
+resize_canvas_to_display_size() void
 
 @import
-viewport(x: f32, y: f32, width: f32, height: f32): void
+viewport(x: f32, y: f32, width: f32, height: f32) void
 
 @import
-canvas_width(): f32
+canvas_width() f32
 
 @import
-canvas_height(): f32
+canvas_height() f32
 
 @import
-clear_color(red: u8, green: u8, blue: u8, alpha: u8): void
+clear_color(red: u8, green: u8, blue: u8, alpha: u8) void
 
 @import
-clear(mask: i32): void
+clear(mask: i32) void
 
 @import
-use_program(program: i32): void
+use_program(program: i32) void
 
 @import
-draw_arrays(mode: i32, first: i32, count: i32): void
+draw_arrays(mode: i32, first: i32, count: i32) void
 
 @import
-log(value: i32): void
+log(value: i32) void
 
-create_shader(shader_type: i32, source: []u8): i32 {
+create_shader(shader_type: i32, source: []u8) i32 {
   shader = shader_type.create_shader()
   shader.shader_source(source)
   shader.compile_shader()
@@ -100,7 +100,7 @@ create_shader(shader_type: i32, source: []u8): i32 {
   }
 }
 
-create_program(vertex_shader: i32, fragment_shader: i32): i32 {
+create_program(vertex_shader: i32, fragment_shader: i32) i32 {
   program = create_program()
   program.attach_shader(vertex_shader)
   program.attach_shader(fragment_shader)

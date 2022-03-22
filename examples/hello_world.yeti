@@ -1,5 +1,5 @@
 @import("wasi_unstable", "fd_write")
-fd_write(file_descriptor: i32, iovs: **u8, iovs_len: i32, nwritten: *i32): i32
+fd_write(file_descriptor: i32, iovs: **u8, iovs_len: i32, nwritten: *i32) i32
 
 print(text: []u8) {
   iov_base = cast(**u8, 1000)

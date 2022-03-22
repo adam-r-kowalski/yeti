@@ -1,4 +1,4 @@
-start(): i32 {
+start() i32 {
   text = "hello world"
   text[7] == *(text.ptr + 7)
 }
