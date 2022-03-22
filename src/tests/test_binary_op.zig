@@ -22,7 +22,7 @@ test "tokenize mulitine function with binary op" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\sum_of_squares(x: u64, y: u64): u64 {
+        \\sum_of_squares(x: u64, y: u64) u64 {
         \\  x2 = x * x
         \\  x2 = y * y
         \\  x2 + y2
@@ -39,7 +39,6 @@ test "tokenize mulitine function with binary op" {
     try expectEqual(tokens.next().?.get(components.TokenKind), .colon);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .right_paren);
-    try expectEqual(tokens.next().?.get(components.TokenKind), .colon);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .left_brace);
     try expectEqual(tokens.next().?.get(components.TokenKind), .new_line);
@@ -151,7 +150,7 @@ test "parse grouping with parenthesis" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): u64 {
+        \\start() u64 {
         \\  (5 + 10) * 3
         \\}
     ;
@@ -189,7 +188,7 @@ test "analyze semantics binary op two comptime known" {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  x: {s} = 10
                 \\  y: {s} = 32
                 \\  x {s} y
@@ -258,7 +257,7 @@ test "analyze semantics comparison op two comptime known" {
         for (types) |type_of, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): i32 {{
+                \\start() i32 {{
                 \\  x: {s} = 10
                 \\  y: {s} = 32
                 \\  x {s} y
@@ -324,7 +323,7 @@ test "codegen binary op two literals" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  8 {s} 2
                 \\}}
             , .{ type_, op_string }));
@@ -400,7 +399,7 @@ test "codegen arithmetic binary op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -438,7 +437,7 @@ test "codegen int binary op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -476,7 +475,7 @@ test "codegen int comparison op two local constants" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): i32 {{
+                \\start() i32 {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -501,7 +500,7 @@ test "codegen int comparison op two local constants one unused" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  a = 8
         \\  b = 2
         \\  c = a == b
@@ -548,11 +547,11 @@ test "codegen arithmethic binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  id(10) {s} id(25)
                 \\}}
                 \\
-                \\id(x: {s}): {s} {{
+                \\id(x: {s}) {s} {{
                 \\  x
                 \\}}
             , .{ type_, op_string, type_, type_ }));
@@ -612,11 +611,11 @@ test "codegen int binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  id(10) {s} id(25)
                 \\}}
                 \\
-                \\id(x: {s}): {s} {{
+                \\id(x: {s}) {s} {{
                 \\  x
                 \\}}
             , .{ type_, op_string, type_, type_ }));
@@ -675,11 +674,11 @@ test "codegen comparison binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): i32 {{
+                \\start() i32 {{
                 \\  id(10) {s} id(25)
                 \\}}
                 \\
-                \\id(x: {s}): {s} {{
+                \\id(x: {s}) {s} {{
                 \\  x
                 \\}}
             , .{ op_string, type_, type_ }));
@@ -736,7 +735,7 @@ test "print wasm arithmetic binary op" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -776,7 +775,7 @@ test "print wasm int binary op" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  x: {s} = 8
                 \\  y: {s} = 2
                 \\  x {s} y
@@ -814,11 +813,11 @@ test "print wasm arithmetic binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  id(10) {s} id(25)
                 \\}}
                 \\
-                \\id(x: {s}): {s} {{
+                \\id(x: {s}) {s} {{
                 \\  x
                 \\}}
             , .{ type_, op_string, type_, type_ }));
@@ -871,11 +870,11 @@ test "print wasm arithmetic binary op non constant modulo" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  id(10) {s} id(25)
                 \\}}
                 \\
-                \\id(x: {s}): {s} {{
+                \\id(x: {s}) {s} {{
                 \\  x
                 \\}}
             , .{ type_, op_string, type_, type_ }));
@@ -933,11 +932,11 @@ test "print wasm int binary op non constant" {
         for (types) |type_, i| {
             var fs = try MockFileSystem.init(&arena);
             _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-                \\start(): {s} {{
+                \\start() {s} {{
                 \\  id(10) {s} id(25)
                 \\}}
                 \\
-                \\id(x: {s}): {s} {{
+                \\id(x: {s}) {s} {{
                 \\  x
                 \\}}
             , .{ type_, op_string, type_, type_ }));

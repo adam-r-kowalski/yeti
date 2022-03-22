@@ -23,7 +23,7 @@ test "tokenize function" {
     defer arena.deinit();
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
-    const code = "start(): u64 { 0 }";
+    const code = "start() u64 { 0 }";
     var tokens = try tokenize(module, code);
     {
         const token = tokens.next().?;
@@ -52,27 +52,19 @@ test "tokenize function" {
     }
     {
         const token = tokens.next().?;
-        try expectEqual(token.get(components.TokenKind), .colon);
-        try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 7, .row = 0 },
-            .end = .{ .column = 8, .row = 0 },
-        });
-    }
-    {
-        const token = tokens.next().?;
         try expectEqual(token.get(components.TokenKind), .symbol);
         try expectEqualStrings(literalOf(token), "u64");
         try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 9, .row = 0 },
-            .end = .{ .column = 12, .row = 0 },
+            .begin = .{ .column = 8, .row = 0 },
+            .end = .{ .column = 11, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(components.TokenKind), .left_brace);
         try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 13, .row = 0 },
-            .end = .{ .column = 14, .row = 0 },
+            .begin = .{ .column = 12, .row = 0 },
+            .end = .{ .column = 13, .row = 0 },
         });
     }
     {
@@ -80,16 +72,16 @@ test "tokenize function" {
         try expectEqual(token.get(components.TokenKind), .int);
         try expectEqualStrings(literalOf(token), "0");
         try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 15, .row = 0 },
-            .end = .{ .column = 16, .row = 0 },
+            .begin = .{ .column = 14, .row = 0 },
+            .end = .{ .column = 15, .row = 0 },
         });
     }
     {
         const token = tokens.next().?;
         try expectEqual(token.get(components.TokenKind), .right_brace);
         try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 17, .row = 0 },
-            .end = .{ .column = 18, .row = 0 },
+            .begin = .{ .column = 16, .row = 0 },
+            .end = .{ .column = 17, .row = 0 },
         });
     }
     try expectEqual(tokens.next(), null);
@@ -101,7 +93,7 @@ test "tokenize multine function" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\f(): u64 {
+        \\f() u64 {
         \\  x = 5
         \\  y = 15
         \\  x + y
@@ -111,14 +103,13 @@ test "tokenize multine function" {
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .left_paren);
     try expectEqual(tokens.next().?.get(components.TokenKind), .right_paren);
-    try expectEqual(tokens.next().?.get(components.TokenKind), .colon);
     try expectEqual(tokens.next().?.get(components.TokenKind), .symbol);
     try expectEqual(tokens.next().?.get(components.TokenKind), .left_brace);
     {
         const token = tokens.next().?;
         try expectEqual(token.get(components.TokenKind), .new_line);
         try expectEqual(token.get(components.Span), .{
-            .begin = .{ .column = 10, .row = 0 },
+            .begin = .{ .column = 9, .row = 0 },
             .end = .{ .column = 0, .row = 1 },
         });
     }
@@ -165,7 +156,7 @@ test "parse function" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): u64 {
+        \\start() u64 {
         \\  0
         \\}
     ;
@@ -191,11 +182,11 @@ test "parse two functions" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\sum_of_squares(x: u64, y: u64): u64 {
+        \\sum_of_squares(x: u64, y: u64) u64 {
         \\  x*2 + y*2
         \\}
         \\
-        \\start(): u64 {
+        \\start() u64 {
         \\  sum_of_squares(10, 56 * 3)
         \\}
     ;
@@ -221,9 +212,9 @@ test "parse overload" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\id(x: u64): u64 { x }
+        \\id(x: u64) u64 { x }
         \\
-        \\id(x: f64): f64 { x }
+        \\id(x: f64) f64 { x }
     ;
     var tokens = try tokenize(module, code);
     try parse(module, &tokens);
@@ -260,11 +251,11 @@ test "analyze semantics call local function" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  baz()
             \\}}
             \\
-            \\baz(): {s} {{
+            \\baz() {s} {{
             \\  10
             \\}}
         , .{ type_of, type_of }));
@@ -307,12 +298,12 @@ test "analyze semantics function with argument" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  x: {s} = 10
             \\  id(x)
             \\}}
             \\
-            \\id(x: {s}): {s} {{
+            \\id(x: {s}) {s} {{
             \\  x
             \\}}
         , .{ type_of, type_of, type_of, type_of }));
@@ -365,12 +356,12 @@ test "analyze semantics function call twice" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  x = id(10)
             \\  id(25)
             \\}}
             \\
-            \\id(x: {s}): {s} {{
+            \\id(x: {s}) {s} {{
             \\  x
             \\}}
         , .{ type_of, type_of, type_of }));
@@ -434,11 +425,11 @@ test "codegen call local function" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  baz()
             \\}}
             \\
-            \\baz(): {s} {{
+            \\baz() {s} {{
             \\  10
             \\}}
         , .{ type_, type_ }));
@@ -468,11 +459,11 @@ test "print wasm call local function" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  baz()
             \\}}
             \\
-            \\baz(): {s} {{
+            \\baz() {s} {{
             \\  10
             \\}}
         , .{ type_, type_ }));
@@ -503,11 +494,11 @@ test "print wasm call local function with argument" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  id(5)
             \\}}
             \\
-            \\id(x: {s}): {s} {{
+            \\id(x: {s}) {s} {{
             \\  x
             \\}}
         , .{ type_, type_, type_ }));

@@ -22,7 +22,7 @@ test "parse plus equal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): u64 {
+        \\start() u64 {
         \\  x = 10
         \\  x += 1
         \\  x
@@ -56,7 +56,7 @@ test "parse times equal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): u64 {
+        \\start() u64 {
         \\  x = 10
         \\  x *= 1
         \\  x
@@ -94,7 +94,7 @@ test "analyze semantics of assignment" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  x: {s} = 10
             \\  x = 3
             \\  x
@@ -136,7 +136,7 @@ test "analyze semantics of increment" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  x = 0
         \\  x = x + 1
         \\  x
@@ -186,7 +186,7 @@ test "analyze semantics of add between typed and inferred" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  a: i64 = 10
         \\  b = 0
         \\  b = a + b
@@ -246,7 +246,7 @@ test "analyze semantics of plus equal" {
     var fs = try MockFileSystem.init(&arena);
     const builtins = codebase.get(components.Builtins);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  x = 0
         \\  x += 1
         \\  x
@@ -292,7 +292,7 @@ test "analyze semantics of times equal" {
     var fs = try MockFileSystem.init(&arena);
     const builtins = codebase.get(components.Builtins);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  x = 0
         \\  x *= 1
         \\  x
@@ -340,7 +340,7 @@ test "codegen assignment" {
     for (types) |type_, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  x: {s} = 10
             \\  x = 3
             \\  x
@@ -390,7 +390,7 @@ test "print wasm assignment" {
     for (types) |type_of, i| {
         var fs = try MockFileSystem.init(&arena);
         _ = try fs.newFile("foo.yeti", try std.fmt.allocPrint(arena.allocator(),
-            \\start(): {s} {{
+            \\start() {s} {{
             \\  x: {s} = 10
             \\  x = 3
             \\  x

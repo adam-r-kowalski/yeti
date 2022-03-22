@@ -25,11 +25,11 @@ test "analyze semantics of named argument" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  id(x=5)
         \\}
         \\
-        \\id(x: i64): i64 {
+        \\id(x: i64) i64 {
         \\  x
         \\}
     );
@@ -71,11 +71,11 @@ test "analyze semantics of positional then named argument" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  bar(3, y=5)
         \\}
         \\
-        \\bar(x: i64, y: i64): i64 {
+        \\bar(x: i64 y: i64) i64 {
         \\  x
         \\}
     );
@@ -119,11 +119,11 @@ test "analyze semantics of uniform function call syntax with named argument" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i64 {
+        \\start() i64 {
         \\  3.bar(y=5)
         \\}
         \\
-        \\bar(x: i64, y: i64): i64 {
+        \\bar(x: i64 y: i64) i64 {
         \\  x
         \\}
     );
@@ -171,11 +171,10 @@ test "analyze semantics of struct using named arguments" {
         \\  height: f64
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  Rectangle(width=10, height=30)
         \\}
     );
-    _ = try analyzeSemantics(codebase, fs, "foo.yeti");
     const module = try analyzeSemantics(codebase, fs, "foo.yeti");
     const top_level = module.get(components.TopLevel);
     const start = top_level.findString("start").get(components.Overloads).slice()[0];
@@ -202,11 +201,11 @@ test "codegen named arguments" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  id(x=5)
         \\}
         \\
-        \\id(x: i32): i32 {
+        \\id(x: i32) i32 {
         \\  x
         \\}
     );
@@ -232,11 +231,11 @@ test "print wasm named arguments" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): i32 {
+        \\start() i32 {
         \\  id(x=5)
         \\}
         \\
-        \\id(x: i32): i32 {
+        \\id(x: i32) i32 {
         \\  x
         \\}
     );

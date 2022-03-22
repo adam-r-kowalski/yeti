@@ -16,11 +16,11 @@ test "error printer calling function with to few parameters" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\add(x: i64, y: i64): i64 {
+        \\add(x: i64, y: i64) i64 {
         \\  x + y
         \\}
         \\
-        \\start(): i64 {
+        \\start() i64 {
         \\  add(5)
         \\}
     );
@@ -32,7 +32,7 @@ test "error printer calling function with to few parameters" {
         \\No matching function overload found for argument types (IntLiteral)
         \\
         \\4| 
-        \\5| start(): i64 {{
+        \\5| start() i64 {{
         \\6|   {s}add(5){s}
         \\7| }}
         \\Here are the possible candidates:
@@ -48,15 +48,15 @@ test "error printer function overloads are aligned" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\add(x: i64, y: i64): i64 {
+        \\add(x: i64, y: i64) i64 {
         \\  x + y
         \\}
         \\
-        \\add(x: i64): i64 {
+        \\add(x: i64) i64 {
         \\  x + y
         \\}
         \\
-        \\start(): i64 {
+        \\start() i64 {
         \\  a: i32 = 5
         \\  add(a, 7)
         \\}
@@ -68,7 +68,7 @@ test "error printer function overloads are aligned" {
         \\
         \\No matching function overload found for argument types (i32, IntLiteral)
         \\
-        \\ 9| start(): i64 {{
+        \\ 9| start() i64 {{
         \\10|   a: i32 = 5
         \\11|   {s}add(a, 7){s}
         \\12| }}

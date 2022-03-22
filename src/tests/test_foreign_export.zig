@@ -39,7 +39,7 @@ test "parse function with int literal" {
     const module = try codebase.createEntity(.{});
     const code =
         \\@export
-        \\start(): u64 {
+        \\start() u64 {
         \\  0
         \\}
     ;
@@ -67,7 +67,7 @@ test "analyze semantics of foreign export" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@export
-        \\square(x: i64): i64 {
+        \\square(x: i64) i64 {
         \\  x * x
         \\}
     );
@@ -90,7 +90,7 @@ test "analyze semantics of foreign exports with recursion" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@export
-        \\fib(n: i64): i64 {
+        \\fib(n: i64) i64 {
         \\  if n < 2 {
         \\    0
         \\  } else {
@@ -116,12 +116,12 @@ test "print wasm foreign export" {
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
         \\@export
-        \\square(x: i64): i64 {
+        \\square(x: i64) i64 {
         \\  x * x
         \\}
         \\
         \\@export
-        \\area(width: f64, height: f64): f64 {
+        \\area(width: f64, height: f64) f64 {
         \\  width * height
         \\}
     );

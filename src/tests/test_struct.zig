@@ -73,7 +73,7 @@ test "analyze semantics of struct" {
         \\  height: f64
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  Rectangle(10, 30)
         \\}
     );
@@ -109,7 +109,7 @@ test "analyze semantics of struct field access" {
         \\  height: f64
         \\}
         \\
-        \\start(): f64 {
+        \\start() f64 {
         \\  r = Rectangle(10, 30)
         \\  r.width
         \\}
@@ -163,7 +163,7 @@ test "analyze semantics of struct field write" {
         \\  height: f64
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  r = Rectangle(10, 30)
         \\  r.width = 45
         \\  r
@@ -219,7 +219,7 @@ test "codegen of struct" {
         \\  height: f64
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  Rectangle(10, 30)
         \\}
     );
@@ -252,7 +252,7 @@ test "codegen of struct field write" {
         \\  height: f64
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  r = Rectangle(10, 30)
         \\  r.width = 45
         \\  r
@@ -311,7 +311,7 @@ test "print wasm struct" {
         \\  height: f64
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  Rectangle(10, 30)
         \\}
     );
@@ -340,7 +340,7 @@ test "print wasm assign struct to variable" {
         \\  height: f64
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  r = Rectangle(10, 30)
         \\  r
         \\}
@@ -376,11 +376,11 @@ test "print wasm pass struct to function" {
         \\  height: f64
         \\}
         \\
-        \\id(r: Rectangle): Rectangle {
+        \\id(r: Rectangle) Rectangle {
         \\  r
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  id(Rectangle(10, 30))
         \\}
     );
@@ -414,7 +414,7 @@ test "print wasm struct field access" {
         \\  height: f64
         \\}
         \\
-        \\start(): f64 {
+        \\start() f64 {
         \\  r = Rectangle(10, 30)
         \\  r.width
         \\}
@@ -449,7 +449,7 @@ test "print wasm struct field write" {
         \\  height: f64
         \\}
         \\
-        \\start(): Rectangle {
+        \\start() Rectangle {
         \\  r = Rectangle(10, 30)
         \\  r.width = 45
         \\  r

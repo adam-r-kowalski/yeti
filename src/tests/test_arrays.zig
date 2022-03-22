@@ -90,7 +90,7 @@ test "parse array literal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): []f32 {
+        \\start() []f32 {
         \\  [1, 2, 3]
         \\}
     ;
@@ -120,7 +120,7 @@ test "parse multiline array literal" {
     var codebase = try initCodebase(&arena);
     const module = try codebase.createEntity(.{});
     const code =
-        \\start(): []f32 {
+        \\start() []f32 {
         \\  [ 1, 2,
         \\    3, 4,
         \\    5, 6 ]
@@ -156,7 +156,7 @@ test "analyze semantics of array literal" {
     const builtins = codebase.get(components.Builtins);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []f32 {
+        \\start() []f32 {
         \\  [1, 2, 3]
         \\}
     );
@@ -187,7 +187,7 @@ test "codegen of array literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []f32 {
+        \\start() []f32 {
         \\  [1, 2, 3]
         \\}
     );
@@ -219,7 +219,7 @@ test "print wasm i32 array literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []i32 {
+        \\start() []i32 {
         \\  [1, 2, 3]
         \\}
     );
@@ -248,7 +248,7 @@ test "print wasm f32 array literal" {
     var codebase = try initCodebase(&arena);
     var fs = try MockFileSystem.init(&arena);
     _ = try fs.newFile("foo.yeti",
-        \\start(): []f32 {
+        \\start() []f32 {
         \\  [1, 2, 3]
         \\}
     );
