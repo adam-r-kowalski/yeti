@@ -30,8 +30,12 @@ on_load() {
   STATIC_DRAW = 35044
   buffer_data(ARRAY_BUFFER, STATIC_DRAW, [
     -0.5, -0.5,
-    0,     0.5,
-    0.5,  -0.5
+    -0.5, 0.5,
+    0.5,  -0.5,
+    
+    0.5, 0.5,
+    0.5, -0.5,
+    -0.5,  0.5
   ])
   vao = create_vertex_array()
   vao.bind_vertex_array()
@@ -46,5 +50,5 @@ on_load() {
   program.use_program()
   vao.bind_vertex_array()
   TRIANGLES = 4
-  draw_arrays(mode=TRIANGLES, first=0, count=3)
+  draw_arrays(mode=TRIANGLES, first=0, count=6)
 }
