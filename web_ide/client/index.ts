@@ -19,6 +19,7 @@ const on_page_load = () => {
     const programs: WebGLProgram[] = []
     const buffers: WebGLBuffer[] = []
     const vertex_arrays: WebGLVertexArrayObject[] = []
+    const uniform_locations: WebGLUniformLocation[] = []
 
     var memory: WebAssembly.Memory = undefined
 
@@ -70,6 +71,16 @@ const on_page_load = () => {
         "get_attrib_location": (program: number, attrib_ptr: number, attrib_len: number): number => {
           const buffer = new Uint8Array(memory.buffer, attrib_ptr, attrib_len)
           return gl.getAttribLocation(programs[program], new TextDecoder('utf-8').decode(buffer))
+        },
+        "get_uniform_location": (program: number, uniform_ptr: number, uniform_len: number): number => {
+          const buffer = new Uint8Array(memory.buffer, uniform_ptr, uniform_len)
+          const uniform = gl.getUniformLocation(programs[program], new TextDecoder('utf-8').decode(buffer))
+          const uniform_index = uniform_locations.length
+          uniform_locations.push(uniform)
+          return uniform_index
+        },
+        "uniform2f": (uniform: number, width: number, height: number): void => {
+          gl.uniform2f(uniform_locations[uniform], width, height)
         },
         "create_buffer": (): number => {
           const buffer_index = buffers.length

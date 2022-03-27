@@ -38,6 +38,12 @@ delete_program(program: i32) void
 get_attrib_location(program: i32, attrib: []u8) i32
 
 @import
+get_uniform_location(program: i32, uniform: []u8) i32
+
+@import
+uniform2f(uniform: i32, width: f32, height: f32) void
+
+@import
 create_buffer() i32
 
 @import

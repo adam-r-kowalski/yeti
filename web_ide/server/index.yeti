@@ -4,10 +4,14 @@ import "gl.yeti"
 on_load() {
   VERTEX_SHADER = 35633
   vertex_shader_source = "#version 300 es
-  in vec4 a_position;
+  in vec2 a_position;
+  uniform vec2 u_resolution;
  
   void main() {
-    gl_Position = a_position;
+    vec2 zeroToOne = a_position / u_resolution;
+    vec2 zeroToTwo = zeroToOne * 2.0;
+    vec2 clipSpace = zeroToTwo - 1.0;
+    gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
   }
   "
   vertex_shader = create_shader(VERTEX_SHADER, vertex_shader_source)
@@ -29,13 +33,12 @@ on_load() {
   bind_buffer(ARRAY_BUFFER, position_buffer)
   STATIC_DRAW = 35044
   buffer_data(ARRAY_BUFFER, STATIC_DRAW, [
-    -0.5, -0.5,
-    -0.5, 0.5,
-    0.5,  -0.5,
-    
-    0.5, 0.5,
-    0.5, -0.5,
-    -0.5,  0.5
+    10, 10,
+    210, 10,
+    10, 110,
+    10, 110,
+    210, 10,
+    210, 110
   ])
   vao = create_vertex_array()
   vao.bind_vertex_array()
@@ -48,6 +51,8 @@ on_load() {
   COLOR_BUFFER_BIT = 16384
   clear(COLOR_BUFFER_BIT)
   program.use_program()
+  resolution_uniform_location = program.get_uniform_location("u_resolution")
+  resolution_uniform_location.uniform2f(canvas_width(), canvas_height())
   vao.bind_vertex_array()
   TRIANGLES = 4
   draw_arrays(mode=TRIANGLES, first=0, count=6)
