@@ -133,7 +133,7 @@ Here the nth fibonacci number is calculated using while loops
 fib(n: i64) {
   prev = 0
   curr = 1
-  for i in 0:n {
+  for(0:n) {
     next = prev + curr
     prev = curr
     curr = next
@@ -156,7 +156,7 @@ start() {
 fib(n: i64) {
   prev = 0
   curr = 1
-  for i in :n {
+  for(:n) {
     next = prev + curr
     prev = curr
     curr = next

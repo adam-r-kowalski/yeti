@@ -1088,7 +1088,17 @@ fn Context(comptime FileSystem: type) type {
         fn analyzeFor(self: *Self, for_: Entity) !Entity {
             const scopes = self.function.getPtr(components.Scopes);
             const iterator = try self.analyzeExpression(for_.get(components.Iterator).entity);
-            const loop_variable = for_.get(components.LoopVariable).entity;
+            const loop_variable = blk: {
+                if (for_.has(components.LoopVariable)) |loop_variable| {
+                    break :blk loop_variable.entity;
+                } else {
+                    const interned = try self.codebase.getPtr(Strings).intern("it");
+                    break :blk try self.codebase.createEntity(.{
+                        components.TokenKind.symbol,
+                        components.Literal.init(interned),
+                    });
+                }
+            };
             const name = components.Name.init(loop_variable);
             const first = iterator.get(components.First).entity;
             const last = iterator.get(components.Last).entity;

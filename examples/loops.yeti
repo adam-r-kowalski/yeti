@@ -1,14 +1,30 @@
 for_loop() i64 {
   sum = 0
-  for i in 0:10 {
-    sum += i
+  for(0:10) {
+    sum += it
   }
   sum
 }
 
 for_loop_implicit_start() i64 {
   sum = 0
-  for i in :10 {
+  for(:10) {
+    sum += it
+  }
+  sum
+}
+
+for_loop_explicit_loop_variable() i64 {
+  sum = 0
+  for(:10) (i) {
+    sum += i
+  }
+  sum
+}
+
+for_loop_explicit_loop_variable_omit_paren() i64 {
+  sum = 0
+  for(:10) i {
     sum += i
   }
   sum
@@ -26,5 +42,5 @@ while_loop() i64 {
 
 
 start() i64 {
-  for_loop_implicit_start()
+  for_loop_explicit_loop_variable_omit_paren()
 }
