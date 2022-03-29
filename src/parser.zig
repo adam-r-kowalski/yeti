@@ -154,7 +154,7 @@ fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
     return result;
 }
 
-fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
+fn parseForOldSyntax(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
     const loop_variable = tokens.consume(.symbol);
     _ = tokens.consume(.in);
     const iterator = try parseExpression(codebase, tokens, LOWEST);
@@ -184,6 +184,64 @@ fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
         } else break;
     }
     return result;
+}
+
+fn parseForNewSyntax(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
+    _ = tokens.consume(.left_paren);
+    const iterator = try parseExpression(codebase, tokens, LOWEST);
+    assert(iterator.get(components.AstKind) == .range);
+    const result = try codebase.createEntity(.{
+        components.AstKind.for_,
+        components.Iterator.init(iterator),
+    });
+    _ = tokens.consume(.right_paren);
+    switch (tokens.peek().?.get(components.TokenKind)) {
+        .left_brace => _ = tokens.next(),
+        .symbol => {
+            const loop_variable = tokens.consume(.symbol);
+            _ = tokens.consume(.left_brace);
+            _ = try result.set(.{
+                components.LoopVariable.init(loop_variable),
+            });
+        },
+        .left_paren => {
+            _ = tokens.next();
+            const loop_variable = tokens.consume(.symbol);
+            _ = tokens.consume(.right_paren);
+            _ = tokens.consume(.left_brace);
+            _ = try result.set(.{
+                components.LoopVariable.init(loop_variable),
+            });
+        },
+        else => |kind| panic("\nparse for new syntax unexpected kind {}\n", .{kind}),
+    }
+    const begin = for_.get(components.Span).begin;
+    var body = components.Body.init(codebase.arena.allocator());
+    while (true) {
+        if (tokens.peek()) |token| {
+            switch (token.get(components.TokenKind)) {
+                .new_line => _ = tokens.next(),
+                .right_brace => {
+                    const end = tokens.next().?.get(components.Span).end;
+                    _ = try result.set(.{
+                        body,
+                        components.Span.init(begin, end),
+                    });
+                    break;
+                },
+                else => try body.append(try parseExpression(codebase, tokens, LOWEST)),
+            }
+        } else break;
+    }
+    return result;
+}
+
+fn parseFor(codebase: *ECS, tokens: *Tokens, for_: Entity) !Entity {
+    return switch (tokens.peek().?.get(components.TokenKind)) {
+        .symbol => try parseForOldSyntax(codebase, tokens, for_),
+        .left_paren => try parseForNewSyntax(codebase, tokens, for_),
+        else => |kind| panic("\nparse for unexpected token kind {}\n", .{kind}),
+    };
 }
 
 fn parsePointer(codebase: *ECS, tokens: *Tokens, star: Entity) !Entity {
