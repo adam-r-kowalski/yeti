@@ -21,7 +21,7 @@ fib_recursive(n: i64, prev: i64, curr: i64) i64 {
 fib_iterative(n: i64) i64 {
   prev = 0
   curr = 1
-  while n > 0 {
+  while(n > 0) {
     next = prev + curr
     prev = curr
     curr = next

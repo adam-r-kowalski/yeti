@@ -125,9 +125,11 @@ fn parseIf(codebase: *ECS, tokens: *Tokens, if_: Entity) !Entity {
 }
 
 fn parseWhile(codebase: *ECS, tokens: *Tokens, while_: Entity) !Entity {
-    const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
-    assert(tokens.next().?.get(components.TokenKind) == .left_brace);
     const begin = while_.get(components.Span).begin;
+    _ = tokens.consume(.left_paren);
+    const conditional = components.Conditional.init(try parseExpression(codebase, tokens, LOWEST));
+    _ = tokens.consume(.right_paren);
+    _ = tokens.consume(.left_brace);
     var body = components.Body.init(codebase.arena.allocator());
     const result = try codebase.createEntity(.{
         components.AstKind.while_,
