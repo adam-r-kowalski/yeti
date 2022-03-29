@@ -107,7 +107,7 @@ If `x` is less than `y` we return `x` otherwise we return `y`.
 fib(n: i64) {
   prev = 0
   curr = 1
-  while n > 0 {
+  while(n > 0) {
     next = prev + curr
     prev = curr
     curr = next

@@ -41,7 +41,7 @@ test "parse while" {
     const code =
         \\start() i32 {
         \\  i = 0
-        \\  while i < 10 {
+        \\  while(i < 10) {
         \\      i = i + 1
         \\  }
         \\  i
@@ -86,7 +86,7 @@ test "analyze semantics of while loop" {
     _ = try fs.newFile("foo.yeti",
         \\start() i32 {
         \\  i = 0
-        \\  while i < 10 {
+        \\  while(i < 10) {
         \\      i = i + 1
         \\  }
         \\  i
@@ -137,7 +137,7 @@ test "codegen while loop" {
     _ = try fs.newFile("foo.yeti",
         \\start() i32 {
         \\  i = 0
-        \\  while i < 10 {
+        \\  while(i < 10) {
         \\    i = i + 1
         \\  }
         \\  i
@@ -210,7 +210,7 @@ test "codegen while loop proper type inference" {
     _ = try fs.newFile("foo.yeti",
         \\start() i64 {
         \\  i = 0
-        \\  while i < 10 {
+        \\  while(i < 10) {
         \\    i = i + 1
         \\  }
         \\  i
@@ -283,7 +283,7 @@ test "print wasm while loop" {
     _ = try fs.newFile("foo.yeti",
         \\start() i32 {
         \\  i = 0
-        \\  while i < 10 {
+        \\  while(i < 10) {
         \\      i = i + 1
         \\  }
         \\  i
@@ -328,7 +328,7 @@ test "print wasm properly infer type for while loop" {
         \\start() i64 {
         \\  sum = 0
         \\  i = 0
-        \\  while i < 10 {
+        \\  while(i < 10) {
         \\    sum += 1
         \\    i += 1
         \\  }

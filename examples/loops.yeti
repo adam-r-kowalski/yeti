@@ -17,7 +17,7 @@ for_loop_implicit_start() i64 {
 while_loop() i64 {
   i = 0
   sum = 0
-  while i < 10 {
+  while(i < 10) {
     sum += i
     i += 1
   }
