@@ -23,6 +23,7 @@ const test_simd = @import("test_simd.zig");
 const test_string_interning = @import("test_string_interning.zig");
 const test_strings = @import("test_strings.zig");
 const test_struct = @import("test_struct.zig");
+const test_templates = @import("test_templates.zig");
 const test_uniform_function_call_syntax = @import("test_uniform_function_call_syntax.zig");
 const test_while = @import("test_while.zig");
 

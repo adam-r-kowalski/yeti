@@ -539,10 +539,12 @@ fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !components.Paramete
             .right_paren => break,
             .comma => continue,
             .symbol => {
-                _ = tokens.consume(.colon);
-                _ = try token.set(.{
-                    components.TypeAst.init(try parseExpression(codebase, tokens, LOWEST)),
-                });
+                if (tokens.peek().?.get(components.TokenKind) == .colon) {
+                    _ = tokens.next();
+                    _ = try token.set(.{
+                        components.TypeAst.init(try parseExpression(codebase, tokens, LOWEST)),
+                    });
+                }
                 try parameters.append(token);
             },
             else => panic("\ninvalid token kind, {}\n", .{kind}),
