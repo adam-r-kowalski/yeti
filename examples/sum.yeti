@@ -1,26 +1,20 @@
-fill(ptr: *i32, len: i32) void {
-  i = 0
-  while(i < len) {
-    *ptr = i
-    ptr += 1
-    i += 1
+fill(ptr: *i32, len: i32) {
+  for(0:len) {
+    *(ptr + it) = it
   }
 }
 
-sum(ptr: *i32, len: i32) i32 {
-  i = 0
+sum(ptr: *i32, len: i32) {
   total = 0
-  while(i < len) {
-    total = total + *ptr
-    ptr += 1
-    i += 1
+  for(0:len) {
+    total += *(ptr + it)
   }
   total
 }
 
-start() i32 {
+start() {
   ptr = cast(*i32, 0)
-  len = 10
+  len = 100
   fill(ptr, len)
   sum(ptr, len)
 }
