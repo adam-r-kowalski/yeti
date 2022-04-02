@@ -594,6 +594,7 @@ pub const Value = DistinctEntity("Value");
 pub const Callable = DistinctEntity("Callable");
 pub const TypeAst = DistinctEntity("Type Ast");
 pub const Type = DistinctEntity("Type");
+pub const TypeVariables = DistinctList("TypeVariables", Entity);
 pub const Parameters = DistinctList("Parameters", Entity);
 pub const Body = DistinctList("Body", Entity);
 pub const Arguments = DistinctList("Arguments", Entity);

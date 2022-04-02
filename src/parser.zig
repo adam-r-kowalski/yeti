@@ -517,6 +517,20 @@ fn parseIndex(codebase: *ECS, tokens: *Tokens, array: Entity) !Entity {
     });
 }
 
+fn parseFunctionTypeVariables(codebase: *ECS, tokens: *Tokens) !components.TypeVariables {
+    var type_variables = components.TypeVariables.init(codebase.arena.allocator());
+    while (tokens.next()) |token| {
+        const kind = token.get(components.TokenKind);
+        switch (kind) {
+            .right_bracket => break,
+            .comma => continue,
+            .symbol => try type_variables.append(token),
+            else => panic("\ninvalid token kind, {}\n", .{kind}),
+        }
+    }
+    return type_variables;
+}
+
 fn parseFunctionParameters(codebase: *ECS, tokens: *Tokens) !components.Parameters {
     var parameters = components.Parameters.init(codebase.arena.allocator());
     while (tokens.next()) |token| {
@@ -581,6 +595,15 @@ fn overloadFunction(top_level: *components.TopLevel, function: Entity, name: com
 pub fn parseFunction(codebase: *ECS, tokens: *Tokens, name: Entity) !Entity {
     const function = try codebase.createEntity(.{components.AstKind.function});
     const begin = name.get(components.Span).begin;
+    switch (tokens.next().?.get(components.TokenKind)) {
+        .left_paren => {},
+        .left_bracket => {
+            const type_variables = try parseFunctionTypeVariables(codebase, tokens);
+            _ = tokens.consume(.left_paren);
+            _ = try function.set(.{type_variables});
+        },
+        else => |k| panic("\nparse function unexpected kind {}\n", .{k}),
+    }
     const parameters = try parseFunctionParameters(codebase, tokens);
     switch (tokens.peek().?.get(components.TokenKind)) {
         .left_brace => _ = tokens.next(),
@@ -639,7 +662,6 @@ fn parseStruct(tokens: *Tokens, top_level: *components.TopLevel, struct_token: E
 fn parseAttributeExport(tokens: *Tokens, top_level: *components.TopLevel, foreign_exports: *components.ForeignExports) !void {
     _ = tokens.consume(.new_line);
     const name = tokens.consume(.symbol);
-    _ = tokens.consume(.left_paren);
     const function = try parseFunction(name.ecs, tokens, name);
     try overloadFunction(top_level, function, components.Name.init(name));
     try foreign_exports.append(name);
@@ -728,7 +750,6 @@ pub fn parse(module: Entity, tokens: *Tokens) !void {
         switch (kind) {
             .symbol => {
                 const name = components.Name.init(token);
-                assert(tokens.next().?.get(components.TokenKind) == .left_paren);
                 const function = try parseFunction(token.ecs, tokens, token);
                 try overloadFunction(&top_level, function, name);
             },
