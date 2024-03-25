@@ -339,3 +339,204 @@ In this scenario, `increment ptr_to_value` mutates the value of `original_value`
 
 Pointers in Yeti provide a potent mechanism for directly interacting with memory, offering both efficiency and flexibility. By understanding and utilizing pointers, developers can write more performant Yeti programs that effectively manage and manipulate data.
 
+## Mutability in Yeti
+
+### Immutable `i64`
+
+Used for constants or values that should remain unchanged throughout the program's execution.
+
+```yeti
+# Defining the maximum speed limit on a highway
+speed_limit: i64 = 55
+```
+
+### Mutable `mut i64`
+
+Ideal for values that need to be updated based on program logic or user input.
+
+```yeti
+# Tracking the current speed of a vehicle, which can change over time
+current_speed: mut i64 = 0
+current_speed += 5  # Accelerating
+current_speed -= 2  # Decelerating
+```
+
+### Immutable Pointer to an Immutable `i64` (`*i64`)
+
+Useful for read-only access to a value, ensuring that neither the pointer's target nor the value can be changed.
+
+```yeti
+# Reference to a constant configuration value
+config_max_connections: i64 = 100
+config_ptr: *i64 = &config_max_connections
+```
+
+### Immutable Pointer to a Mutable `i64` (`*mut i64`)
+
+Allows the value at the pointed-to address to be modified, but the pointer itself cannot point to a different address after it's set.
+
+```yeti
+# Modifying a setting through an immutable pointer
+user_volume_setting: mut i64 = 70
+volume_ptr: *mut i64 = &user_volume_setting
+*volume_ptr += 10  # Increasing volume through the pointer
+```
+
+### Mutable Pointer to an Immutable `i64` (`mut *i64`)
+
+The pointer can be redirected to point to different `i64` values, but the values it points to cannot be modified through this pointer.
+
+```yeti
+# Pointing to different readonly settings
+setting_a: i64 = 10
+setting_b: i64 = 20
+setting_ptr: mut *i64 = &setting_a  # Initially pointing to setting_a
+setting_ptr = &setting_b  # Now redirected to point to setting_b
+```
+
+### Mutable Pointer to a Mutable `i64` (`mut *mut i64`)
+
+This combination offers the most flexibility, allowing both the pointer to be redirected and the value it points to be modified.
+
+```yeti
+# Dynamically updating and reassigning resource limits
+memory_limit_a: mut i64 = 1024
+memory_limit_b: mut i64 = 2048
+limit_ptr: mut *mut i64 = &memory_limit_a  # Pointing to limit_a
+*limit_ptr *= 2  # Doubling the value of limit_a
+
+limit_ptr = &memory_limit_b  # Redirecting pointer to limit_b
+*limit_ptr += 512  # Increasing limit_b's value
+```
+
+Each of these examples demonstrates a different aspect of handling values and pointers in Yeti, providing a clear understanding of how immutability and mutability can be applied in practical scenarios.
+
+Let's explore arrays in Yeti with the same approach, starting from the simplest case and moving towards more complex scenarios, each grounded in a realistic use case.
+
+### Immutable Array of Immutable `i64` (`[]i64`)
+
+Ideal for representing fixed collections of data that do not change, such as configuration values or static data sets.
+
+```yeti
+# Fixed set of error codes for an application
+error_codes: []i64 = [404, 500, 403, 401]
+```
+
+### Mutable Array of Immutable `i64` (`mut []i64`)
+
+Suitable for situations where the entire array might need to be replaced or updated, but individual elements remain constant.
+
+```yeti
+# List of product prices that might be entirely updated based on a new pricing model
+product_prices: mut []i64 = [999, 1999, 2999]
+product_prices := [1099, 2099, 3099]  # Updating all prices
+```
+
+### Immutable Array of Mutable `i64` (`[]mut i64`)
+
+Useful for collections where individual elements may change, but the structure and size of the array remain fixed.
+
+```yeti
+# Temperatures recorded at different times of a day, which might be updated individually
+daily_temperatures: []mut i64 = [70, 75, 80, 78]
+daily_temperatures[2] += 3  # Adjusting the temperature for a specific time
+```
+
+### Mutable Array of Mutable `i64` (`mut []mut i64`)
+
+This provides the most flexibility, allowing both the elements and the structure of the array to be updated.
+
+```yeti
+# Dynamic list of user scores in a game, where scores can be updated and new scores can be added
+user_scores: mut []mut i64 = [1500, 3200, 2900]
+user_scores[0] += 100  # Updating a score
+user_scores := [1600, 3200, 2900, 3300]  # Adding a new score
+```
+
+### Immutable Pointer to an Immutable Array (`*[]i64`)
+
+Ideal for read-only access to a fixed array, ensuring the array and its contents cannot be modified.
+
+```yeti
+# Reference to a set of predefined commands
+commands: []i64 = [1, 2, 3, 4]
+commands_ptr: *[]i64 = &commands
+```
+
+### Immutable Pointer to a Mutable Array (`*mut []i64`)
+
+Allows the mutable array to be modified through the pointer, but the pointer itself cannot be redirected.
+
+```yeti
+# Modifying an array of settings through an immutable pointer
+settings_values: mut []i64 = [10, 20, 30]
+settings_ptr: *mut []i64 = &settings_values
+*settings_ptr[1] += 5  # Adjusting a setting value through the pointer
+```
+
+### Mutable Pointer to a Mutable Array (`mut *mut []i64`)
+
+Offers complete flexibility, allowing both the array to be modified and the pointer to be redirected to another array.
+
+```yeti
+# Managing and updating different sets of configurations
+config_set_a: mut []mut i64 = [100, 200, 300]
+config_set_b: mut []mut i64 = [400, 500, 600]
+config_ptr: mut *mut []i64 = &config_set_a  # Pointing to config_set_a
+*config_ptr[2] *= 2  # Doubling a configuration value in set_a
+
+config_ptr = &config_set_b  # Redirecting pointer to config_set_b
+*config_ptr[0] += 100  # Increasing a configuration value in set_b
+```
+
+Each example progressively builds on the concept of mutability and immutability within arrays, illustrating how Yeti's type system can be leveraged to manage collections of data effectively in various real-world scenarios.
+
+Let's examine how optionals in Yeti can be utilized across different levels of mutability, each grounded in practical use cases.
+
+### Immutable Optional `i64` (`?i64`)
+
+Used for values that might or might not be present, such as optional configuration settings or parameters that have default behaviors when not specified.
+
+```yeti
+# Optional maximum download size for a user, not set by default
+optional_max_download_size: ?i64 = null
+```
+
+### Mutable Optional with Immutable `i64` (`mut ?i64`)
+
+Suitable for scenarios where the presence of the value can change, but once set, the value itself remains constant. This could be used for settings that can be toggled on or off.
+
+```yeti
+# Enabling an optional feature with a fixed value, which can later be disabled
+optional_feature_limit: mut ?i64 = null
+optional_feature_limit := 100  # Feature enabled with a limit
+optional_feature_limit := null  # Feature disabled
+```
+
+### Immutable Optional with Mutable `i64` (`?mut i64`)
+
+Useful for when a value may or may not be present, and if it is, it can be adjusted. This is applicable to values like dynamic thresholds or limits that can be optionally overridden.
+
+```yeti
+# Optional threshold for a warning that can be adjusted if enabled
+optional_warning_threshold: ?mut i64 = null
+# Assuming we have a way to check if the optional is not null and then mutate it
+# pseudo code: if (optional_warning_threshold != null) { optional_warning_threshold += 10 }
+```
+
+### Mutable Optional with Mutable `i64` (`mut ?mut i64`)
+
+Provides the greatest flexibility, where both the existence and the value of the optional can be changed. This could be applied to user preferences or settings in an application that can be dynamically modified or reset.
+
+```yeti
+# User-defined optional timeout that can be changed or unset
+optional_timeout: mut ?mut i64 = null
+optional_timeout := 30  # Setting a timeout value
+# Assuming we have a way to mutate the value if it's not null
+# pseudo code: if (optional_timeout != null) { optional_timeout += 5 }
+optional_timeout := null  # Disabling the timeout
+```
+
+In the examples for `?mut i64` and `mut ?mut i64`, we've assumed a mechanism to check for `null` and then perform mutation, which aligns with the real-world usage of optionals where safety checks are crucial before accessing or modifying their values.
+
+These scenarios illustrate how Yeti's type system, especially with optionals, can accommodate a wide range of use cases by providing various levels of flexibility and safety in handling potentially absent values.
