@@ -515,28 +515,143 @@ optional_feature_limit := null  # Feature disabled
 
 ### Immutable Optional with Mutable `i64` (`?mut i64`)
 
-Useful for when a value may or may not be present, and if it is, it can be adjusted. This is applicable to values like dynamic thresholds or limits that can be optionally overridden.
+## Structs in Yeti
+
+In Yeti, structs serve as a versatile means to model and encapsulate complex data structures, mirroring real-world entities with clarity and precision. They are particularly adept at organizing and maintaining data in applications, making them indispensable in various scenarios.
+
+### Use Cases
+
+Structs are highly effective in:
+
+- **User Profiles Management**: Ideal for constructing detailed profiles in applications, ranging from basic contact apps to sophisticated user management systems.
+- **Geographical Information Systems (GIS)**: Essential for encapsulating geographical entities like locations, points of interest, and spatial relationships, aiding in the efficient management and analysis of geographical data.
+- **Configuration Data**: Perfect for structuring intricate configuration data for software applications, ensuring settings are both accessible and logically organized.
+- **API Data Handling**: Streamlines the process of structuring and managing data exchanged with APIs, especially when dealing with nested and complex data formats like JSON or XML.
+
+### Real-World Example: E-Commerce Order System
+
+Consider an e-commerce platform where customers can place orders. An order would typically encompass customer details, a shipping address, and a list of items ordered. Here's how we can model this scenario in Yeti, adhering to the snake_case for variables and CamelCase for types convention:
+
+#### Struct Definitions
 
 ```yeti
-# Optional threshold for a warning that can be adjusted if enabled
-optional_warning_threshold: ?mut i64 = null
-# Assuming we have a way to check if the optional is not null and then mutate it
-# pseudo code: if (optional_warning_threshold != null) { optional_warning_threshold += 10 }
+# Address struct for shipping details
+Address: type = struct {
+  street: []u8,
+  city: []u8,
+  state: []u8,
+  zip_code: []u8,
+}
+
+# Item within an order
+OrderItem: type = struct {
+  product_id: u32,
+  quantity: u32,
+  price: f32,
+}
+
+# The customer's order
+CustomerOrder: type = struct {
+  customer_id: u32,
+  shipping_address: Address,
+  items: []OrderItem,
+}
 ```
 
-### Mutable Optional with Mutable `i64` (`mut ?mut i64`)
-
-Provides the greatest flexibility, where both the existence and the value of the optional can be changed. This could be applied to user preferences or settings in an application that can be dynamically modified or reset.
+#### Creating an Instance
 
 ```yeti
-# User-defined optional timeout that can be changed or unset
-optional_timeout: mut ?mut i64 = null
-optional_timeout := 30  # Setting a timeout value
-# Assuming we have a way to mutate the value if it's not null
-# pseudo code: if (optional_timeout != null) { optional_timeout += 5 }
-optional_timeout := null  # Disabling the timeout
+# Instance of a customer's order
+order: CustomerOrder = .{
+  customer_id: 12345,
+  shipping_address: .{
+    street: "456 Maple Avenue",
+    city: "Metropolis",
+    state: "NY",
+    zip_code: "10101",
+  },
+  items: [
+    .{ product_id: 987, quantity: 3, price: 15.99 },
+    .{ product_id: 654, quantity: 1, price: 299.99 },
+  ],
+}
 ```
 
-In the examples for `?mut i64` and `mut ?mut i64`, we've assumed a mechanism to check for `null` and then perform mutation, which aligns with the real-world usage of optionals where safety checks are crucial before accessing or modifying their values.
+In this example, we define the `Address`, `OrderItem`, and `CustomerOrder` structs to represent different aspects of an e-commerce order. The `CustomerOrder` struct includes an `Address` struct for shipping details and an array of `OrderItem` structs to list the purchased items.
 
-These scenarios illustrate how Yeti's type system, especially with optionals, can accommodate a wide range of use cases by providing various levels of flexibility and safety in handling potentially absent values.
+The instantiation of the `CustomerOrder` struct demonstrates Yeti's clear and intuitive syntax for creating complex nested data structures, closely reflecting their real-world counterparts. This approach not only enhances the readability of the code but also simplifies the management and manipulation of structured data, crucial for maintaining clean and maintainable codebases in data-intensive applications.
+
+Yeti's thoughtful design in treating structs as first-class entities, coupled with its conventions for variable and type naming, facilitates a seamless and natural way to model real-world data, making it an effective tool for developers in diverse programming environments.
+
+## Enums in Yeti
+
+Enums in Yeti offer a powerful and type-safe way to define variables that can have one of several predefined values. Each value in an enum is called a variant, and each variant can optionally carry additional data associated with it. Enums are particularly useful for categorizing data and creating expressive, error-resistant code.
+
+### Understanding Enums
+
+Enums are used to group related values together under a single type, enhancing the clarity and safety of your code. They allow you to define a variable type that can be one of a few different options, with each option capable of carrying its own unique data.
+
+### Real-World Example: Logging System
+
+A common use case for enums is in a logging system, where log entries might contain different types of information, such as textual messages, error codes, or structured data like JSON.
+
+#### Defining Enums
+
+First, we define an `LogData` enum to represent the possible types of data a log entry might contain:
+
+```yeti
+LogData: type = enum {
+  message: []u8,
+  error_code: i32,
+  json: []u8
+}
+```
+
+This enum has three variants: `message` carrying a string (`[]u8`), `error_code` carrying an integer (`i32`), and `json` also carrying a string (`[]u8`) representing JSON data.
+
+#### Using Enums in Structs
+
+We then incorporate this enum into a `LogEntry` struct, which includes a timestamp and the log data:
+
+```yeti
+LogEntry: type = struct {
+  timestamp: i64,
+  data: LogData,
+}
+```
+
+#### Creating Instances
+
+Creating log entries is straightforward, with the enum variants clearly indicating the nature of the data:
+
+```yeti
+# Log entry with an error code
+error_log: LogEntry = .{
+  timestamp: 1625246942,
+  data: .{ error_code: 404 },
+}
+
+# Log entry with a message
+message_log: LogEntry = .{
+  timestamp: 1625247000,
+  data: .{ message: "Server started successfully" },
+}
+
+# Log entry with JSON data
+json_log: LogEntry = .{
+  timestamp: 1625247077,
+  data: .{ json: "{\"status\":\"ok\",\"code\":200}" },
+}
+```
+
+### Benefits of Using Enums
+
+- **Clarity**: Enums make the intended use of a variable clear, as the variable's type directly states the kinds of values it can hold.
+- **Type Safety**: Enums ensure that only valid values are used, reducing errors and increasing the reliability of your code.
+- **Expressiveness**: With enums, you can create more descriptive and understandable code, making it easier to maintain and extend.
+
+### Considerations
+
+While enums provide numerous advantages, it's important to use them judiciously to maintain the readability and maintainability of your code. Overusing enums or creating overly complex ones can lead to confusion and decreased code clarity.
+
+In summary, enums in Yeti are a potent tool for categorizing and safely managing sets of related values. By combining enums with structs, Yeti allows for the creation of expressive, type-safe, and easily understandable code, making it an excellent choice for a wide range of programming tasks, from simple categorizations to complex systems like a logging framework.
