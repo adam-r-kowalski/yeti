@@ -1,19 +1,85 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct {
   uint32_t line;
   uint32_t column;
-} position_t;
+} Position;
 
 typedef struct {
-  position_t begin;
-  position_t end;
-} span_t;
+  Position begin;
+  Position end;
+} Span;
 
 typedef struct {
-  span_t span;
-} token_t;
+  const char *data;
+  size_t length;
+} StringView;
 
-token_t *tokenize(const char *input);
+typedef struct {
+  Span span;
+  StringView view;
+} Symbol;
+
+typedef struct {
+  Span span;
+  StringView view;
+} Float;
+
+typedef struct {
+  Span span;
+  StringView view;
+} Int;
+
+typedef enum {
+  MinusOperator,
+} OperatorKind;
+
+typedef struct {
+  Span span;
+  OperatorKind kind;
+} Operator;
+
+typedef struct {
+  Span span;
+} EndOfFile;
+
+typedef enum {
+  SymbolToken,
+  FloatToken,
+  IntToken,
+  OperatorToken,
+  EndOfFileToken,
+} TokenType;
+
+typedef union {
+  Symbol symbol;
+  Float float_;
+  Int int_;
+  Operator operator;
+  EndOfFile end_of_file;
+} TokenValue;
+
+typedef struct {
+  TokenType type;
+  TokenValue value;
+} Token;
+
+typedef struct {
+  size_t size;
+  const Token *tokens;
+} Tokens;
+
+typedef struct {
+  Position position;
+  const char *input;
+} Cursor;
+
+typedef struct {
+  Cursor cursor;
+  Token token;
+} NextTokenResult;
+
+NextTokenResult next_token(Cursor cursor);
