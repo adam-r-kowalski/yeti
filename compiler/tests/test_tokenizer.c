@@ -35,6 +35,11 @@ void assert_int_equal(Int expected, Int actual) {
   assert_string_view_equal(expected.view, actual.view);
 }
 
+void assert_float_equal(Float expected, Float actual) {
+  assert_span_equal(expected.span, actual.span);
+  assert_string_view_equal(expected.view, actual.view);
+}
+
 void assert_end_of_file_equal(EndOfFile expected, EndOfFile actual) {
   assert_span_equal(expected.span, actual.span);
 }
@@ -46,6 +51,8 @@ void assert_token_equal(Token expected, Token actual) {
     return assert_symbol_equal(expected.value.symbol, actual.value.symbol);
   case IntToken:
     return assert_int_equal(expected.value.int_, actual.value.int_);
+  case FloatToken:
+    return assert_float_equal(expected.value.float_, actual.value.float_);
   case EndOfFileToken:
     return assert_end_of_file_equal(expected.value.end_of_file,
                                     actual.value.end_of_file);
@@ -154,6 +161,8 @@ MunitResult tokenize_symbol(const MunitParameter params[],
           },
       .cursor = (Cursor){.input = "", .position.column = 92}};
   assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  assert_next_token_result_equal(expected, actual);
   return MUNIT_OK;
 }
 
@@ -201,6 +210,35 @@ MunitResult tokenize_int(const MunitParameter params[],
                              .view = {.data = "323", .length = 3}},
           },
       .cursor = (Cursor){.input = "", .position.column = 9}};
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = EndOfFileToken,
+              .value.end_of_file = {.span = {.begin = {.column = 9},
+                                             .end = {.column = 9}}},
+          },
+      .cursor = (Cursor){.input = "", .position.column = 9}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  assert_next_token_result_equal(expected, actual);
+  return MUNIT_OK;
+}
+
+MunitResult tokenize_float(const MunitParameter params[],
+                           void *user_data_or_fixture) {
+  Cursor cursor = {.input = "0.0 4.2 .42 -3.23 -.323"};
+  NextTokenResult actual = next_token(cursor);
+  NextTokenResult expected = {
+      .token =
+          {
+              .type = FloatToken,
+              .value.int_ = {.span.end = {.column = 3},
+                             .view = {.data = "0.0", .length = 3}},
+          },
+      .cursor =
+          (Cursor){.input = " 4.2 .42 -3.23 -.323", .position.column = 3}};
+  assert_next_token_result_equal(expected, actual);
   return MUNIT_OK;
 }
 
@@ -211,6 +249,10 @@ MunitTest tests[] = {{
                      {
                          .name = "/tokenize_int",
                          .test = tokenize_int,
+                     },
+                     {
+                         .name = "/tokenize_float",
+                         .test = tokenize_float,
                      },
                      {}};
 

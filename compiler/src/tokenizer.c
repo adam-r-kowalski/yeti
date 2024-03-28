@@ -1,16 +1,19 @@
 #include "tokenizer.h"
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct {
   Cursor cursor;
   StringView view;
 } TakeWhileResult;
 
-TakeWhileResult take_while(Cursor cursor, bool (*predicate)(char)) {
+typedef bool (*Predicate)(char, void *);
+
+TakeWhileResult take_while(Cursor cursor, Predicate predicate, void *state) {
   const char *input = cursor.input;
   for (; input != NULL; ++input) {
-    if (!predicate(*input)) {
+    if (!predicate(*input, state)) {
       break;
     }
   }
@@ -33,14 +36,14 @@ TakeWhileResult take_while(Cursor cursor, bool (*predicate)(char)) {
   };
 }
 
-bool is_space(char c) { return c == ' '; }
+bool is_space(char c, void *state) { return c == ' '; }
 
 Cursor trim_whitespace(Cursor cursor) {
-  TakeWhileResult result = take_while(cursor, is_space);
+  TakeWhileResult result = take_while(cursor, is_space, NULL);
   return result.cursor;
 }
 
-bool is_valid_for_symbol(char c) {
+bool is_valid_for_symbol(char c, void *state) {
   switch (c) {
   case 'a' ... 'z':
   case 'A' ... 'Z':
@@ -54,7 +57,7 @@ bool is_valid_for_symbol(char c) {
 
 NextTokenResult symbol_token(Cursor cursor) {
   Position begin = cursor.position;
-  TakeWhileResult result = take_while(cursor, is_valid_for_symbol);
+  TakeWhileResult result = take_while(cursor, is_valid_for_symbol, NULL);
   return (NextTokenResult){
       .token =
           {
@@ -69,23 +72,47 @@ NextTokenResult symbol_token(Cursor cursor) {
   };
 }
 
-bool is_number(char c) { return c >= '0' && c <= '9'; }
+bool is_number(char c, void *state) {
+  switch (c) {
+  case '0' ... '9':
+    return true;
+  case '.': {
+    size_t *decimals = state;
+    *decimals += 1;
+    return true;
+  }
+  default:
+    return false;
+  }
+}
 
 NextTokenResult number_token(Cursor cursor) {
   Position begin = cursor.position;
-  TakeWhileResult result = take_while(cursor, is_number);
-  return (NextTokenResult){
-      .token =
-          {
-              .type = IntToken,
-              .value.int_ =
-                  {
-                      .span = {.begin = begin, .end = result.cursor.position},
-                      .view = result.view,
-                  },
-          },
-      .cursor = result.cursor,
-  };
+  size_t decimals = 0;
+  TakeWhileResult result = take_while(cursor, is_number, &decimals);
+  Span span = {.begin = begin, .end = result.cursor.position};
+  switch (decimals) {
+  case 0:
+    return (NextTokenResult){
+        .token =
+            {
+                .type = IntToken,
+                .value.int_ = {.span = span, .view = result.view},
+            },
+        .cursor = result.cursor,
+    };
+  case 1:
+    return (NextTokenResult){
+        .token =
+            {
+                .type = FloatToken,
+                .value.float_ = {.span = span, .view = result.view},
+            },
+        .cursor = result.cursor,
+    };
+  default:
+    assert(false);
+  }
 }
 
 NextTokenResult operator_token(Cursor cursor, OperatorKind kind) {
