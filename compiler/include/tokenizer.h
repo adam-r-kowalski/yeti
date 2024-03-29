@@ -34,7 +34,7 @@ typedef struct {
 } Int;
 
 typedef enum {
-  MinusOperator,
+  SubOperator,
 } OperatorKind;
 
 typedef struct {
@@ -66,11 +66,6 @@ typedef struct {
   TokenType type;
   TokenValue value;
 } Token;
-
-typedef struct {
-  size_t size;
-  const Token *tokens;
-} Tokens;
 
 typedef struct {
   Position position;

@@ -1,0 +1,164 @@
+pub Position = struct {
+  line: u32,
+  column: u32,
+}
+
+pub Span = struct {
+  start: Position,
+  end: Position,
+}
+
+pub Symbol = struct {
+  span: Span,
+  view: []u8,
+}
+
+pub Int = struct {
+  span: Span,
+  view: []u8,
+}
+
+pub Float = struct {
+  span: Span,
+  view: []u8,
+}
+
+pub OperatorKind = enum {
+  sub,
+}
+
+pub Operator = struct {
+  span: Span,
+  kind: OperatorKind,
+}
+
+pub EndOfFile = struct {
+  span: Span,
+}
+
+pub Token = enum {
+  symbol: Symbol,
+  int: Int,
+  float: Float,
+  operator: Operator,
+  end_of_file: EndOfFile,
+}
+
+pub Cursor = struct {
+  input: []u8,
+  position: Position,
+}
+
+pub next_token = (cursor: Cursor) -> (Cursor, Token) {
+  cursor = trim_whitespace(cursor)
+  if(cursor.input.len == 0) then: {
+    end_of_file_token(cursor)
+  } else: {
+    c = cursor.input[0] 
+    cond(.{
+      'a' <= c <= 'z' or 'A' <= c <= 'Z' or c == '_' => symbol_token(cursor),
+      '0' <= c <= '9' => number_token(cursor),
+      '-' => operator_token(cursor),
+      true => invalid_token(cursor),
+    })
+  }
+}
+
+take_while_stateful = (
+  State: type,
+  cursor: Cursor,
+  predicate: (u8, State) (bool, State),
+  state: State
+) -> (Cursor, []u8, State) {
+  input = cursor.input
+  i = 0
+  current_state := state
+  for(input) (c) {
+    (passed, state) = predicate(c, current_state)
+    current_state = state
+    if(not passed) then: {
+      break
+    } else: {
+      i += 1
+    }
+  }
+  position = .{ line: cursor.position.line, column: cursor.position.column + i }
+  (.{ input: input[i..], position }, input[..i], current_state)
+}
+
+Predicate = (u8) -> bool
+
+matches_predicate = (c: u8, predicate: Predicate) -> (bool, Predicate)) {
+  passed = predicate(c)
+  (passed, predicate)
+}
+
+take_while = (cursor: Cursor, predicate: (u8) bool) -> (Cursor, []u8) {
+  (cursor, value, _) = take_while_stateful(u8, cursor, matches_predicate, &predicate)
+  (cursor, value)
+}
+
+is_space = (c: u8) -> bool {
+  c == ' '
+}
+
+trim_whitespace = (cursor: Cursor) -> Cursor {
+  (cursor, _) = take_while(cursor, is_space)
+  cursor
+} 
+
+is_valid_for_symbol = (c: u8) -> bool {
+  'a' <= c <= 'z' or 'A' <= c <= 'Z' or c == '_'
+}
+
+symbol_token = (cursor: Cursor) -> (Cursor, Token) {
+  (cursor, view) = take_while(cursor, is_valid_for_symbol)
+  span = .{
+    start: cursor.position,
+    end: .{
+      line: cursor.position.line,
+      column: cursor.position.column + view.len
+    }
+  }
+  (cursor, .{ span, view, })
+}
+
+is_number = (c: u8, decimals: u8) -> (bool, u8) {
+  cond(.{
+    '0' <= c <= '9' => { (true, decimals) },
+    c == '.' => { (true, decimals + 1) },
+    true => { (false, decimals) },
+  })
+}
+
+number_token = (cursor: Cursor) -> (Cursor, Token) {
+  (cursor, number, decimals) = take_while_stateful(u8, cursor, is_number, 0)
+}
+
+operator_token = (cursor: Cursor, kind: OperatorKind) -> (Cursor, Token) {
+  start = cursor.position
+  cursor = .{
+    input: cursor.input[1..],
+    position: .{
+      line: cursor.position.line,
+      column: cursor.position.column + 1
+    }
+  }
+  (cursor, .{
+    operator: .{
+      span: .{
+        start,
+        end: cursor.position
+      },
+      kind,
+    }
+  })
+}
+
+end_of_file_token = (cursor: Cursor) -> (Cursor, Token) {
+  span = .{
+    start: cursor.position,
+    end: cursor.position
+  }
+  (cursor, .{ end_of_file: .{ span } })
+}

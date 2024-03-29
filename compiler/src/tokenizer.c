@@ -8,9 +8,9 @@ typedef struct {
   StringView view;
 } TakeWhileResult;
 
-typedef bool (*Predicate)(char, void *);
-
-TakeWhileResult take_while(Cursor cursor, Predicate predicate, void *state) {
+TakeWhileResult take_while_stateful(Cursor cursor,
+                                    bool (*predicate)(char, void *),
+                                    void *state) {
   const char *input = cursor.input;
   for (; input != NULL; ++input) {
     if (!predicate(*input, state)) {
@@ -36,14 +36,23 @@ TakeWhileResult take_while(Cursor cursor, Predicate predicate, void *state) {
   };
 }
 
-bool is_space(char c, void *state) { return c == ' '; }
+bool matches_predicate(char c, void *state) {
+  bool (*predicate)(char) = state;
+  return predicate(c);
+}
+
+TakeWhileResult take_while(Cursor cursor, bool (*predicate)(char)) {
+  return take_while_stateful(cursor, matches_predicate, predicate);
+}
+
+bool is_space(char c) { return c == ' '; }
 
 Cursor trim_whitespace(Cursor cursor) {
-  TakeWhileResult result = take_while(cursor, is_space, NULL);
+  TakeWhileResult result = take_while(cursor, is_space);
   return result.cursor;
 }
 
-bool is_valid_for_symbol(char c, void *state) {
+bool is_valid_for_symbol(char c) {
   switch (c) {
   case 'a' ... 'z':
   case 'A' ... 'Z':
@@ -57,7 +66,7 @@ bool is_valid_for_symbol(char c, void *state) {
 
 NextTokenResult symbol_token(Cursor cursor) {
   Position begin = cursor.position;
-  TakeWhileResult result = take_while(cursor, is_valid_for_symbol, NULL);
+  TakeWhileResult result = take_while(cursor, is_valid_for_symbol);
   return (NextTokenResult){
       .token =
           {
@@ -89,7 +98,7 @@ bool is_number(char c, void *state) {
 NextTokenResult number_token(Cursor cursor) {
   Position begin = cursor.position;
   size_t decimals = 0;
-  TakeWhileResult result = take_while(cursor, is_number, &decimals);
+  TakeWhileResult result = take_while_stateful(cursor, is_number, &decimals);
   Span span = {.begin = begin, .end = result.cursor.position};
   switch (decimals) {
   case 0:
@@ -115,6 +124,8 @@ NextTokenResult number_token(Cursor cursor) {
   }
 }
 
+#include <stdio.h>
+
 NextTokenResult operator_token(Cursor cursor, OperatorKind kind) {
   Position begin = cursor.position;
   cursor = (Cursor){.input = cursor.input + 1,
@@ -138,11 +149,8 @@ NextTokenResult end_of_file_token(Cursor cursor) {
       .token =
           {
               .type = EndOfFileToken,
-              .value.end_of_file =
-                  {
-                      .span = {.begin = cursor.position,
-                               .end = cursor.position},
-                  },
+              .value.end_of_file.span = {.begin = cursor.position,
+                                         .end = cursor.position},
           },
       .cursor = cursor,
   };
@@ -159,9 +167,10 @@ NextTokenResult next_token(Cursor cursor) {
   case '_':
     return symbol_token(cursor);
   case '0' ... '9':
+  case '.':
     return number_token(cursor);
   case '-':
-    return operator_token(cursor, MinusOperator);
+    return operator_token(cursor, SubOperator);
   default:
     assert(false);
   }
