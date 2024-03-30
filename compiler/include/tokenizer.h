@@ -43,6 +43,10 @@ typedef enum {
   DefOperator,
   NeOperator,
   NotOperator,
+  LtOperator,
+  LeOperator,
+  GtOperator,
+  GeOperator,
 } OperatorKind;
 
 typedef struct {

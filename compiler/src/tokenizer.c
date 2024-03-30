@@ -207,6 +207,16 @@ NextTokenResult next_token(Cursor cursor) {
       return operator_token(cursor, NeOperator, 2);
     }
     return operator_token(cursor, NotOperator, 1);
+  case '<':
+    if (*(cursor.input + 1) == '=') {
+      return operator_token(cursor, LeOperator, 2);
+    }
+    return operator_token(cursor, LtOperator, 1);
+  case '>':
+    if (*(cursor.input + 1) == '=') {
+      return operator_token(cursor, GeOperator, 2);
+    }
+    return operator_token(cursor, GtOperator, 1);
   case '[':
     return delimiter_token(cursor, OpenSquareDelimiter);
   case '{':

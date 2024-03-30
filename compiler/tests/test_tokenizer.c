@@ -510,6 +510,62 @@ MunitResult tokenize_operators(const MunitParameter params[],
           },
       .cursor = (Cursor){.input = " < > <= >=", .position.column = 15}};
   assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 16}, .end = {.column = 17}},
+                  .kind = LtOperator},
+          },
+      .cursor = (Cursor){.input = " > <= >=", .position.column = 17}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 18}, .end = {.column = 19}},
+                  .kind = GtOperator},
+          },
+      .cursor = (Cursor){.input = " <= >=", .position.column = 19}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 20}, .end = {.column = 22}},
+                  .kind = LeOperator},
+          },
+      .cursor = (Cursor){.input = " >=", .position.column = 22}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 23}, .end = {.column = 25}},
+                  .kind = GeOperator},
+          },
+      .cursor = (Cursor){.input = "", .position.column = 25}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = EndOfFileToken,
+              .value.end_of_file = {.span = {.begin = {.column = 25},
+                                             .end = {.column = 25}}},
+          },
+      .cursor = (Cursor){.input = "", .position.column = 25}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  assert_next_token_result_equal(expected, actual);
   return MUNIT_OK;
 }
 
