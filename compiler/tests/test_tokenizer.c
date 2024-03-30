@@ -467,6 +467,17 @@ MunitResult tokenize_operators(const MunitParameter params[],
       .cursor =
           (Cursor){.input = " / % == != < > <= >=", .position.column = 5}};
   assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 6}, .end = {.column = 7}},
+                  .kind = DivOperator},
+          },
+      .cursor = (Cursor){.input = " % == != < > <= >=", .position.column = 7}};
+  assert_next_token_result_equal(expected, actual);
   return MUNIT_OK;
 }
 
