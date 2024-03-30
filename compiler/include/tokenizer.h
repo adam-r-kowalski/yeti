@@ -42,6 +42,21 @@ typedef struct {
   OperatorKind kind;
 } Operator;
 
+typedef enum {
+  OpenSquareDelimiter,
+  OpenCurlyDelimiter,
+  OpenParenDelimiter,
+  CloseParenDelimiter,
+  CloseCurlyDelimiter,
+  CloseSquareDelimiter,
+  CommaDelimiter,
+} DelimiterKind;
+
+typedef struct {
+  Span span;
+  DelimiterKind kind;
+} Delimiter;
+
 typedef struct {
   Span span;
 } EndOfFile;
@@ -51,6 +66,7 @@ typedef enum {
   FloatToken,
   IntToken,
   OperatorToken,
+  DelimiterToken,
   EndOfFileToken,
 } TokenType;
 
@@ -59,6 +75,7 @@ typedef union {
   Float float_;
   Int int_;
   Operator operator;
+  Delimiter delimiter;
   EndOfFile end_of_file;
 } TokenValue;
 

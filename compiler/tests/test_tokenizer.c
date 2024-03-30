@@ -45,6 +45,11 @@ void assert_operator_equal(Operator expected, Operator actual) {
   assert_uint32(expected.kind, ==, actual.kind);
 }
 
+void assert_delimiter_equal(Delimiter expected, Delimiter actual) {
+  assert_span_equal(expected.span, actual.span);
+  assert_uint32(expected.kind, ==, actual.kind);
+}
+
 void assert_end_of_file_equal(EndOfFile expected, EndOfFile actual) {
   assert_span_equal(expected.span, actual.span);
 }
@@ -61,6 +66,9 @@ void assert_token_equal(Token expected, Token actual) {
   case OperatorToken:
     return assert_operator_equal(expected.value.operator,
                                  actual.value.operator);
+  case DelimiterToken:
+    return assert_delimiter_equal(expected.value.delimiter,
+                                  actual.value.delimiter);
   case EndOfFileToken:
     return assert_end_of_file_equal(expected.value.end_of_file,
                                     actual.value.end_of_file);
@@ -328,6 +336,100 @@ MunitResult tokenize_float(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+MunitResult tokenize_delimiters(const MunitParameter params[],
+                                void *user_data_or_fixture) {
+  Cursor cursor = {.input = "[{()}],"};
+  NextTokenResult actual = next_token(cursor);
+  NextTokenResult expected = {
+      .token =
+          {
+              .type = DelimiterToken,
+              .value.delimiter = {.span.end = {.column = 1},
+                                  .kind = OpenSquareDelimiter},
+          },
+      .cursor = (Cursor){.input = "{()}],", .position.column = 1}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = DelimiterToken,
+              .value.delimiter = {.span = {.begin = {.column = 1},
+                                           .end = {.column = 2}},
+                                  .kind = OpenCurlyDelimiter},
+          },
+      .cursor = (Cursor){.input = "()}],", .position.column = 2}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = DelimiterToken,
+              .value.delimiter = {.span = {.begin = {.column = 2},
+                                           .end = {.column = 3}},
+                                  .kind = OpenParenDelimiter},
+          },
+      .cursor = (Cursor){.input = ")}],", .position.column = 3}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = DelimiterToken,
+              .value.delimiter = {.span = {.begin = {.column = 3},
+                                           .end = {.column = 4}},
+                                  .kind = CloseParenDelimiter},
+          },
+      .cursor = (Cursor){.input = "}],", .position.column = 4}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = DelimiterToken,
+              .value.delimiter = {.span = {.begin = {.column = 4},
+                                           .end = {.column = 5}},
+                                  .kind = CloseCurlyDelimiter},
+          },
+      .cursor = (Cursor){.input = "],", .position.column = 5}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = DelimiterToken,
+              .value.delimiter = {.span = {.begin = {.column = 5},
+                                           .end = {.column = 6}},
+                                  .kind = CloseSquareDelimiter},
+          },
+      .cursor = (Cursor){.input = ",", .position.column = 6}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = DelimiterToken,
+              .value.delimiter = {.span = {.begin = {.column = 6},
+                                           .end = {.column = 7}},
+                                  .kind = CommaDelimiter},
+          },
+      .cursor = (Cursor){.input = "", .position.column = 7}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = EndOfFileToken,
+              .value.end_of_file = {.span = {.begin = {.column = 7},
+                                             .end = {.column = 7}}},
+          },
+      .cursor = (Cursor){.input = "", .position.column = 7}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  assert_next_token_result_equal(expected, actual);
+  return MUNIT_OK;
+}
+
 MunitTest tests[] = {{
                          .name = "/tokenize_symbol",
                          .test = tokenize_symbol,
@@ -339,6 +441,10 @@ MunitTest tests[] = {{
                      {
                          .name = "/tokenize_float",
                          .test = tokenize_float,
+                     },
+                     {
+                         .name = "/tokenize_delimiters",
+                         .test = tokenize_delimiters,
                      },
                      {}};
 

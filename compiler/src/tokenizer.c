@@ -124,8 +124,6 @@ NextTokenResult number_token(Cursor cursor) {
   }
 }
 
-#include <stdio.h>
-
 NextTokenResult operator_token(Cursor cursor, OperatorKind kind) {
   Position begin = cursor.position;
   cursor = (Cursor){.input = cursor.input + 1,
@@ -139,6 +137,25 @@ NextTokenResult operator_token(Cursor cursor, OperatorKind kind) {
                   .span = {.begin = begin, .end = cursor.position},
                   .kind = kind,
               },
+          },
+      .cursor = cursor,
+  };
+}
+
+NextTokenResult delimiter_token(Cursor cursor, DelimiterKind kind) {
+  Position begin = cursor.position;
+  cursor = (Cursor){.input = cursor.input + 1,
+                    .position = {.line = cursor.position.line,
+                                 .column = cursor.position.column + 1}};
+  return (NextTokenResult){
+      .token =
+          {
+              .type = DelimiterToken,
+              .value.delimiter =
+                  {
+                      .span = {.begin = begin, .end = cursor.position},
+                      .kind = kind,
+                  },
           },
       .cursor = cursor,
   };
@@ -171,6 +188,20 @@ NextTokenResult next_token(Cursor cursor) {
     return number_token(cursor);
   case '-':
     return operator_token(cursor, SubOperator);
+  case '[':
+    return delimiter_token(cursor, OpenSquareDelimiter);
+  case '{':
+    return delimiter_token(cursor, OpenCurlyDelimiter);
+  case '(':
+    return delimiter_token(cursor, OpenParenDelimiter);
+  case ')':
+    return delimiter_token(cursor, CloseParenDelimiter);
+  case '}':
+    return delimiter_token(cursor, CloseCurlyDelimiter);
+  case ']':
+    return delimiter_token(cursor, CloseSquareDelimiter);
+  case ',':
+    return delimiter_token(cursor, CommaDelimiter);
   default:
     assert(false);
   }
