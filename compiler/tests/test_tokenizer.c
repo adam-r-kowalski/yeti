@@ -478,6 +478,38 @@ MunitResult tokenize_operators(const MunitParameter params[],
           },
       .cursor = (Cursor){.input = " % == != < > <= >=", .position.column = 7}};
   assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 8}, .end = {.column = 9}},
+                  .kind = ModOperator},
+          },
+      .cursor = (Cursor){.input = " == != < > <= >=", .position.column = 9}};
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 10}, .end = {.column = 12}},
+                  .kind = EqOperator},
+          },
+      .cursor = (Cursor){.input = " != < > <= >=", .position.column = 12}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 13}, .end = {.column = 15}},
+                  .kind = NeOperator},
+          },
+      .cursor = (Cursor){.input = " < > <= >=", .position.column = 15}};
+  assert_next_token_result_equal(expected, actual);
   return MUNIT_OK;
 }
 

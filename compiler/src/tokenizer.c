@@ -124,11 +124,12 @@ NextTokenResult number_token(Cursor cursor) {
   }
 }
 
-NextTokenResult operator_token(Cursor cursor, OperatorKind kind) {
+NextTokenResult operator_token(Cursor cursor, OperatorKind kind,
+                               size_t length) {
   Position begin = cursor.position;
-  cursor = (Cursor){.input = cursor.input + 1,
+  cursor = (Cursor){.input = cursor.input + length,
                     .position = {.line = cursor.position.line,
-                                 .column = cursor.position.column + 1}};
+                                 .column = cursor.position.column + length}};
   return (NextTokenResult){
       .token =
           {
@@ -187,13 +188,25 @@ NextTokenResult next_token(Cursor cursor) {
   case '.':
     return number_token(cursor);
   case '-':
-    return operator_token(cursor, SubOperator);
+    return operator_token(cursor, SubOperator, 1);
   case '+':
-    return operator_token(cursor, AddOperator);
+    return operator_token(cursor, AddOperator, 1);
   case '*':
-    return operator_token(cursor, MulOperator);
+    return operator_token(cursor, MulOperator, 1);
   case '/':
-    return operator_token(cursor, DivOperator);
+    return operator_token(cursor, DivOperator, 1);
+  case '%':
+    return operator_token(cursor, ModOperator, 1);
+  case '=':
+    if (*(cursor.input + 1) == '=') {
+      return operator_token(cursor, EqOperator, 2);
+    }
+    return operator_token(cursor, DefOperator, 1);
+  case '!':
+    if (*(cursor.input + 1) == '=') {
+      return operator_token(cursor, NeOperator, 2);
+    }
+    return operator_token(cursor, NotOperator, 1);
   case '[':
     return delimiter_token(cursor, OpenSquareDelimiter);
   case '{':

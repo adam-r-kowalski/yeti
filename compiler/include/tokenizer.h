@@ -38,6 +38,11 @@ typedef enum {
   AddOperator,
   MulOperator,
   DivOperator,
+  ModOperator,
+  EqOperator,
+  DefOperator,
+  NeOperator,
+  NotOperator,
 } OperatorKind;
 
 typedef struct {
