@@ -430,6 +430,46 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+MunitResult tokenize_operators(const MunitParameter params[],
+                               void *user_data_or_fixture) {
+  Cursor cursor = {.input = "- + * / % == != < > <= >="};
+  NextTokenResult actual = next_token(cursor);
+  NextTokenResult expected = {
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {.span.end = {.column = 1}, .kind = SubOperator},
+          },
+      .cursor =
+          (Cursor){.input = " + * / % == != < > <= >=", .position.column = 1}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 2}, .end = {.column = 3}},
+                  .kind = AddOperator},
+          },
+      .cursor =
+          (Cursor){.input = " * / % == != < > <= >=", .position.column = 3}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 4}, .end = {.column = 5}},
+                  .kind = MulOperator},
+          },
+      .cursor =
+          (Cursor){.input = " / % == != < > <= >=", .position.column = 5}};
+  assert_next_token_result_equal(expected, actual);
+  return MUNIT_OK;
+}
+
 MunitTest tests[] = {{
                          .name = "/tokenize_symbol",
                          .test = tokenize_symbol,
@@ -446,6 +486,12 @@ MunitTest tests[] = {{
                          .name = "/tokenize_delimiters",
                          .test = tokenize_delimiters,
                      },
+
+                     {
+                         .name = "/tokenize_operators",
+                         .test = tokenize_operators,
+                     },
+
                      {}};
 
 static const MunitSuite suite = {

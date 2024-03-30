@@ -35,6 +35,8 @@ typedef struct {
 
 typedef enum {
   SubOperator,
+  AddOperator,
+  MulOperator,
 } OperatorKind;
 
 typedef struct {

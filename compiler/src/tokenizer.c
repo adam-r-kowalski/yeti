@@ -188,6 +188,10 @@ NextTokenResult next_token(Cursor cursor) {
     return number_token(cursor);
   case '-':
     return operator_token(cursor, SubOperator);
+  case '+':
+    return operator_token(cursor, AddOperator);
+  case '*':
+    return operator_token(cursor, MulOperator);
   case '[':
     return delimiter_token(cursor, OpenSquareDelimiter);
   case '{':
