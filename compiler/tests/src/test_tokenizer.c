@@ -630,34 +630,34 @@ MunitResult tokenize_variable_definition(const MunitParameter params[],
   return MUNIT_OK;
 }
 
-MunitTest tests[] = {{
-                         .name = "/tokenize_symbol",
-                         .test = tokenize_symbol,
-                     },
-                     {
-                         .name = "/tokenize_int",
-                         .test = tokenize_int,
-                     },
-                     {
-                         .name = "/tokenize_float",
-                         .test = tokenize_float,
-                     },
-                     {
-                         .name = "/tokenize_delimiters",
-                         .test = tokenize_delimiters,
-                     },
-                     {
-                         .name = "/tokenize_operators",
-                         .test = tokenize_operators,
-                     },
-                     {
-                         .name = "/tokenize_variable_definition",
-                         .test = tokenize_variable_definition,
-                     },
-                     {}};
+MunitTest tokenizer_tests[] = {{
+                                   .name = "/tokenize_symbol",
+                                   .test = tokenize_symbol,
+                               },
+                               {
+                                   .name = "/tokenize_int",
+                                   .test = tokenize_int,
+                               },
+                               {
+                                   .name = "/tokenize_float",
+                                   .test = tokenize_float,
+                               },
+                               {
+                                   .name = "/tokenize_delimiters",
+                                   .test = tokenize_delimiters,
+                               },
+                               {
+                                   .name = "/tokenize_operators",
+                                   .test = tokenize_operators,
+                               },
+                               {
+                                   .name = "/tokenize_variable_definition",
+                                   .test = tokenize_variable_definition,
+                               },
+                               {}};
 
-const MunitSuite tokenizer_suite = {
-    .prefix = "/tests",
-    .tests = tests,
+MunitSuite tokenizer_suite = {
+    .prefix = "/tokenizer",
+    .tests = tokenizer_tests,
     .iterations = 1,
 };

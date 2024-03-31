@@ -1,3 +1,4 @@
 #include <munit.h>
 
-extern const MunitSuite tokenizer_suite;
+extern MunitSuite tokenizer_suite;
+extern MunitSuite parser_suite;
