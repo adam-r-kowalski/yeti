@@ -1,9 +1,9 @@
 #define MUNIT_ENABLE_ASSERT_ALIASES
 
+#include "test_suites.h"
 #include "tokenizer.h"
 #include <munit.h>
 #include <stdbool.h>
-#include <stdint.h>
 
 void assert_position_equal(Position expected, Position actual) {
   assert_uint32(expected.line, ==, actual.line);
@@ -656,12 +656,8 @@ MunitTest tests[] = {{
                      },
                      {}};
 
-static const MunitSuite suite = {
+const MunitSuite tokenizer_suite = {
     .prefix = "/tests",
     .tests = tests,
     .iterations = 1,
 };
-
-int32_t main(int argc, char *argv[]) {
-  return munit_suite_main(&suite, NULL, argc, argv);
-}
