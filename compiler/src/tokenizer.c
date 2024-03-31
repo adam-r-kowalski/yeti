@@ -201,7 +201,7 @@ NextTokenResult next_token(Cursor cursor) {
     if (*(cursor.input + 1) == '=') {
       return operator_token(cursor, EqOperator, 2);
     }
-    return operator_token(cursor, DefOperator, 1);
+    return operator_token(cursor, AssignOperator, 1);
   case '!':
     if (*(cursor.input + 1) == '=') {
       return operator_token(cursor, NeOperator, 2);

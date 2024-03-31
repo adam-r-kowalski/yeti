@@ -40,7 +40,7 @@ typedef enum {
   DivOperator,
   ModOperator,
   EqOperator,
-  DefOperator,
+  AssignOperator,
   NeOperator,
   NotOperator,
   LtOperator,

@@ -569,6 +569,67 @@ MunitResult tokenize_operators(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+MunitResult tokenize_variable_definition(const MunitParameter params[],
+                                         void *user_data_or_fixture) {
+  Cursor cursor = {.input = "f32 x = 42"};
+  NextTokenResult actual = next_token(cursor);
+  NextTokenResult expected = {
+      .token =
+          {
+              .type = SymbolToken,
+              .value.symbol = {.span.end = {.column = 3},
+                               .view = {.data = "f32", .length = 3}},
+          },
+      .cursor = (Cursor){.input = " x = 42", .position.column = 3}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = SymbolToken,
+              .value.symbol = {.span = {.begin = {.column = 4},
+                                        .end = {.column = 5}},
+                               .view = {.data = "x", .length = 1}},
+          },
+      .cursor = (Cursor){.input = " = 42", .position.column = 5}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = OperatorToken,
+              .value.operator= {
+                  .span = {.begin = {.column = 6}, .end = {.column = 7}},
+                  .kind = AssignOperator},
+          },
+      .cursor = (Cursor){.input = " 42", .position.column = 7}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = IntToken,
+              .value.int_ = {.span = {.begin = {.column = 8},
+                                      .end = {.column = 10}},
+                             .view = {.data = "42", .length = 2}},
+          },
+      .cursor = (Cursor){.input = "", .position.column = 10}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  expected = (NextTokenResult){
+      .token =
+          {
+              .type = EndOfFileToken,
+              .value.end_of_file = {.span = {.begin = {.column = 10},
+                                             .end = {.column = 10}}},
+          },
+      .cursor = (Cursor){.input = "", .position.column = 10}};
+  assert_next_token_result_equal(expected, actual);
+  actual = next_token(actual.cursor);
+  assert_next_token_result_equal(expected, actual);
+  return MUNIT_OK;
+}
+
 MunitTest tests[] = {{
                          .name = "/tokenize_symbol",
                          .test = tokenize_symbol,
@@ -585,12 +646,14 @@ MunitTest tests[] = {{
                          .name = "/tokenize_delimiters",
                          .test = tokenize_delimiters,
                      },
-
                      {
                          .name = "/tokenize_operators",
                          .test = tokenize_operators,
                      },
-
+                     {
+                         .name = "/tokenize_variable_definition",
+                         .test = tokenize_variable_definition,
+                     },
                      {}};
 
 static const MunitSuite suite = {
