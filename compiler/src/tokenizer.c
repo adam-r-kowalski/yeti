@@ -12,7 +12,7 @@ TakeWhileResult take_while_stateful(Cursor cursor,
                                     bool (*predicate)(char, void *),
                                     void *state) {
   const char *input = cursor.input;
-  for (; input != NULL; ++input) {
+  for (; input != nullptr; ++input) {
     if (!predicate(*input, state)) {
       break;
     }
@@ -70,7 +70,7 @@ NextTokenResult symbol_token(Cursor cursor) {
   return (NextTokenResult){
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol =
                   {
                       .span = {.begin = begin, .end = result.cursor.position},
@@ -105,7 +105,7 @@ NextTokenResult number_token(Cursor cursor) {
     return (NextTokenResult){
         .token =
             {
-                .type = IntToken,
+                .kind = IntToken,
                 .value.int_ = {.span = span, .view = result.view},
             },
         .cursor = result.cursor,
@@ -114,7 +114,7 @@ NextTokenResult number_token(Cursor cursor) {
     return (NextTokenResult){
         .token =
             {
-                .type = FloatToken,
+                .kind = FloatToken,
                 .value.float_ = {.span = span, .view = result.view},
             },
         .cursor = result.cursor,
@@ -133,7 +133,7 @@ NextTokenResult operator_token(Cursor cursor, OperatorKind kind,
   return (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = begin, .end = cursor.position},
                   .kind = kind,
@@ -151,7 +151,7 @@ NextTokenResult delimiter_token(Cursor cursor, DelimiterKind kind) {
   return (NextTokenResult){
       .token =
           {
-              .type = DelimiterToken,
+              .kind = DelimiterToken,
               .value.delimiter =
                   {
                       .span = {.begin = begin, .end = cursor.position},
@@ -166,7 +166,7 @@ NextTokenResult end_of_file_token(Cursor cursor) {
   return (NextTokenResult){
       .token =
           {
-              .type = EndOfFileToken,
+              .kind = EndOfFileToken,
               .value.end_of_file.span = {.begin = cursor.position,
                                          .end = cursor.position},
           },

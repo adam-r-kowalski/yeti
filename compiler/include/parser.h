@@ -1,10 +1,12 @@
 #pragma once
 
+#include <allocator.h>
 #include <tokenizer.h>
 
 typedef enum {
   SymbolExpression,
   FloatExpression,
+  IntExpression,
   AssignExpression,
 } ExpressionKind;
 
@@ -20,13 +22,14 @@ typedef struct {
 typedef union {
   Symbol symbol;
   Float float_;
+  Int int_;
   Assign assign;
 } ExpressionValue;
 
 struct Expression {
   ExpressionKind kind;
-  Span span;
   ExpressionValue value;
+  Span span;
 };
 
 typedef struct {
@@ -34,4 +37,4 @@ typedef struct {
   Cursor cursor;
 } ParseExpressionResult;
 
-ParseExpressionResult parse_expression(Cursor cursor);
+ParseExpressionResult parse_expression(Allocator allocator, Cursor cursor);

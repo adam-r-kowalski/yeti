@@ -9,5 +9,5 @@ int32_t main(int argc, char *argv[]) {
                            .iterations = 1,
                            .options = MUNIT_SUITE_OPTION_NONE};
 
-  return munit_suite_main(&main_suite, NULL, argc, argv);
+  return munit_suite_main(&main_suite, nullptr, argc, argv);
 }

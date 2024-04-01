@@ -11,7 +11,7 @@ MunitResult tokenize_symbol(const MunitParameter params[],
   NextTokenResult expected = {
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol = {.span.end = {.column = 10},
                                .view = {.data = "snake_case", .length = 10}},
           },
@@ -24,7 +24,7 @@ MunitResult tokenize_symbol(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol = {.span = {.begin = {.column = 11},
                                         .end = {.column = 20}},
                                .view = {.data = "camelCase", .length = 9}},
@@ -38,7 +38,7 @@ MunitResult tokenize_symbol(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol = {.span = {.begin = {.column = 21},
                                         .end = {.column = 31}},
                                .view = {.data = "PascalCase", .length = 10}},
@@ -51,7 +51,7 @@ MunitResult tokenize_symbol(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol = {.span = {.begin = {.column = 32},
                                         .end = {.column = 51}},
                                .view = {.data = "_leading_underscore",
@@ -64,7 +64,7 @@ MunitResult tokenize_symbol(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol = {.span = {.begin = {.column = 52},
                                         .end = {.column = 72}},
                                .view = {.data = "trailing_underscore_",
@@ -77,7 +77,7 @@ MunitResult tokenize_symbol(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol = {.span = {.begin = {.column = 73},
                                         .end = {.column = 92}},
                                .view = {.data = "trailing_number_123",
@@ -89,7 +89,7 @@ MunitResult tokenize_symbol(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = EndOfFileToken,
+              .kind = EndOfFileToken,
               .value.symbol = {.span = {.begin = {.column = 92},
                                         .end = {.column = 92}},
                                .view = {.data = "", .length = 0}},
@@ -108,7 +108,7 @@ MunitResult tokenize_int(const MunitParameter params[],
   NextTokenResult expected = {
       .token =
           {
-              .type = IntToken,
+              .kind = IntToken,
               .value.int_ = {.span.end = {.column = 1},
                              .view = {.data = "0", .length = 1}},
           },
@@ -118,7 +118,7 @@ MunitResult tokenize_int(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = IntToken,
+              .kind = IntToken,
               .value.int_ = {.span = {.begin = {.column = 2},
                                       .end = {.column = 4}},
                              .view = {.data = "42", .length = 2}},
@@ -129,7 +129,7 @@ MunitResult tokenize_int(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.int_ = {.span = {.begin = {.column = 5},
                                       .end = {.column = 6}},
                              .view = {.data = "-", .length = 1}},
@@ -139,7 +139,7 @@ MunitResult tokenize_int(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = IntToken,
+              .kind = IntToken,
               .value.int_ = {.span = {.begin = {.column = 6},
                                       .end = {.column = 9}},
                              .view = {.data = "323", .length = 3}},
@@ -149,7 +149,7 @@ MunitResult tokenize_int(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = EndOfFileToken,
+              .kind = EndOfFileToken,
               .value.end_of_file = {.span = {.begin = {.column = 9},
                                              .end = {.column = 9}}},
           },
@@ -167,7 +167,7 @@ MunitResult tokenize_float(const MunitParameter params[],
   NextTokenResult expected = {
       .token =
           {
-              .type = FloatToken,
+              .kind = FloatToken,
               .value.int_ = {.span.end = {.column = 3},
                              .view = {.data = "0.0", .length = 3}},
           },
@@ -178,7 +178,7 @@ MunitResult tokenize_float(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = FloatToken,
+              .kind = FloatToken,
               .value.int_ = {.span = {.begin = {.column = 4},
                                       .end = {.column = 7}},
                              .view = {.data = "4.2", .length = 3}},
@@ -189,7 +189,7 @@ MunitResult tokenize_float(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = FloatToken,
+              .kind = FloatToken,
               .value.int_ = {.span = {.begin = {.column = 8},
                                       .end = {.column = 11}},
                              .view = {.data = ".42", .length = 3}},
@@ -200,7 +200,7 @@ MunitResult tokenize_float(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 12}, .end = {.column = 13}},
                   .kind = SubOperator},
@@ -211,7 +211,7 @@ MunitResult tokenize_float(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = FloatToken,
+              .kind = FloatToken,
               .value.int_ = {.span = {.begin = {.column = 13},
                                       .end = {.column = 17}},
                              .view = {.data = "3.23", .length = 4}},
@@ -222,7 +222,7 @@ MunitResult tokenize_float(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 18}, .end = {.column = 19}},
                   .kind = SubOperator},
@@ -233,7 +233,7 @@ MunitResult tokenize_float(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = FloatToken,
+              .kind = FloatToken,
               .value.int_ = {.span = {.begin = {.column = 19},
                                       .end = {.column = 23}},
                              .view = {.data = ".323", .length = 4}},
@@ -244,7 +244,7 @@ MunitResult tokenize_float(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = EndOfFileToken,
+              .kind = EndOfFileToken,
               .value.end_of_file = {.span = {.begin = {.column = 23},
                                              .end = {.column = 23}}},
           },
@@ -262,7 +262,7 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   NextTokenResult expected = {
       .token =
           {
-              .type = DelimiterToken,
+              .kind = DelimiterToken,
               .value.delimiter = {.span.end = {.column = 1},
                                   .kind = OpenSquareDelimiter},
           },
@@ -272,7 +272,7 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = DelimiterToken,
+              .kind = DelimiterToken,
               .value.delimiter = {.span = {.begin = {.column = 1},
                                            .end = {.column = 2}},
                                   .kind = OpenCurlyDelimiter},
@@ -283,7 +283,7 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = DelimiterToken,
+              .kind = DelimiterToken,
               .value.delimiter = {.span = {.begin = {.column = 2},
                                            .end = {.column = 3}},
                                   .kind = OpenParenDelimiter},
@@ -294,7 +294,7 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = DelimiterToken,
+              .kind = DelimiterToken,
               .value.delimiter = {.span = {.begin = {.column = 3},
                                            .end = {.column = 4}},
                                   .kind = CloseParenDelimiter},
@@ -305,7 +305,7 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = DelimiterToken,
+              .kind = DelimiterToken,
               .value.delimiter = {.span = {.begin = {.column = 4},
                                            .end = {.column = 5}},
                                   .kind = CloseCurlyDelimiter},
@@ -316,7 +316,7 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = DelimiterToken,
+              .kind = DelimiterToken,
               .value.delimiter = {.span = {.begin = {.column = 5},
                                            .end = {.column = 6}},
                                   .kind = CloseSquareDelimiter},
@@ -327,7 +327,7 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = DelimiterToken,
+              .kind = DelimiterToken,
               .value.delimiter = {.span = {.begin = {.column = 6},
                                            .end = {.column = 7}},
                                   .kind = CommaDelimiter},
@@ -338,7 +338,7 @@ MunitResult tokenize_delimiters(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = EndOfFileToken,
+              .kind = EndOfFileToken,
               .value.end_of_file = {.span = {.begin = {.column = 7},
                                              .end = {.column = 7}}},
           },
@@ -356,7 +356,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   NextTokenResult expected = {
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {.span.end = {.column = 1}, .kind = SubOperator},
           },
       .cursor =
@@ -366,7 +366,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 2}, .end = {.column = 3}},
                   .kind = AddOperator},
@@ -378,7 +378,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 4}, .end = {.column = 5}},
                   .kind = MulOperator},
@@ -390,7 +390,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 6}, .end = {.column = 7}},
                   .kind = DivOperator},
@@ -401,7 +401,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 8}, .end = {.column = 9}},
                   .kind = ModOperator},
@@ -411,7 +411,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 10}, .end = {.column = 12}},
                   .kind = EqOperator},
@@ -422,7 +422,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 13}, .end = {.column = 15}},
                   .kind = NeOperator},
@@ -433,7 +433,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 16}, .end = {.column = 17}},
                   .kind = LtOperator},
@@ -444,7 +444,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 18}, .end = {.column = 19}},
                   .kind = GtOperator},
@@ -455,7 +455,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 20}, .end = {.column = 22}},
                   .kind = LeOperator},
@@ -466,7 +466,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 23}, .end = {.column = 25}},
                   .kind = GeOperator},
@@ -477,7 +477,7 @@ MunitResult tokenize_operators(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = EndOfFileToken,
+              .kind = EndOfFileToken,
               .value.end_of_file = {.span = {.begin = {.column = 25},
                                              .end = {.column = 25}}},
           },
@@ -495,7 +495,7 @@ MunitResult tokenize_variable_definition(const MunitParameter params[],
   NextTokenResult expected = {
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol = {.span.end = {.column = 3},
                                .view = {.data = "f32", .length = 3}},
           },
@@ -505,7 +505,7 @@ MunitResult tokenize_variable_definition(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = SymbolToken,
+              .kind = SymbolToken,
               .value.symbol = {.span = {.begin = {.column = 4},
                                         .end = {.column = 5}},
                                .view = {.data = "x", .length = 1}},
@@ -516,7 +516,7 @@ MunitResult tokenize_variable_definition(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = OperatorToken,
+              .kind = OperatorToken,
               .value.operator= {
                   .span = {.begin = {.column = 6}, .end = {.column = 7}},
                   .kind = AssignOperator},
@@ -527,7 +527,7 @@ MunitResult tokenize_variable_definition(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = IntToken,
+              .kind = IntToken,
               .value.int_ = {.span = {.begin = {.column = 8},
                                       .end = {.column = 10}},
                              .view = {.data = "42", .length = 2}},
@@ -538,7 +538,7 @@ MunitResult tokenize_variable_definition(const MunitParameter params[],
   expected = (NextTokenResult){
       .token =
           {
-              .type = EndOfFileToken,
+              .kind = EndOfFileToken,
               .value.end_of_file = {.span = {.begin = {.column = 10},
                                              .end = {.column = 10}}},
           },

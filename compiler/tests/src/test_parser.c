@@ -1,11 +1,17 @@
+#define YETI_ENABLE_DEFER_MACROS
+
 #include "assertions.h"
 #include "parser.h"
+#include "stack_allocator.h"
 #include "test_suites.h"
 
 MunitResult parse_variable_definition(const MunitParameter params[],
                                       void *user_data_or_fixture) {
-  Cursor cursor = {.input = "f32 x = 3.14"};
-  ParseExpressionResult actual = parse_expression(cursor);
+  StackAllocator stack;
+  stack_allocator_init(&stack, 2 << 7);
+  Allocator allocator = {.allocate = stack_allocate, .state = &stack};
+  Cursor cursor = {.input = "f32 x = 42"};
+  ParseExpressionResult actual = parse_expression(allocator, cursor);
   ParseExpressionResult
       expected =
           {
@@ -25,29 +31,36 @@ MunitResult parse_variable_definition(const MunitParameter params[],
                                          },
                                      .name =
                                          {
-                                             .span = {.begin = {.column = 5},
-                                                      .end = {.column = 6}},
+                                             .span = {.begin = {.column = 4},
+                                                      .end = {.column = 5}},
                                              .view = {.data = "x", .length = 1},
                                          },
-                                     .assign_token = {.begin = {.column = 7},
-                                                      .end = {.column = 8}},
+                                     .assign_token = {.begin = {.column = 6},
+                                                      .end = {.column = 7}},
                                      .value =
                                          &(Expression){
                                              .kind = FloatExpression,
-                                             .value.float_ = {
-                                                  .span = {.begin = {.column = 10},
-                                                            .end = {.column = 13}},
-                                                  .view = {.data = "3.14", .length = 4},
-            },
+                                             .value.float_ = {.span =
+                                                                  {
+                                                                      .begin =
+                                                                          {.column = 8},
+                                                                      .end = {.column =
+                                                                                  10}},
+                                                              .view = {.data =
+                                                                           "3."
+                                                                           "14",
+                                                                       .length =
+                                                                           4}},
                                          }},
                   },
               .cursor =
                   {
                       .input = "",
-                      .position = {.column = 13},
+                      .position = {.column = 10},
                   },
-      };
+          };
   assert_parse_expression_result_equal(expected, actual);
+  stack_allocator_destroy(&stack);
   return MUNIT_OK;
 }
 

@@ -7,6 +7,7 @@ test_executable = executable(
     'src/test_tokenizer.c',
     'src/test_parser.c',
     'src/assertions.c',
+    '../src/stack_allocator.c',
     '../src/tokenizer.c',
     '../src/parser.c'
   ],
@@ -14,7 +15,8 @@ test_executable = executable(
   include_directories : [
     include_directories('include'),
     include_directories('../include'),
-  ]
+  ],
+  c_args : ['-std=c2x']
 )
 
 test('compiler_test', test_executable)

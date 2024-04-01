@@ -80,7 +80,7 @@ typedef enum {
   OperatorToken,
   DelimiterToken,
   EndOfFileToken,
-} TokenType;
+} TokenKind;
 
 typedef union {
   Symbol symbol;
@@ -92,7 +92,7 @@ typedef union {
 } TokenValue;
 
 typedef struct {
-  TokenType type;
+  TokenKind kind;
   TokenValue value;
 } Token;
 

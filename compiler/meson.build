@@ -1,9 +1,11 @@
 project('Compiler', 'c',
-  default_options : ['c_std=c11'])
+  default_options : ['c_std=c2x'])
 
 executable('Compiler',
-  sources : ['src/main.c', 'src/tokenizer.c'],
+  sources : ['src/main.c', 'src/tokenizer.c', 'src/parser.c'],
   include_directories : include_directories('include'),
-  install : true)
+  install : true,
+  c_args : ['-std=c2x']
+  )
 
 subdir('tests')

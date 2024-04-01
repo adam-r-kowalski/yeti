@@ -54,8 +54,8 @@ void assert_end_of_file_equal(EndOfFile expected, EndOfFile actual) {
 }
 
 void assert_token_equal(Token expected, Token actual) {
-  assert_uint32(expected.type, ==, actual.type);
-  switch (expected.type) {
+  assert_uint32(expected.kind, ==, actual.kind);
+  switch (expected.kind) {
   case SymbolToken:
     return assert_symbol_equal(expected.value.symbol, actual.value.symbol);
   case IntToken:
@@ -78,9 +78,16 @@ void assert_token_equal(Token expected, Token actual) {
 
 void assert_next_token_result_equal(NextTokenResult expected,
                                     NextTokenResult actual) {
-  assert_cursor_equal(expected.cursor, actual.cursor);
   assert_token_equal(expected.token, actual.token);
+  assert_cursor_equal(expected.cursor, actual.cursor);
+}
+
+void assert_expression_equal(Expression expected, Expression actual) {
+  assert_uint32(expected.kind, ==, actual.kind);
 }
 
 void assert_parse_expression_result_equal(ParseExpressionResult expected,
-                                          ParseExpressionResult actual) {}
+                                          ParseExpressionResult actual) {
+  assert_expression_equal(expected.expression, actual.expression);
+  assert_cursor_equal(expected.cursor, actual.cursor);
+}
