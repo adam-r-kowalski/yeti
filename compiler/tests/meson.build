@@ -6,6 +6,7 @@ test_executable = executable(
     'src/test_main.c',
     'src/test_tokenizer.c',
     'src/test_parser.c',
+    'src/assertions.c',
     '../src/tokenizer.c',
     '../src/parser.c'
   ],
