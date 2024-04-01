@@ -27,5 +27,9 @@ void assert_token_equal(Token expected, Token actual);
 void assert_next_token_result_equal(NextTokenResult expected,
                                     NextTokenResult actual);
 
+void assert_assign_expression_equal(Assign expected, Assign actual);
+
+void assert_expression_equal(Expression expected, Expression actual);
+
 void assert_parse_expression_result_equal(ParseExpressionResult expected,
                                           ParseExpressionResult actual);

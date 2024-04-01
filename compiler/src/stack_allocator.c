@@ -15,7 +15,6 @@ size_t align_forward_adjustment(const void *address, size_t alignment) {
 }
 
 void *stack_allocate(void *allocator, size_t size, size_t alignment) {
-  printf("\n\n===stack_allocate(size: %zu, alignment: %zu)===\n\n", size, alignment);
   StackAllocator *stack = (StackAllocator *)allocator;
   size_t adjustment = align_forward_adjustment(stack->current_position, alignment);
 
@@ -25,7 +24,7 @@ void *stack_allocate(void *allocator, size_t size, size_t alignment) {
 
   if (spaceLeft < spaceNeeded) {
     // Handle out-of-memory error (e.g., by logging an error or exiting the program)
-    printf("\n\n=== Out of memory ===\n\n");
+    printf("\n\n=== stack allocator out of memory ===\n\n");
     assert(false); // This will now correctly trigger if there isn't enough memory
     return NULL; // It's good practice to return NULL if the allocation fails
   }
@@ -36,7 +35,6 @@ void *stack_allocate(void *allocator, size_t size, size_t alignment) {
 }
 
 void stack_allocator_init(StackAllocator *stack, size_t total_size) {
-  printf("\n\n===stack_allocator_init(total_size: %zu)===\n\n", total_size);
   stack->base =
       (uint8_t *)malloc(total_size); // Allocate the total required memory
   if (stack->base == nullptr) {

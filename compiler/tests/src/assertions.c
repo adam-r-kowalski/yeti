@@ -82,8 +82,25 @@ void assert_next_token_result_equal(NextTokenResult expected,
   assert_cursor_equal(expected.cursor, actual.cursor);
 }
 
+void assert_assign_equal(Assign expected, Assign actual) {
+  assert_expression_equal(*expected.type, *actual.type);
+  assert_symbol_equal(expected.name, actual.name);
+  assert_span_equal(expected.assign_token, actual.assign_token);
+  assert_expression_equal(*expected.value, *actual.value);
+}
+
 void assert_expression_equal(Expression expected, Expression actual) {
   assert_uint32(expected.kind, ==, actual.kind);
+  switch (expected.kind) {
+  case SymbolExpression:
+    return assert_symbol_equal(expected.value.symbol, actual.value.symbol);
+  case IntExpression:
+    return assert_int_equal(expected.value.int_, actual.value.int_);
+  case FloatExpression:
+    return assert_float_equal(expected.value.float_, actual.value.float_);
+  case AssignExpression:
+    return assert_assign_equal(expected.value.assign, actual.value.assign);
+  }
 }
 
 void assert_parse_expression_result_equal(ParseExpressionResult expected,

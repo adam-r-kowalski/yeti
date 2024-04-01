@@ -18,40 +18,36 @@ MunitResult parse_variable_definition(const MunitParameter params[],
               .expression =
                   {
                       .kind = AssignExpression,
-                      .value
-                          .assign = {.type =
-                                         &(Expression){
-                                             .kind = SymbolExpression,
-                                             .value.symbol =
-                                                 {
-                                                     .span = {.end = {.column = 3,
-                                                                      .line = 0}},
-                                                     .view = {.data = "f32", .length = 3},
-                                                 },
-                                         },
-                                     .name =
-                                         {
-                                             .span = {.begin = {.column = 4},
-                                                      .end = {.column = 5}},
-                                             .view = {.data = "x", .length = 1},
-                                         },
-                                     .assign_token = {.begin = {.column = 6},
-                                                      .end = {.column = 7}},
-                                     .value =
-                                         &(Expression){
-                                             .kind = FloatExpression,
-                                             .value.float_ = {.span =
-                                                                  {
-                                                                      .begin =
-                                                                          {.column = 8},
-                                                                      .end = {.column =
-                                                                                  10}},
-                                                              .view = {.data =
-                                                                           "3."
-                                                                           "14",
-                                                                       .length =
-                                                                           4}},
-                                         }},
+                      .value.assign = {.type =
+                                           &(Expression){
+                                               .kind = SymbolExpression,
+                                               .value.symbol =
+                                                   {
+                                                       .span = {.end =
+                                                                    {.column = 3, .line = 0}},
+                                                       .view = {.data = "f32", .length = 3},
+                                                   },
+                                           },
+                                       .name =
+                                           {
+                                               .span = {.begin = {.column = 4},
+                                                        .end = {.column = 5}},
+                                               .view = {.data = "x",
+                                                        .length = 1},
+                                           },
+                                       .assign_token = {.begin = {.column = 6},
+                                                        .end = {.column = 7}},
+                                       .value =
+                                           &(Expression){
+                                               .kind = IntExpression,
+                                               .value.int_ =
+                                                   {
+                                                       .span = {.begin = {.column = 8},
+                                                                .end = {.column = 10}},
+                                                       .view = {.data = "42",
+                                                                .length = 2},
+                                                   },
+                                           }},
                   },
               .cursor =
                   {
