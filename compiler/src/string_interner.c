@@ -2,9 +2,10 @@
 #include <string.h>
 
 uint32_t hash_string(size_t length, const char string[length]) {
-  uint32_t hash = 0;
-  for (size_t i = 0; i < length; i++) {
-    hash = 31 * hash + string[i];
+  uint32_t hash = 2166136261U;
+  while (*string) {
+    hash ^= (uint32_t)(*string++);
+    hash *= 16777619;
   }
   return hash;
 }

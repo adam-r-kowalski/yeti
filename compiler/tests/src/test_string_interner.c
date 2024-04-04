@@ -3,6 +3,19 @@
 #include "string_interner.h"
 #include "test_suites.h"
 
+MunitResult test_intern_and_lookup_example(const MunitParameter params[],
+                                           void *user_data_or_fixture) {
+  StringInterner interner = {0};
+  const char *string = "example";
+  size_t length = strlen(string);
+  InternResult internResult = intern_string(&interner, length, string);
+  assert_int(internResult.status, ==, INTERN_SUCCESS);
+  LookupResult lookupResult = lookup_string(&interner, internResult.interned);
+  assert_int(lookupResult.status, ==, LOOKUP_SUCCESS);
+  assert_string_equal(lookupResult.string, string);
+  return MUNIT_OK;
+}
+
 void random_string(size_t length, char string[MAX_STRING_LENGTH_WITH_NULL]) {
   assert_int(length, <=, MAX_STRING_LENGTH);
   for (size_t i = 0; i < length; i++) {
@@ -64,6 +77,10 @@ MunitTest string_interner_tests[] = {
     {
         .name = "/intern_two_strings_and_retrieve_them",
         .test = intern_two_strings_and_retrieve_them,
+    },
+    {
+        .name = "/test_intern_and_lookup_example",
+        .test = test_intern_and_lookup_example,
     },
     {}};
 
