@@ -5,11 +5,8 @@ test_executable = executable(
   sources : [
     'src/test_main.c',
     'src/test_tokenizer.c',
-    'src/test_parser.c',
-    'src/assertions.c',
-    '../src/stack_allocator.c',
-    '../src/tokenizer.c',
-    '../src/parser.c'
+    'src/test_string_interner.c',
+    '../src/string_interner.c'
   ],
   dependencies : munit_dep,
   include_directories : [

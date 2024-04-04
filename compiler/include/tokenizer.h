@@ -1,7 +1,9 @@
 #pragma once
 
-#include <stddef.h>
+#include "string_interner.h"
 #include <stdint.h>
+
+#define MAX_TOKENS 1024
 
 typedef struct {
   uint32_t line;
@@ -14,23 +16,18 @@ typedef struct {
 } Span;
 
 typedef struct {
-  const char *data;
-  size_t length;
-} StringView;
-
-typedef struct {
   Span span;
-  StringView view;
+  size_t interned;
 } Symbol;
 
 typedef struct {
   Span span;
-  StringView view;
+  size_t interned;
 } Float;
 
 typedef struct {
   Span span;
-  StringView view;
+  size_t interned;
 } Int;
 
 typedef enum {
@@ -71,7 +68,10 @@ typedef struct {
 
 typedef struct {
   Span span;
-} EndOfFile;
+  size_t message;
+  size_t context;
+  size_t hint;
+} Error;
 
 typedef enum {
   SymbolToken,
@@ -79,31 +79,17 @@ typedef enum {
   IntToken,
   OperatorToken,
   DelimiterToken,
-  EndOfFileToken,
+  ErrorToken,
 } TokenKind;
 
-typedef union {
-  Symbol symbol;
-  Float float_;
-  Int int_;
-  Operator operator;
-  Delimiter delimiter;
-  EndOfFile end_of_file;
-} TokenValue;
-
 typedef struct {
-  TokenKind kind;
-  TokenValue value;
-} Token;
+  TokenKind kinds[MAX_TOKENS];
+  Symbol symbols[MAX_TOKENS];
+  Float floats[MAX_TOKENS];
+  Int ints[MAX_TOKENS];
+  Operator operators[MAX_TOKENS];
+  Delimiter delimiters[MAX_TOKENS];
+  Error errors[MAX_TOKENS];
+} Tokens;
 
-typedef struct {
-  Position position;
-  const char *input;
-} Cursor;
-
-typedef struct {
-  Cursor cursor;
-  Token token;
-} NextTokenResult;
-
-NextTokenResult next_token(Cursor cursor);
+Tokens tokenize(char *input);
