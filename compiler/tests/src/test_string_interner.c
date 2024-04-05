@@ -2,11 +2,25 @@
 
 #include "string_interner.h"
 #include "test_suites.h"
+#include <stdio.h>
 
-MunitResult test_intern_and_lookup_example(const MunitParameter params[],
-                                           void *user_data_or_fixture) {
+MunitResult intern_and_lookup_example(const MunitParameter params[],
+                                      void *user_data_or_fixture) {
   StringInterner interner = {0};
   const char *string = "example";
+  size_t length = strlen(string);
+  InternResult internResult = intern_string(&interner, length, string);
+  assert_int(internResult.status, ==, INTERN_SUCCESS);
+  LookupResult lookupResult = lookup_string(&interner, internResult.interned);
+  assert_int(lookupResult.status, ==, LOOKUP_SUCCESS);
+  assert_string_equal(lookupResult.string, string);
+  return MUNIT_OK;
+}
+
+MunitResult intern_and_lookup_empty_string(const MunitParameter params[],
+                                           void *user_data_or_fixture) {
+  StringInterner interner = {0};
+  const char *string = "";
   size_t length = strlen(string);
   InternResult internResult = intern_string(&interner, length, string);
   assert_int(internResult.status, ==, INTERN_SUCCESS);
@@ -69,18 +83,82 @@ MunitResult intern_two_strings_and_retrieve_them(const MunitParameter params[],
   return MUNIT_OK;
 }
 
+MunitResult intern_till_capacity(const MunitParameter params[],
+                                 void *user_data_or_fixture) {
+  StringInterner interner = {0};
+  char pattern[] = "string_%d";
+  char strings[MAX_STRINGS][MAX_STRING_LENGTH_WITH_NULL];
+  Interned interned[MAX_STRINGS];
+  for (size_t i = 0; i < MAX_STRINGS; i++) {
+    char *string = strings[i];
+    snprintf(string, MAX_STRING_LENGTH_WITH_NULL, pattern, i);
+    InternResult result = intern_string(&interner, strlen(string), string);
+    assert_int(result.status, ==, INTERN_SUCCESS);
+    interned[i] = result.interned;
+  }
+  for (size_t i = 0; i < MAX_STRINGS; i++) {
+    LookupResult result = lookup_string(&interner, interned[i]);
+    assert_int(result.status, ==, LOOKUP_SUCCESS);
+    assert_string_equal(result.string, strings[i]);
+  }
+  char string[MAX_STRING_LENGTH_WITH_NULL];
+  snprintf(string, MAX_STRING_LENGTH_WITH_NULL, pattern, MAX_STRINGS);
+  InternResult result = intern_string(&interner, strlen(string), string);
+  assert_int(result.status, ==, INTERN_ERROR_FULL);
+  return MUNIT_OK;
+}
+
+MunitResult intern_string_which_is_too_long(const MunitParameter params[],
+                                            void *user_data_or_fixture) {
+  StringInterner interner = {0};
+  size_t length = MAX_STRING_LENGTH + 1;
+  char string[length + 1];
+  for (size_t i = 0; i < length; i++) {
+    string[i] = munit_rand_int_range(' ', '~');
+  }
+  string[length] = '\0';
+  InternResult result = intern_string(&interner, length, string);
+  assert_int(result.status, ==, INTERN_ERROR_TOO_LONG);
+  return MUNIT_OK;
+}
+
+MunitResult lookup_string_which_is_not_there(const MunitParameter params[],
+                                             void *user_data_or_fixture) {
+  StringInterner interner = {0};
+  Interned interned = {.index = 0};
+  LookupResult lookupResult = lookup_string(&interner, interned);
+  assert_int(lookupResult.status, ==, LOOKUP_ERROR_NOT_FOUND);
+  return MUNIT_OK;
+}
+
 MunitTest string_interner_tests[] = {
+    {
+        .name = "/intern_and_lookup_example",
+        .test = intern_and_lookup_example,
+    },
     {
         .name = "/intern_string_and_retreive_it",
         .test = intern_string_and_retrieve_it,
+    },
+    {
+        .name = "/intern_and_lookup_empty_string",
+        .test = intern_and_lookup_empty_string,
     },
     {
         .name = "/intern_two_strings_and_retrieve_them",
         .test = intern_two_strings_and_retrieve_them,
     },
     {
-        .name = "/test_intern_and_lookup_example",
-        .test = test_intern_and_lookup_example,
+        .name = "/intern_till_capacity",
+        .test = intern_till_capacity,
+    },
+    {
+        .name = "/intern_string_which_is_too_long",
+        .test = intern_string_which_is_too_long,
+    },
+    {
+        .name = "/lookup_string_which_is_not_there",
+        .test = lookup_string_which_is_not_there,
     },
     {}};
 
