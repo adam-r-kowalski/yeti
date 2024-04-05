@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define MAX_STRINGS 1024
-#define MAX_STRING_LENGTH 1024
+#define MAX_STRING_LENGTH 100
 #define MAX_STRING_LENGTH_WITH_NULL (MAX_STRING_LENGTH + 1)
 
 typedef struct {

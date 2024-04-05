@@ -45,21 +45,21 @@ Interned intern_random_string(StringInterner *interner, size_t length,
   return result.interned;
 }
 
-MunitResult intern_string_and_retrieve_it(const MunitParameter params[],
-                                          void *user_data_or_fixture) {
+MunitResult intern_string_and_lookup(const MunitParameter params[],
+                                     void *user_data_or_fixture) {
   StringInterner interner = {0};
   char string[MAX_STRING_LENGTH_WITH_NULL];
   size_t length = munit_rand_int_range(1, MAX_STRING_LENGTH);
   random_string(length, string);
   Interned interned = intern_random_string(&interner, length, string);
-  LookupResult retrieved = lookup_string(&interner, interned);
-  assert_int(retrieved.status, ==, LOOKUP_SUCCESS);
-  assert_string_equal(retrieved.string, string);
+  LookupResult lookup = lookup_string(&interner, interned);
+  assert_int(lookup.status, ==, LOOKUP_SUCCESS);
+  assert_string_equal(lookup.string, string);
   return MUNIT_OK;
 }
 
-MunitResult intern_two_strings_and_retrieve_them(const MunitParameter params[],
-                                                 void *user_data_or_fixture) {
+MunitResult intern_two_strings_and_lookup(const MunitParameter params[],
+                                          void *user_data_or_fixture) {
   StringInterner interner = {0};
   char first_string[MAX_STRING_LENGTH_WITH_NULL];
   char second_string[MAX_STRING_LENGTH_WITH_NULL];
@@ -74,12 +74,12 @@ MunitResult intern_two_strings_and_retrieve_them(const MunitParameter params[],
       intern_random_string(&interner, first_length, first_string);
   Interned second_interned =
       intern_random_string(&interner, second_length, second_string);
-  LookupResult first_retrieved = lookup_string(&interner, first_interned);
-  LookupResult second_retrieved = lookup_string(&interner, second_interned);
-  assert_int(first_retrieved.status, ==, LOOKUP_SUCCESS);
-  assert_int(second_retrieved.status, ==, LOOKUP_SUCCESS);
-  assert_string_equal(first_retrieved.string, first_string);
-  assert_string_equal(second_retrieved.string, second_string);
+  LookupResult first_lookup = lookup_string(&interner, first_interned);
+  LookupResult second_lookup = lookup_string(&interner, second_interned);
+  assert_int(first_lookup.status, ==, LOOKUP_SUCCESS);
+  assert_int(second_lookup.status, ==, LOOKUP_SUCCESS);
+  assert_string_equal(first_lookup.string, first_string);
+  assert_string_equal(second_lookup.string, second_string);
   return MUNIT_OK;
 }
 
@@ -125,9 +125,28 @@ MunitResult intern_string_which_is_too_long(const MunitParameter params[],
 MunitResult lookup_string_which_is_not_there(const MunitParameter params[],
                                              void *user_data_or_fixture) {
   StringInterner interner = {0};
-  Interned interned = {.index = 0};
+  size_t index = 0;
+  assert_int(interner.occupied[index], ==, false);
+  Interned interned = {.index = index};
   LookupResult lookupResult = lookup_string(&interner, interned);
   assert_int(lookupResult.status, ==, LOOKUP_ERROR_NOT_FOUND);
+  return MUNIT_OK;
+}
+
+MunitResult intern_same_string_twice(const MunitParameter params[],
+                                     void *user_data_or_fixture) {
+  StringInterner interner = {0};
+  char string[MAX_STRING_LENGTH_WITH_NULL];
+  size_t length = munit_rand_int_range(1, MAX_STRING_LENGTH);
+  random_string(length, string);
+  Interned interned = intern_random_string(&interner, length, string);
+  LookupResult lookup = lookup_string(&interner, interned);
+  assert_int(lookup.status, ==, LOOKUP_SUCCESS);
+  assert_string_equal(lookup.string, string);
+  interned = intern_random_string(&interner, length, string);
+  lookup = lookup_string(&interner, interned);
+  assert_int(lookup.status, ==, LOOKUP_SUCCESS);
+  assert_string_equal(lookup.string, string);
   return MUNIT_OK;
 }
 
@@ -137,16 +156,16 @@ MunitTest string_interner_tests[] = {
         .test = intern_and_lookup_example,
     },
     {
-        .name = "/intern_string_and_retreive_it",
-        .test = intern_string_and_retrieve_it,
+        .name = "/intern_string_and_lookup",
+        .test = intern_string_and_lookup,
     },
     {
         .name = "/intern_and_lookup_empty_string",
         .test = intern_and_lookup_empty_string,
     },
     {
-        .name = "/intern_two_strings_and_retrieve_them",
-        .test = intern_two_strings_and_retrieve_them,
+        .name = "/intern_two_strings_and_lookup",
+        .test = intern_two_strings_and_lookup,
     },
     {
         .name = "/intern_till_capacity",
@@ -159,6 +178,10 @@ MunitTest string_interner_tests[] = {
     {
         .name = "/lookup_string_which_is_not_there",
         .test = lookup_string_which_is_not_there,
+    },
+    {
+        .name = "/intern_same_string_twice",
+        .test = intern_same_string_twice,
     },
     {}};
 
